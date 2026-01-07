@@ -1,16 +1,9 @@
 {
-  "version": 2,
-  "cleanUrls": true,
-  "functions": {
-    "api/*.js": {
-      "maxDuration": 10
-    }
-  },
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1.js" },
-    { "source": "/api/paypal-webhook", "destination": "/api/paypal-webhook.js" }
-  ],
-  "crons": [
-    { "path": "/api/refill-tokens", "schedule": "0 0 1 * *" }
-  ]
+  "name": "itzhoyoo-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "firebase": "^11.4.0",
+    "firebase-admin": "^12.0.0"
+  }
 }
