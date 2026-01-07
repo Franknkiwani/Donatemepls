@@ -154,6 +154,7 @@
     </div>
 
     <script src="https://www.paypal.com/sdk/js?client-id=AQlRInnmKjWmwHMNBE-z6za2NcSqhfaj3vD9x_AoQEoeVVtOxqvfjtGN9ixSVARi0IT9vhPeLo3AxwC5&vault=true&intent=subscription"></script>
+    <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&vault=true&intent=subscription"></script>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
@@ -172,6 +173,9 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
     const IMGUR_ID = "891e5bb4aa94282";
+    
+    // --- PAYPAL PLAN CONFIG ---
+    const PLAN_ID = 'P-47S21200XM2944742NFPLPEA';
 
     const presets = [
         "https://img.pikbest.com/origin/10/25/30/74apIkbEsT5qB.jpg!w700wp",
@@ -182,20 +186,21 @@
     window.notify = (msg) => {
         const t = document.createElement('div');
         t.className = 'toast show'; t.innerText = msg;
-        document.getElementById('notify-box').appendChild(t);
+        const box = document.getElementById('notify-box');
+        if(box) box.appendChild(t);
         setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000);
     };
 
-    // --- THEME ---
     window.setTheme = (theme) => {
         document.body.className = theme;
         localStorage.setItem('user-theme', theme);
         document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
-        if(document.getElementById(`btn-${theme}`)) document.getElementById(`btn-${theme}`).classList.add('active');
+        const activeBtn = document.getElementById(`btn-${theme}`);
+        if(activeBtn) activeBtn.classList.add('active');
     };
     setTheme(localStorage.getItem('user-theme') || 'theme-dark');
 
-    // --- AUTH ---
+    // --- AUTH LOGIC ---
     window.openAuthModal = () => document.getElementById('auth-modal').classList.remove('hidden');
     window.closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
     window.authTab = 'login';
@@ -205,6 +210,7 @@
         document.getElementById('tab-login').className = tab === 'login' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
         document.getElementById('tab-register').className = tab === 'register' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
     };
+
     window.handleAuthSubmit = async () => {
         const email = document.getElementById('auth-email').value;
         const pass = document.getElementById('auth-pass').value;
@@ -221,24 +227,9 @@
     window.handleLogout = () => signOut(auth).then(() => location.reload());
 
     // --- PROFILE ---
-    const grid = document.getElementById('avatar-grid');
-    if(grid) {
-        presets.forEach(url => {
-            const img = document.createElement('img');
-            img.src = url;
-            img.className = "avatar-option w-full aspect-square object-cover rounded-xl cursor-pointer";
-            img.onclick = () => { 
-                window.tempAvatar = url; 
-                document.getElementById('modal-preview-img').src = url;
-                document.querySelectorAll('.avatar-option').forEach(el => el.classList.remove('selected'));
-                img.classList.add('selected');
-            };
-            grid.prepend(img);
-        });
-    }
-
     window.saveProfileChanges = async () => {
         const user = auth.currentUser;
+        if(!user) return;
         const newName = document.getElementById('username-input').value.trim();
         const snap = await get(ref(db, `users/${user.uid}`));
         const data = snap.val() || {};
@@ -257,54 +248,60 @@
         notify("Saved!"); closeProfile();
     };
 
-    window.checkPremiumAndUpload = async () => {
-        const snap = await get(ref(db, `users/${auth.currentUser.uid}/isPremium`));
-        if (!snap.val()) return notify("PRO required!");
-        document.getElementById('pfp-upload').click();
-    };
+    // --- PAYPAL (PRO PLAN) ---
+    function initPayPal() {
+        // IMPORTANT: In your HTML, change id="paypal-button-container-PRO" 
+        // to id="paypal-button-container-P-47S21200XM2944742NFPLPEA"
+        const containerId = `paypal-button-container-${PLAN_ID}`;
+        const container = document.getElementById(containerId);
+        
+        // If the container is missing, try the fallback ID "paypal-button-container-PRO"
+        const fallbackContainer = document.getElementById('paypal-button-container-PRO');
+        const target = container || fallbackContainer;
 
-    document.getElementById('pfp-upload')?.addEventListener('change', async (e) => {
-        const file = e.target.files[0]; if(!file) return;
-        const fd = new FormData(); fd.append('image', file);
-        notify("Uploading...");
-        const res = await fetch("https://api.imgur.com/3/image", {
-            method: "POST", headers: { Authorization: `Client-ID ${IMGUR_ID}` }, body: fd
-        });
-        const d = await res.json();
-        if(d.success) {
-            window.tempAvatar = d.data.link;
-            document.getElementById('modal-preview-img').src = d.data.link;
-            notify("Ready!");
-        }
-    });
+        if (!window.paypal || !target || target.hasChildNodes()) return;
 
-    // --- MODALS ---
+        window.paypal.Buttons({
+            style: { shape: 'pill', color: 'gold', layout: 'vertical', label: 'subscribe' },
+            createSubscription: (data, actions) => {
+                return actions.subscription.create({ 
+                    plan_id: PLAN_ID,
+                    custom_id: auth.currentUser.uid 
+                });
+            },
+            onApprove: async (data) => {
+                await update(ref(db, `users/${auth.currentUser.uid}`), { isPremium: true, tokens: 20 });
+                notify("Welcome to PRO!"); 
+                closeUpgradeModal();
+            }
+        }).render(target);
+    }
+
+    // --- MODAL CONTROLS ---
     window.openProfile = () => document.getElementById('profile-modal').classList.remove('hidden');
     window.closeProfile = () => document.getElementById('profile-modal').classList.add('hidden');
-    window.openUpgradeModal = () => document.getElementById('upgrade-modal').classList.remove('hidden');
+    window.openUpgradeModal = () => {
+        document.getElementById('upgrade-modal').classList.remove('hidden');
+        setTimeout(initPayPal, 100); // Tiny delay to ensure modal is visible
+    };
     window.closeUpgradeModal = () => document.getElementById('upgrade-modal').classList.add('hidden');
 
-    // --- PAYPAL ---
-    paypal.Buttons({
-        style: { shape: 'pill', color: 'gold', layout: 'vertical' },
-        createSubscription: (data, actions) => {
-            return actions.subscription.create({ 
-                // Ensure this is your LIVE Plan ID from the PayPal Dashboard
-                plan_id: 'P-44912294AR130521NNFO7DPY',
-                /* LIVE CONFIGURATION
-                   Client ID: AdgA3AUZB2ZRXP35...GNpK
-                   Webhook Target: https://donatemepls.vercel.app/api/paypal-webhook
-                */
-                custom_id: auth.currentUser.uid 
-            });
-        },
-        onApprove: async (data) => {
-            // Client-side instant update for better UX. 
-            // The Webhook will also confirm this in the background.
-            await update(ref(db, `users/${auth.currentUser.uid}`), { isPremium: true, tokens: 20 });
-            notify("Welcome to PRO!"); closeUpgradeModal();
-        }
-    }).render('#paypal-button-container-PRO');
+    // --- INITIALIZE AVATAR GRID ---
+    const grid = document.getElementById('avatar-grid');
+    if(grid) {
+        presets.forEach(url => {
+            const img = document.createElement('img');
+            img.src = url;
+            img.className = "avatar-option w-full aspect-square object-cover rounded-xl cursor-pointer";
+            img.onclick = () => { 
+                window.tempAvatar = url; 
+                document.getElementById('modal-preview-img').src = url;
+                document.querySelectorAll('.avatar-option').forEach(el => el.classList.remove('selected'));
+                img.classList.add('selected');
+            };
+            grid.prepend(img);
+        });
+    }
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -323,12 +320,30 @@
                 document.getElementById('modal-preview-img').src = avatar;
                 document.getElementById('pro-pfp-preview').src = avatar;
                 if(d.isPremium) document.getElementById('header-verified').classList.remove('hidden');
-                const count = (d.nameChanges || []).length;
-                document.getElementById('name-cooldown-text').innerText = d.isPremium ? "Unlimited changes" : `${2 - count} changes left`;
             });
         }
     });
+
     lucide.createIcons();
+    window.checkPremiumAndUpload = async () => {
+    const user = auth.currentUser;
+    if (!user) return notify("Please login first");
+
+    // Get the user's premium status from the database
+    const snap = await get(ref(db, `users/${user.uid}/isPremium`));
+    const isPremium = snap.val();
+
+    if (isPremium) {
+        // User is PRO: Allow them to upload
+        document.getElementById('pfp-upload').click();
+    } else {
+        // User is NOT PRO: Close profile and show upgrade modal
+        notify("PRO required for custom uploads!");
+        closeProfile(); // Close profile modal so it's not messy
+        openUpgradeModal(); // Trigger the PayPal modal
+    }
+};
+
 </script>
 
 </body>
