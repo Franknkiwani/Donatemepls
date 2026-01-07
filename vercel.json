@@ -1,19 +1,16 @@
 {
+  "version": 2,
+  "cleanUrls": true,
   "functions": {
     "api/*.js": {
-      "runtime": "nodejs18.x"
+      "maxDuration": 10
     }
   },
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    }
+    { "source": "/api/(.*)", "destination": "/api/$1.js" },
+    { "source": "/api/paypal-webhook", "destination": "/api/paypal-webhook.js" }
   ],
   "crons": [
-    {
-      "path": "/api/refill-tokens",
-      "schedule": "0 0 1 * *"
-    }
+    { "path": "/api/refill-tokens", "schedule": "0 0 1 * *" }
   ]
 }
