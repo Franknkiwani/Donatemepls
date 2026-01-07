@@ -155,73 +155,74 @@
 
     <script src="https://www.paypal.com/sdk/js?client-id=AQlRInnmKjWmwHMNBE-z6za2NcSqhfaj3vD9x_AoQEoeVVtOxqvfjtGN9ixSVARi0IT9vhPeLo3AxwC5&vault=true&intent=subscription"></script>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
-        import { getDatabase, ref, update, onValue, get, set } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
+    import { getDatabase, ref, update, onValue, get, set } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyDFHskUWiyHhZke3KT9kkOtFI_gPsKfiGo",
-            authDomain: "itzhoyoo-f9f7e.firebaseapp.com",
-            databaseURL: "https://itzhoyoo-f9f7e-default-rtdb.firebaseio.com",
-            projectId: "itzhoyoo-f9f7e",
-            appId: "1:1094792075584:web:d49e9c3f899d3cd31082a5"
-        };
+    const firebaseConfig = {
+        apiKey: "AIzaSyDFHskUWiyHhZke3KT9kkOtFI_gPsKfiGo",
+        authDomain: "itzhoyoo-f9f7e.firebaseapp.com",
+        databaseURL: "https://itzhoyoo-f9f7e-default-rtdb.firebaseio.com",
+        projectId: "itzhoyoo-f9f7e",
+        appId: "1:1094792075584:web:d49e9c3f899d3cd31082a5"
+    };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getDatabase(app);
-        const IMGUR_ID = "891e5bb4aa94282";
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+    const IMGUR_ID = "891e5bb4aa94282";
 
-        const presets = [
-            "https://img.pikbest.com/origin/10/25/30/74apIkbEsT5qB.jpg!w700wp",
-            "https://thumbs.dreamstime.com/b/cool-neon-party-wolf-headphones-black-background-colorful-illustration-music-theme-modern-portrait-bright-vibrant-385601082.jpg",
-            "https://wallpapers.com/images/hd/gaming-profile-pictures-tt8bbzdcf6zibhoi.jpg"
-        ];
+    const presets = [
+        "https://img.pikbest.com/origin/10/25/30/74apIkbEsT5qB.jpg!w700wp",
+        "https://thumbs.dreamstime.com/b/cool-neon-party-wolf-headphones-black-background-colorful-illustration-music-theme-modern-portrait-bright-vibrant-385601082.jpg",
+        "https://wallpapers.com/images/hd/gaming-profile-pictures-tt8bbzdcf6zibhoi.jpg"
+    ];
 
-        window.notify = (msg) => {
-            const t = document.createElement('div');
-            t.className = 'toast show'; t.innerText = msg;
-            document.getElementById('notify-box').appendChild(t);
-            setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000);
-        };
+    window.notify = (msg) => {
+        const t = document.createElement('div');
+        t.className = 'toast show'; t.innerText = msg;
+        document.getElementById('notify-box').appendChild(t);
+        setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000);
+    };
 
-        // --- THEME ---
-        window.setTheme = (theme) => {
-            document.body.className = theme;
-            localStorage.setItem('user-theme', theme);
-            document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(`btn-${theme}`).classList.add('active');
-        };
-        setTheme(localStorage.getItem('user-theme') || 'theme-dark');
+    // --- THEME ---
+    window.setTheme = (theme) => {
+        document.body.className = theme;
+        localStorage.setItem('user-theme', theme);
+        document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+        if(document.getElementById(`btn-${theme}`)) document.getElementById(`btn-${theme}`).classList.add('active');
+    };
+    setTheme(localStorage.getItem('user-theme') || 'theme-dark');
 
-        // --- AUTH ---
-        window.openAuthModal = () => document.getElementById('auth-modal').classList.remove('hidden');
-        window.closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
-        window.authTab = 'login';
-        window.setAuthTab = (tab) => {
-            window.authTab = tab;
-            document.getElementById('reg-name-field').classList.toggle('hidden', tab === 'login');
-            document.getElementById('tab-login').className = tab === 'login' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
-            document.getElementById('tab-register').className = tab === 'register' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
-        };
-        window.handleAuthSubmit = async () => {
-            const email = document.getElementById('auth-email').value;
-            const pass = document.getElementById('auth-pass').value;
-            try {
-                if (window.authTab === 'register') {
-                    const handle = document.getElementById('auth-username').value.trim();
-                    const res = await createUserWithEmailAndPassword(auth, email, pass);
-                    await set(ref(db, `users/${res.user.uid}`), { username: handle, tokens: 0, isPremium: false });
-                } else { await signInWithEmailAndPassword(auth, email, pass); }
-                closeAuthModal();
-            } catch(e) { notify(e.message); }
-        };
-        window.triggerGoogle = () => signInWithPopup(auth, new GoogleAuthProvider()).then(closeAuthModal);
-        window.handleLogout = () => signOut(auth).then(() => location.reload());
+    // --- AUTH ---
+    window.openAuthModal = () => document.getElementById('auth-modal').classList.remove('hidden');
+    window.closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
+    window.authTab = 'login';
+    window.setAuthTab = (tab) => {
+        window.authTab = tab;
+        document.getElementById('reg-name-field').classList.toggle('hidden', tab === 'login');
+        document.getElementById('tab-login').className = tab === 'login' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
+        document.getElementById('tab-register').className = tab === 'register' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
+    };
+    window.handleAuthSubmit = async () => {
+        const email = document.getElementById('auth-email').value;
+        const pass = document.getElementById('auth-pass').value;
+        try {
+            if (window.authTab === 'register') {
+                const handle = document.getElementById('auth-username').value.trim();
+                const res = await createUserWithEmailAndPassword(auth, email, pass);
+                await set(ref(db, `users/${res.user.uid}`), { username: handle, tokens: 0, isPremium: false });
+            } else { await signInWithEmailAndPassword(auth, email, pass); }
+            closeAuthModal();
+        } catch(e) { notify(e.message); }
+    };
+    window.triggerGoogle = () => signInWithPopup(auth, new GoogleAuthProvider()).then(closeAuthModal);
+    window.handleLogout = () => signOut(auth).then(() => location.reload());
 
-        // --- PROFILE ---
-        const grid = document.getElementById('avatar-grid');
+    // --- PROFILE ---
+    const grid = document.getElementById('avatar-grid');
+    if(grid) {
         presets.forEach(url => {
             const img = document.createElement('img');
             img.src = url;
@@ -234,96 +235,101 @@
             };
             grid.prepend(img);
         });
+    }
 
-        window.saveProfileChanges = async () => {
-            const user = auth.currentUser;
-            const newName = document.getElementById('username-input').value.trim();
-            const snap = await get(ref(db, `users/${user.uid}`));
-            const data = snap.val() || {};
-            let updates = {};
-            if (window.tempAvatar) updates.avatar = window.tempAvatar;
-            if (newName && newName !== data.username) {
-                const now = Date.now();
-                const week = 7 * 24 * 60 * 60 * 1000;
-                let history = (data.nameChanges || []).filter(t => (now - t) < week);
-                if (!data.isPremium && history.length >= 2) return notify("Cooldown: 2 per week!");
-                updates.username = newName;
-                history.push(now);
-                updates.nameChanges = history;
-            }
-            await update(ref(db, `users/${user.uid}`), updates);
-            notify("Saved!"); closeProfile();
-        };
+    window.saveProfileChanges = async () => {
+        const user = auth.currentUser;
+        const newName = document.getElementById('username-input').value.trim();
+        const snap = await get(ref(db, `users/${user.uid}`));
+        const data = snap.val() || {};
+        let updates = {};
+        if (window.tempAvatar) updates.avatar = window.tempAvatar;
+        if (newName && newName !== data.username) {
+            const now = Date.now();
+            const week = 7 * 24 * 60 * 60 * 1000;
+            let history = (data.nameChanges || []).filter(t => (now - t) < week);
+            if (!data.isPremium && history.length >= 2) return notify("Cooldown: 2 per week!");
+            updates.username = newName;
+            history.push(now);
+            updates.nameChanges = history;
+        }
+        await update(ref(db, `users/${user.uid}`), updates);
+        notify("Saved!"); closeProfile();
+    };
 
-        window.checkPremiumAndUpload = async () => {
-            const snap = await get(ref(db, `users/${auth.currentUser.uid}/isPremium`));
-            if (!snap.val()) return notify("PRO required!");
-            document.getElementById('pfp-upload').click();
-        };
+    window.checkPremiumAndUpload = async () => {
+        const snap = await get(ref(db, `users/${auth.currentUser.uid}/isPremium`));
+        if (!snap.val()) return notify("PRO required!");
+        document.getElementById('pfp-upload').click();
+    };
 
-        document.getElementById('pfp-upload').addEventListener('change', async (e) => {
-            const file = e.target.files[0]; if(!file) return;
-            const fd = new FormData(); fd.append('image', file);
-            notify("Uploading...");
-            const res = await fetch("https://api.imgur.com/3/image", {
-                method: "POST", headers: { Authorization: `Client-ID ${IMGUR_ID}` }, body: fd
+    document.getElementById('pfp-upload')?.addEventListener('change', async (e) => {
+        const file = e.target.files[0]; if(!file) return;
+        const fd = new FormData(); fd.append('image', file);
+        notify("Uploading...");
+        const res = await fetch("https://api.imgur.com/3/image", {
+            method: "POST", headers: { Authorization: `Client-ID ${IMGUR_ID}` }, body: fd
+        });
+        const d = await res.json();
+        if(d.success) {
+            window.tempAvatar = d.data.link;
+            document.getElementById('modal-preview-img').src = d.data.link;
+            notify("Ready!");
+        }
+    });
+
+    // --- MODALS ---
+    window.openProfile = () => document.getElementById('profile-modal').classList.remove('hidden');
+    window.closeProfile = () => document.getElementById('profile-modal').classList.add('hidden');
+    window.openUpgradeModal = () => document.getElementById('upgrade-modal').classList.remove('hidden');
+    window.closeUpgradeModal = () => document.getElementById('upgrade-modal').classList.add('hidden');
+
+    // --- PAYPAL ---
+    paypal.Buttons({
+        style: { shape: 'pill', color: 'gold', layout: 'vertical' },
+        createSubscription: (data, actions) => {
+            return actions.subscription.create({ 
+                // Ensure this is your LIVE Plan ID from the PayPal Dashboard
+                plan_id: 'P-44912294AR130521NNFO7DPY',
+                /* LIVE CONFIGURATION
+                   Client ID: AdgA3AUZB2ZRXP35...GNpK
+                   Webhook Target: https://donatemepls.vercel.app/api/paypal-webhook
+                */
+                custom_id: auth.currentUser.uid 
             });
-            const d = await res.json();
-            if(d.success) {
-                window.tempAvatar = d.data.link;
-                document.getElementById('modal-preview-img').src = d.data.link;
-                notify("Ready!");
-            }
-        });
+        },
+        onApprove: async (data) => {
+            // Client-side instant update for better UX. 
+            // The Webhook will also confirm this in the background.
+            await update(ref(db, `users/${auth.currentUser.uid}`), { isPremium: true, tokens: 20 });
+            notify("Welcome to PRO!"); closeUpgradeModal();
+        }
+    }).render('#paypal-button-container-PRO');
 
-        // --- MODALS ---
-        window.openProfile = () => document.getElementById('profile-modal').classList.remove('hidden');
-        window.closeProfile = () => document.getElementById('profile-modal').classList.add('hidden');
-        window.openUpgradeModal = () => document.getElementById('upgrade-modal').classList.remove('hidden');
-        window.closeUpgradeModal = () => document.getElementById('upgrade-modal').classList.add('hidden');
-
-        // --- PAYPAL ---
-        paypal.Buttons({
-            style: { shape: 'pill', color: 'gold', layout: 'vertical' },
-            createSubscription: (data, actions) => {
-                return actions.subscription.create({ 
-                    plan_id: 'P-44912294AR130521NNFO7DPY',
-                    /* WEBHOOK INTEGRATION: 2LS03487TW760160K
-                       This sends the user UID so the webhook knows who to upgrade */
-                    custom_id: auth.currentUser.uid 
-                });
-            },
-            onApprove: async (data) => {
-                // Client-side instant update for better UX
-                await update(ref(db, `users/${auth.currentUser.uid}`), { isPremium: true, tokens: 20 });
-                notify("Welcome to PRO!"); closeUpgradeModal();
-            }
-        }).render('#paypal-button-container-PRO');
-
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                document.getElementById('user-tools').classList.remove('hidden');
-                document.getElementById('login-btn').classList.add('hidden');
-                onValue(ref(db, `users/${user.uid}`), (s) => {
-                    const d = s.val() || {};
-                    const name = d.username || "User";
-                    document.getElementById('header-handle').innerText = `@${name}`;
-                    document.getElementById('username-input').value = name;
-                    document.getElementById('pro-name-preview').innerText = name;
-                    const avatar = d.avatar || presets[0];
-                    document.getElementById('header-pfp').src = avatar;
-                    document.getElementById('header-pfp').classList.remove('hidden');
-                    document.getElementById('header-initial').classList.add('hidden');
-                    document.getElementById('modal-preview-img').src = avatar;
-                    document.getElementById('pro-pfp-preview').src = avatar;
-                    if(d.isPremium) document.getElementById('header-verified').classList.remove('hidden');
-                    const count = (d.nameChanges || []).length;
-                    document.getElementById('name-cooldown-text').innerText = d.isPremium ? "Unlimited changes" : `${2 - count} changes left`;
-                });
-            }
-        });
-        lucide.createIcons();
-    </script>
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            document.getElementById('user-tools').classList.remove('hidden');
+            document.getElementById('login-btn').classList.add('hidden');
+            onValue(ref(db, `users/${user.uid}`), (s) => {
+                const d = s.val() || {};
+                const name = d.username || "User";
+                document.getElementById('header-handle').innerText = `@${name}`;
+                document.getElementById('username-input').value = name;
+                document.getElementById('pro-name-preview').innerText = name;
+                const avatar = d.avatar || presets[0];
+                document.getElementById('header-pfp').src = avatar;
+                document.getElementById('header-pfp').classList.remove('hidden');
+                document.getElementById('header-initial').classList.add('hidden');
+                document.getElementById('modal-preview-img').src = avatar;
+                document.getElementById('pro-pfp-preview').src = avatar;
+                if(d.isPremium) document.getElementById('header-verified').classList.remove('hidden');
+                const count = (d.nameChanges || []).length;
+                document.getElementById('name-cooldown-text').innerText = d.isPremium ? "Unlimited changes" : `${2 - count} changes left`;
+            });
+        }
+    });
+    lucide.createIcons();
+</script>
 
 </body>
 </html>
