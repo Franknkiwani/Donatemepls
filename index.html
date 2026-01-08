@@ -91,6 +91,11 @@
 
     .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+.stop-scrolling {
+    height: 100vh;
+    overflow: hidden;
+}
+
 </style>
 
 </head>
@@ -438,7 +443,26 @@
             <img id="donate-target-img" src="" class="w-20 h-20 rounded-full mx-auto border-4 border-emerald-500 shadow-lg mb-4 object-cover">
             <h2 id="donate-target-name-display" class="text-xl font-black uppercase text-white">@User</h2>
             <p class="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Support this member</p>
-            
+
+            <div id="stats-glass-card" class="mt-6 p-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md relative overflow-hidden">
+                <div class="flex justify-around items-center">
+                    <div class="text-center">
+                        <span class="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Total Raised</span>
+                        <span id="stat-raised-val" class="text-emerald-500 font-black text-sm">0</span>
+                    </div>
+                    <div class="w-px h-6 bg-white/10"></div>
+                    <div class="text-center">
+                        <span class="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Supporters</span>
+                        <span id="stat-donors-val" class="text-amber-500 font-black text-sm">0</span>
+                    </div>
+                </div>
+
+                <div id="stats-premium-lock" class="hidden absolute inset-0 bg-black/40 backdrop-blur-md flex items-center justify-center">
+                    <div class="bg-amber-500 text-black px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter flex items-center gap-1 shadow-lg shadow-amber-500/20">
+                        <i data-lucide="crown" class="w-2.5 h-2.5"></i> Premium Only
+                    </div>
+                </div>
+            </div>
             <div class="mt-8 space-y-4">
                 <div class="relative">
                     <input type="number" id="donate-input-amount" placeholder="0.00" 
@@ -460,6 +484,86 @@
     </div>
 </div>
 
+<div id="donation-success-modal" class="hidden fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-xs rounded-[40px] overflow-hidden shadow-2xl transform transition-all scale-100">
+        <div class="bg-emerald-500 p-8 text-center relative">
+            <div class="absolute -bottom-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-emerald-500">
+                <i data-lucide="check" class="text-emerald-500 w-6 h-6"></i>
+            </div>
+            <h2 class="text-black text-2xl font-black uppercase italic tracking-tighter">Sent!</h2>
+        </div>
+        
+        <div class="p-8 pt-10 text-center">
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Transaction Complete</p>
+            <div class="flex items-center justify-center gap-2 mb-6">
+                <span id="success-net-amount" class="text-4xl font-black text-white">0</span>
+                <span class="text-xs font-bold text-emerald-500 uppercase tracking-widest mt-2">Tokens</span>
+            </div>
+
+            <div class="space-y-3 border-t border-white/5 pt-6 mb-8">
+                <div class="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                    <span class="text-zinc-500">Total Charged</span>
+                    <span id="success-gross-amount" class="text-white">0</span>
+                </div>
+                <div class="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                    <span class="text-zinc-500">Platform Fee</span>
+                    <span id="success-fee-amount" class="text-amber-500">0</span>
+                </div>
+            </div>
+
+            <button onclick="closeSuccessModal()" class="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white/10 transition-all">
+                Back to Discovery
+            </button>
+        </div>
+    </div>
+</div>
+<div id="error-modal" class="hidden fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-xs rounded-[40px] overflow-hidden shadow-2xl">
+        <div class="bg-red-500 p-8 text-center relative">
+            <div class="absolute -bottom-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-red-500">
+                <i data-lucide="shield-alert" class="text-red-500 w-6 h-6"></i>
+            </div>
+            <h2 class="text-white text-xl font-black uppercase italic tracking-tighter">Action Denied</h2>
+        </div>
+        
+        <div class="p-8 pt-10 text-center">
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-2">Security Limit Reached</p>
+            <p id="error-modal-msg" class="text-white text-sm font-bold leading-relaxed mb-8 px-2">
+                You can only withdraw earned tokens.
+            </p>
+
+            <button onclick="closeErrorModal()" class="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white/20 transition-all">
+                I Understand
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="withdraw-success-modal" class="hidden fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-xs rounded-[40px] overflow-hidden shadow-2xl">
+        <div class="bg-emerald-500 p-8 text-center relative">
+            <div class="absolute -bottom-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-emerald-500">
+                <i data-lucide="send" class="text-emerald-500 w-6 h-6"></i>
+            </div>
+            <h2 class="text-black text-xl font-black uppercase italic tracking-tighter">Request Sent</h2>
+        </div>
+        
+        <div class="p-8 pt-10 text-center">
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Estimated Arrival: 24h</p>
+            <div class="flex items-center justify-center gap-2 mb-6">
+                <span id="payout-success-usd" class="text-4xl font-black text-white">$0.00</span>
+            </div>
+
+            <p class="text-[10px] text-zinc-400 font-bold leading-relaxed mb-8 px-4 uppercase tracking-tighter">
+                Funds are being sent to your PayPal email. Check your dashboard for updates.
+            </p>
+
+            <button onclick="closeWithdrawSuccess()" class="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white/10 transition-all">
+                Perfect, Thanks!
+            </button>
+        </div>
+    </div>
+</div>
 
  <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
 
@@ -486,6 +590,15 @@
         "https://thumbs.dreamstime.com/b/cool-neon-party-wolf-headphones-black-background-colorful-illustration-music-theme-modern-portrait-bright-vibrant-385601082.jpg",
         "https://wallpapers.com/images/hd/gaming-profile-pictures-tt8bbzdcf6zibhoi.jpg"
     ];
+// This version ONLY locks for Profile and Donation modals
+const syncScrollLock = () => {
+    const lockIds = ['profile-modal', 'modern-donate-modal', 'donation-success-modal'];
+    const shouldLock = lockIds.some(id => {
+        const el = document.getElementById(id);
+        return el && !el.classList.contains('hidden');
+    });
+    document.body.style.overflow = shouldLock ? 'hidden' : '';
+};
 
     // --- UTILS & THEME ---
     window.notify = (msg) => {
@@ -508,23 +621,34 @@
     // --- MODAL CONTROLS ---
     window.openAuthModal = () => document.getElementById('auth-modal').classList.remove('hidden');
     window.closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
-    window.openProfile = () => document.getElementById('profile-modal').classList.remove('hidden');
-    window.closeProfile = () => document.getElementById('profile-modal').classList.add('hidden');
+    
+    window.openProfile = () => {
+        document.getElementById('profile-modal').classList.remove('hidden');
+        document.body.classList.add('stop-scrolling');
+    };
+
+    window.closeProfile = () => {
+        document.getElementById('profile-modal').classList.add('hidden');
+        document.body.classList.remove('stop-scrolling');
+    };
+
     window.openUpgradeModal = () => {
         document.getElementById('upgrade-modal').classList.remove('hidden');
         setTimeout(initPayPal, 100);
     };
+    
     window.closeUpgradeModal = () => document.getElementById('upgrade-modal').classList.add('hidden');
 
-    // --- TOKEN MODAL LOGIC (UPDATED FOR SCROLLING) ---
+    // --- TOKEN MODAL LOGIC ---
     window.openTokenModal = () => {
         document.getElementById('token-modal').classList.remove('hidden');
-        document.body.style.overflow = 'hidden'; 
+        // Using the same class for consistency
+        document.body.classList.add('stop-scrolling'); 
     };
 
     window.closeTokenModal = () => {
         document.getElementById('token-modal').classList.add('hidden');
-        document.body.style.overflow = ''; 
+        document.body.classList.remove('stop-scrolling'); 
         document.getElementById('paypal-tokens-container').innerHTML = ''; 
     };
 
@@ -533,6 +657,7 @@
         btn.classList.add('border-amber-500', 'bg-amber-500/10');
         window.buyPack(amount, tokens);
     };
+
 
     // --- AUTH LOGIC ---
     window.authTab = 'login';
@@ -621,114 +746,135 @@
             grid.appendChild(img);
         });
     }
-    // --- MASTER DATA SYNC (STABLE VERSION) ---
-    onAuthStateChanged(auth, (user) => {
-        if (user) {
-            // 1. Initial UI Visibility
-            const tools = document.getElementById('user-tools');
-            const loginBtn = document.getElementById('login-btn');
-            const tokenBar = document.getElementById('token-bar');
-            
-            if(tools) tools.classList.remove('hidden');
-            if(loginBtn) loginBtn.classList.add('hidden');
-            if(tokenBar) tokenBar.classList.remove('hidden');
+// --- MASTER DATA SYNC (STABLE VERSION + BAN GUARD) ---
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        // --- ADMIN CHECK ---
+        const isAdmin = user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1";
 
-            // 2. Initialize Community Features
-            if (typeof setupPresence === 'function') setupPresence(user.uid);
-            if (typeof loadUserFeed === 'function') loadUserFeed();
-            if (typeof loadCampaigns === 'function') loadCampaigns();
-            if (typeof switchView === 'function') switchView('campaigns');
+        // 1. User Data Listener & BAN GUARD
+        onValue(ref(db, `users/${user.uid}`), (s) => {
+            const d = s.val() || {};
 
-            // 3. User Data Listener
-            onValue(ref(db, `users/${user.uid}`), (s) => {
-                const d = s.val() || {};
-                const name = d.username || "User";
-                const avatar = d.avatar || presets[0];
+            // --- THE BAN GUARD ---
+            if (d.banned) {
+                document.body.innerHTML = `
+                    <div class="h-screen bg-black flex flex-col items-center justify-center text-center p-6 font-sans">
+                        <div class="p-8 border border-red-500/30 bg-red-500/5 rounded-[40px] max-w-sm">
+                            <h1 class="text-red-600 text-5xl font-black mb-4 italic tracking-tighter">ACCESS REVOKED</h1>
+                            <p class="text-zinc-500 text-[10px] uppercase tracking-[0.2em] font-bold mb-6">Security Protocol 403: UID Blacklisted</p>
+                            <p class="text-white/80 text-xs font-medium leading-relaxed mb-8">
+                                This account has been permanently suspended for multiple self-donation attempts or platform abuse.
+                            </p>
+                            <div class="py-3 px-6 bg-red-600 text-black font-black text-[10px] uppercase rounded-full">Contact Support</div>
+                        </div>
+                    </div>`;
+                return; // Stop execution
+            }
 
-                // Safely update Header & Profile
-                const hHandle = document.getElementById('header-handle');
-                const hPfp = document.getElementById('header-pfp');
-                const hInit = document.getElementById('header-initial');
-                const uInput = document.getElementById('username-input');
-                const mPreview = document.getElementById('modal-preview-img');
+            const name = d.username || "User";
+            const avatar = d.avatar || presets[0];
 
-                if(hHandle) hHandle.innerText = `@${name}`;
-                if(hPfp) { hPfp.src = avatar; hPfp.classList.remove('hidden'); }
-                if(hInit) hInit.classList.add('hidden');
-                if(uInput) uInput.value = name;
-                if(mPreview) mPreview.src = avatar;
-
-                // Safely update Modal Previews
-                const proName = document.getElementById('pro-name-preview');
-                const proPfp = document.getElementById('pro-pfp-preview');
-                if(proName) proName.innerText = name;
-                if(proPfp) proPfp.src = avatar;
-
-                // Safely update Token Display
+            if (isAdmin) {
+                console.log("Welcome back, Boss. Admin Mode Active.");
                 const tokenElement = document.getElementById('token-count');
-                if(tokenElement) tokenElement.innerText = d.tokens || 0;
+                if(tokenElement) tokenElement.classList.add('text-amber-500');
+            }
 
-                // Safely update Premium Toggles
-                const mgmtZone = document.getElementById('premium-management-zone');
-                const upgradeNavBtn = document.querySelector('button[onclick="openUpgradeModal()"]');
-                const hVerified = document.getElementById('header-verified');
-                
-                if(d.isPremium) {
-                    if(hVerified) hVerified.classList.remove('hidden');
-                    if(mgmtZone) mgmtZone.classList.remove('hidden');
-                    if(upgradeNavBtn) upgradeNavBtn.classList.add('hidden');
-                } else {
-                    if(hVerified) hVerified.classList.add('hidden');
-                    if(mgmtZone) mgmtZone.classList.add('hidden');
-                    if(upgradeNavBtn) upgradeNavBtn.classList.remove('hidden');
+            // Update Header & Profile
+            const hHandle = document.getElementById('header-handle');
+            const hPfp = document.getElementById('header-pfp');
+            const hInit = document.getElementById('header-initial');
+            const uInput = document.getElementById('username-input');
+            const mPreview = document.getElementById('modal-preview-img');
+
+            if(hHandle) hHandle.innerText = isAdmin ? `👑 @${name}` : `@${name}`;
+            if(hPfp) { hPfp.src = avatar; hPfp.classList.remove('hidden'); }
+            if(hInit) hInit.classList.add('hidden');
+            if(uInput) uInput.value = name;
+            if(mPreview) mPreview.src = avatar;
+
+            // Update Token Display
+            const tokenElement = document.getElementById('token-count');
+            if(tokenElement) tokenElement.innerText = d.tokens || 0;
+
+            // Update Premium/Verified Toggles
+            const hVerified = document.getElementById('header-verified');
+            const mgmtZone = document.getElementById('premium-management-zone');
+            const upgradeNavBtn = document.querySelector('button[onclick="openUpgradeModal()"]');
+            
+            if(d.isPremium || isAdmin) {
+                if(hVerified) hVerified.classList.remove('hidden');
+                if(mgmtZone && d.isPremium) mgmtZone.classList.remove('hidden');
+                if(upgradeNavBtn) upgradeNavBtn.classList.add('hidden');
+            } else {
+                if(hVerified) hVerified.classList.add('hidden');
+                if(mgmtZone) mgmtZone.classList.add('hidden');
+                if(upgradeNavBtn) upgradeNavBtn.classList.remove('hidden');
+            }
+        });
+
+        // 2. Initial UI Visibility
+        const tools = document.getElementById('user-tools');
+        const loginBtn = document.getElementById('login-btn');
+        const tokenBar = document.getElementById('token-bar');
+        
+        if(tools) tools.classList.remove('hidden');
+        if(loginBtn) loginBtn.classList.add('hidden');
+        if(tokenBar) tokenBar.classList.remove('hidden');
+
+        // 3. Initialize Community Features
+        if (typeof setupPresence === 'function') setupPresence(user.uid);
+        if (typeof loadUserFeed === 'function') loadUserFeed();
+        if (typeof loadCampaigns === 'function') loadCampaigns();
+        if (typeof switchView === 'function') switchView('campaigns');
+
+        // 4. Payout Listener
+        onValue(ref(db, `payouts`), (snapshot) => {
+            const allPayouts = snapshot.val() || {};
+            const historyList = document.getElementById('payout-history-list');
+            const historyContainer = document.getElementById('payout-history-container');
+            
+            if(historyList) historyList.innerHTML = '';
+
+            let totalPaid = 0;
+            let pendingCount = 0;
+            let hasHistory = false;
+
+            const sorted = Object.values(allPayouts)
+                .filter(p => p.uid === user.uid)
+                .sort((a, b) => b.timestamp - a.timestamp);
+
+            sorted.forEach(p => {
+                hasHistory = true; 
+                if (p.status === 'completed') totalPaid += (p.netAmount || 0);
+                if (p.status === 'pending') pendingCount++;
+
+                if(historyList) {
+                    const div = document.createElement('div');
+                    div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5";
+                    const statusColor = p.status === 'completed' ? 'text-emerald-500' : 'text-amber-500';
+                    div.innerHTML = `
+                        <div class="flex flex-col">
+                            <span class="text-[9px] font-black text-white uppercase">$${p.netAmount.toFixed(2)}</span>
+                            <span class="text-[8px] text-zinc-500">${new Date(p.timestamp).toLocaleDateString()}</span>
+                        </div>
+                        <span class="text-[8px] font-black uppercase ${statusColor}">${p.status}</span>
+                    `;
+                    historyList.appendChild(div);
                 }
             });
 
-            // 4. Payout Listener
-            onValue(ref(db, `payouts`), (snapshot) => {
-                const allPayouts = snapshot.val() || {};
-                const historyList = document.getElementById('payout-history-list');
-                const historyContainer = document.getElementById('payout-history-container');
-                
-                if(historyList) historyList.innerHTML = '';
+            if(hasHistory && historyContainer) historyContainer.classList.remove('hidden');
+            
+            const totalWithdrawnEl = document.getElementById('total-withdrawn');
+            const pendingCountEl = document.getElementById('pending-count');
+            if(totalWithdrawnEl) totalWithdrawnEl.innerText = `$${totalPaid.toFixed(2)}`;
+            if(pendingCountEl) pendingCountEl.innerText = pendingCount;
+        });
+    }
+});
 
-                let totalPaid = 0;
-                let pendingCount = 0;
-                let hasHistory = false;
-
-                const sorted = Object.values(allPayouts)
-                    .filter(p => p.uid === user.uid)
-                    .sort((a, b) => b.timestamp - a.timestamp);
-
-                sorted.forEach(p => {
-                    hasHistory = true; 
-                    if (p.status === 'completed') totalPaid += (p.netAmount || 0);
-                    if (p.status === 'pending') pendingCount++;
-
-                    if(historyList) {
-                        const div = document.createElement('div');
-                        div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5";
-                        const statusColor = p.status === 'completed' ? 'text-emerald-500' : 'text-amber-500';
-                        div.innerHTML = `
-                            <div class="flex flex-col">
-                                <span class="text-[9px] font-black text-white uppercase">$${p.netAmount.toFixed(2)}</span>
-                                <span class="text-[8px] text-zinc-500">${new Date(p.timestamp).toLocaleDateString()}</span>
-                            </div>
-                            <span class="text-[8px] font-black uppercase ${statusColor}">${p.status}</span>
-                        `;
-                        historyList.appendChild(div);
-                    }
-                });
-
-                if(hasHistory && historyContainer) historyContainer.classList.remove('hidden');
-
-                const totalWithdrawnEl = document.getElementById('total-withdrawn');
-                const pendingCountEl = document.getElementById('pending-count');
-                if(totalWithdrawnEl) totalWithdrawnEl.innerText = `$${totalPaid.toFixed(2)}`;
-                if(pendingCountEl) pendingCountEl.innerText = pendingCount;
-            });
-        }
-    });
 
     window.checkPremiumAndUpload = async () => {
         const user = auth.currentUser;
@@ -777,22 +923,51 @@
     };
 
     lucide.createIcons();
-// --- UPDATED WITHDRAWAL LOGIC ---
+// --- COMPLETE WITHDRAWAL LOGIC (15% FEE + SAFETY MODALS) ---
+
+// Modal Controllers
+window.showErrorModal = (msg) => {
+    const msgEl = document.getElementById('error-modal-msg');
+    if(msgEl) msgEl.innerText = msg;
+    document.getElementById('error-modal').classList.remove('hidden');
+    document.body.classList.add('stop-scrolling');
+    if (window.lucide) lucide.createIcons();
+};
+
+window.closeErrorModal = () => {
+    document.getElementById('error-modal').classList.add('hidden');
+    document.body.classList.remove('stop-scrolling');
+};
+
+window.showWithdrawSuccess = (usdAmount) => {
+    const usdEl = document.getElementById('payout-success-usd');
+    if(usdEl) usdEl.innerText = `$${usdAmount.toFixed(2)}`;
+    document.getElementById('withdraw-success-modal').classList.remove('hidden');
+    document.body.classList.add('stop-scrolling');
+    if (typeof confetti === 'function') confetti();
+    if (window.lucide) lucide.createIcons();
+};
+
+window.closeWithdrawSuccess = () => {
+    document.getElementById('withdraw-success-modal').classList.add('hidden');
+    document.body.classList.remove('stop-scrolling');
+};
+
 window.openWithdrawModal = () => {
     document.getElementById('withdraw-modal').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
+    document.body.classList.add('stop-scrolling');
 };
 
 window.closeWithdrawModal = () => {
     document.getElementById('withdraw-modal').classList.add('hidden');
-    document.body.style.overflow = '';
+    document.body.classList.remove('stop-scrolling');
 };
 
-// Real-time Math for Green/Red UI
+// Real-time Math for UI
 document.getElementById('withdraw-amount')?.addEventListener('input', (e) => {
     const tokens = parseInt(e.target.value) || 0;
     const gross = tokens / 10;
-    const fee = gross * 0.30;
+    const fee = gross * 0.15; 
     const net = gross - fee;
 
     document.getElementById('calc-gross').innerText = `$${gross.toFixed(2)}`;
@@ -802,39 +977,65 @@ document.getElementById('withdraw-amount')?.addEventListener('input', (e) => {
 
 window.handleWithdrawSubmit = async () => {
     const user = auth.currentUser;
-    const email = document.getElementById('withdraw-email').value.trim();
+    const email = document.getElementById('withdraw-email').value?.trim();
     const amount = parseInt(document.getElementById('withdraw-amount').value);
 
     if (!user) return notify("Auth required");
-    if (!email.includes('@')) return notify("Invalid PayPal email");
-    if (isNaN(amount) || amount < 50) return notify("Min. 50 Tokens required");
+    if (!email || !email.includes('@')) return notify("Invalid PayPal email");
+    
+    // Safety 1: Minimum Floor
+    if (isNaN(amount) || amount < 50) {
+        return showErrorModal("The minimum withdrawal is 50 Tokens ($5.00).");
+    }
 
     try {
         const userRef = ref(db, `users/${user.uid}`);
         const snap = await get(userRef);
-        const currentTokens = snap.val()?.tokens || 0;
+        const userData = snap.val() || {};
+        
+        const currentBalance = userData.tokens || 0;
+        const withdrawableBalance = userData.totalEarned || 0;
 
-        if (currentTokens < amount) return notify("Insufficient tokens!");
+        // Safety 2: Check balance
+        if (currentBalance < amount) {
+            return showErrorModal("Your total token balance is insufficient for this request.");
+        }
 
-        // Deduct tokens instantly
-        await update(userRef, { tokens: currentTokens - amount });
+        // Safety 3: Earned Tokens Check
+        if (amount > withdrawableBalance) {
+            return showErrorModal(`Safety Limit: You can only withdraw tokens earned from donations. Current withdrawable: ${withdrawableBalance}`);
+        }
 
-        // Log Payout for Admin
+        const netToPay = (amount / 10) * 0.85; 
         const payoutId = Date.now();
+
+        // 1. Deduct instantly
+        await update(userRef, { 
+            tokens: currentBalance - amount,
+            totalEarned: withdrawableBalance - amount 
+        });
+
+        // 2. Log Payout (netAmount matches your history listener)
         await set(ref(db, `payouts/${payoutId}_${user.uid}`), {
             uid: user.uid,
-            username: snap.val().username || "User",
+            username: userData.username || "User",
             paypal: email,
-            tokens: amount,
-            netAmount: (amount / 10) * 0.7,
+            tokensRequested: amount,
+            netAmount: netToPay,
             status: 'pending',
             timestamp: payoutId
         });
 
-        notify("Request sent! Processing takes 24h.");
+        // 3. UI Flow
         closeWithdrawModal();
-    } catch (e) { notify(e.message); }
+        showWithdrawSuccess(netToPay);
+
+    } catch (e) { 
+        console.error(e);
+        showErrorModal("System Error: " + e.message); 
+    }
 };
+
 // --- IMGUR UPLOAD HANDLER ---
 document.getElementById('pfp-upload')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -902,8 +1103,15 @@ window.searchUser = () => {
 };
 
 // --- 2. MODAL CONTROLS ---
-window.closeDonateModal = () => document.getElementById('modern-donate-modal')?.classList.add('hidden');
-window.closeCreateModal = () => document.getElementById('create-campaign-modal')?.classList.add('hidden');
+window.closeDonateModal = () => {
+    document.getElementById('modern-donate-modal')?.classList.add('hidden');
+    document.body.classList.remove('stop-scrolling');
+};
+
+window.closeCreateModal = () => {
+    document.getElementById('create-campaign-modal')?.classList.add('hidden');
+    document.body.classList.remove('stop-scrolling');
+};
 
 document.getElementById('donate-input-amount')?.addEventListener('input', (e) => {
     const amount = parseInt(e.target.value) || 0;
@@ -914,6 +1122,7 @@ document.getElementById('donate-input-amount')?.addEventListener('input', (e) =>
         notice.className = "text-[10px] font-bold text-pink-500 mt-2 italic";
     }
 });
+
 
 // --- 3. VIEW SWITCHER ---
 window.switchView = (view) => {
@@ -1117,77 +1326,195 @@ window.viewCreatorProfile = async (targetUid) => {
         if(window.openUpgradeModal) openUpgradeModal();
     }
 };
+// --- 7. TRANSACTIONS & DONOR LOGGING (STRIKE SYSTEM + VAULT) ---
 
-// --- 7. TRANSACTIONS & DONOR LOGGING ---
+window.closeSuccessModal = () => {
+    document.getElementById('donation-success-modal').classList.add('hidden');
+    document.body.classList.remove('stop-scrolling');
+};
+
 window.confirmDonation = async () => {
     const user = auth.currentUser;
     if (!user) return notify("Login required to donate!");
 
     const amountInput = document.getElementById('donate-input-amount');
     const amount = parseInt(amountInput.value);
-    const adminUid = "YOUR_FRANK_ACCOUNT_UID";
+    
+    // --- THE VERCEL VAULT (ADMIN UID) ---
+    const adminUid = "4xEDAzSt5javvSnW5mws2Ma8i8n1"; 
 
-    if (!amount || amount <= 0) return notify("Enter valid amount");
+    if (!amount || amount <= 0) return notify("Enter a valid amount");
+
+    const btn = document.getElementById('confirm-donation-btn');
+    btn.disabled = true;
+    btn.innerText = "Processing...";
 
     try {
         const myRef = ref(db, `users/${user.uid}`);
         const senderSnap = await get(myRef);
-        const senderData = senderSnap.val();
-        const myTokens = senderData.tokens || 0;
-
-        if (myTokens < amount) return notify("Insufficient tokens!");
-
-        const netAmount = Math.floor(amount * 0.7);
-        const feeAmount = amount - netAmount;
-
-        // Atomic Updates
-        await update(myRef, { tokens: myTokens - amount });
+        const myData = senderSnap.val() || {};
+        const myTokens = myData.tokens || 0;
+        
+        // --- 1. STRIKE SYSTEM & SELF-BLOCK ---
+        let isSelf = false;
+        let recipientUid = "";
 
         if (activeTarget.type === 'user') {
-            const tRef = ref(db, `users/${activeTarget.id}`);
-            const tSnap = await get(tRef);
-            await update(tRef, { tokens: (tSnap.val()?.tokens || 0) + netAmount });
+            recipientUid = activeTarget.id;
+            if (user.uid === recipientUid) isSelf = true;
         } else {
-            const cRef = ref(db, `campaigns/${activeTarget.id}`);
-            const cSnap = await get(cRef);
-            await update(cRef, { raised: (cSnap.val()?.raised || 0) + netAmount });
-            
-            // Log Donor for Campaign Scroll
-            await set(ref(db, `campaign_donors/${activeTarget.id}/${user.uid}`), {
-                uid: user.uid,
-                username: senderData.username,
-                avatar: senderData.avatar || '',
-                timestamp: Date.now()
-            });
+            const cSnap = await get(ref(db, `campaigns/${activeTarget.id}`));
+            const cData = cSnap.val() || {};
+            recipientUid = cData.ownerUid;
+            if (user.uid === recipientUid) isSelf = true;
         }
 
-        const adminRef = ref(db, `users/${adminUid}`);
-        const aSnap = await get(adminRef);
-        await update(adminRef, { tokens: (aSnap.val()?.tokens || 0) + feeAmount });
+        if (isSelf) {
+            const newStrikes = (myData.strikes || 0) + 1;
+            
+            if (newStrikes >= 3) {
+                // AUTO BAN ON 3RD STRIKE
+                await update(myRef, { banned: true, strikes: newStrikes });
+                location.reload(); // Refresh to trigger ban screen
+                return;
+            }
 
-        alert(`🎉 Donation Successful!\nNet sent: ${netAmount} Tokens\nFee: ${feeAmount} Tokens`);
-        closeDonateModal();
+            await update(myRef, { strikes: newStrikes });
+            throw new Error(`Self-Donation Strike ${newStrikes}/3: Continued attempts will result in an automatic ban.`);
+        }
+
+        // --- 2. BALANCE CHECK ---
+        if (myTokens < amount) throw new Error("Insufficient tokens!");
+
+        // --- 3. CALCULATIONS & FEE ROUTING ---
+        const netAmount = Math.floor(amount * 0.7);
+        const feeAmount = amount - netAmount;
+        const updates = {};
+        
+        // Deduct from Sender
+        updates[`users/${user.uid}/tokens`] = myTokens - amount;
+
+        // Add to Recipient (Tokens + Safety Net)
+        if (recipientUid) {
+            const tSnap = await get(ref(db, `users/${recipientUid}`));
+            const tData = tSnap.val() || {};
+            updates[`users/${recipientUid}/tokens`] = (tData.tokens || 0) + netAmount;
+            updates[`users/${recipientUid}/totalEarned`] = (tData.totalEarned || 0) + netAmount;
+            updates[`users/${recipientUid}/totalRaised`] = (tData.totalRaised || 0) + netAmount;
+            updates[`users/${recipientUid}/donorCount`] = (tData.donorCount || 0) + 1;
+        }
+
+        // Add to Campaign Stats (if applicable)
+        if (activeTarget.type === 'campaign') {
+            const cRef = ref(db, `campaigns/${activeTarget.id}`);
+            const cSnap = await get(cRef);
+            updates[`campaigns/${activeTarget.id}/raised`] = (cSnap.val()?.raised || 0) + netAmount;
+            updates[`campaign_donors/${activeTarget.id}/${user.uid}`] = {
+                uid: user.uid,
+                username: myData.username || "User",
+                avatar: myData.avatar || '',
+                timestamp: Date.now()
+            };
+        }
+
+        // --- 4. THE VERCEL VAULT: ROUTE FEE ---
+        const aSnap = await get(ref(db, `users/${adminUid}/tokens`));
+        updates[`users/${adminUid}/tokens`] = (aSnap.val() || 0) + feeAmount;
+
+        // Finalize Transaction
+        await update(ref(db), updates);
+
+        // UI Feedback
+        document.getElementById('success-net-amount').innerText = netAmount;
+        document.getElementById('success-gross-amount').innerText = amount;
+        document.getElementById('success-fee-amount').innerText = feeAmount;
+        
+        closeDonateModal(); 
+        document.getElementById('donation-success-modal').classList.remove('hidden'); 
+        document.body.classList.add('stop-scrolling');
+        
+        if(typeof confetti === 'function') confetti();
         amountInput.value = '';
-    } catch (e) { notify("Error: " + e.message); }
+
+    } catch (e) { 
+        // Use the Red Error Modal for strikes or system errors
+        showErrorModal(e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Confirm Transfer";
+    }
 };
 
 // --- 8. GLOBAL HANDLERS ---
-window.handleTip = (uid, username, avatar) => {
+window.handleTip = async (uid, username, avatar) => {
     activeTarget = { id: uid, type: 'user' };
+    
+    // 1. Basic UI Setup
     document.getElementById('donate-target-name-display').innerText = `@${username}`;
     document.getElementById('donate-target-img').src = avatar || communityPresets[0];
     document.getElementById('donate-input-amount').value = '';
     document.getElementById('fee-notice').innerText = '';
+
+    try {
+        // 2. Fetch Premium status and Stats
+        const [viewerSnap, targetSnap] = await Promise.all([
+            get(ref(db, `users/${auth.currentUser.uid}`)),
+            get(ref(db, `users/${uid}`))
+        ]);
+
+        const viewerData = viewerSnap.val() || {};
+        const targetData = targetSnap.val() || {};
+        const isViewerPro = viewerData.isPremium || (auth.currentUser.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1");
+
+        // 3. Populate Stats
+        document.getElementById('stat-raised-val').innerText = targetData.totalRaised || 0;
+        document.getElementById('stat-donors-val').innerText = targetData.donorCount || 0;
+
+        // 4. Handle the Glassy Lock
+        const lockOverlay = document.getElementById('stats-premium-lock');
+        isViewerPro ? lockOverlay.classList.add('hidden') : lockOverlay.classList.remove('hidden');
+
+    } catch (e) { console.error("Stats Error:", e); }
+
     document.getElementById('modern-donate-modal').classList.remove('hidden');
+    document.body.classList.add('stop-scrolling');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 };
 
-window.handleDonateCampaign = (id, title) => {
+window.handleDonateCampaign = async (id, title) => {
     activeTarget = { id: id, type: 'campaign' };
+    
     document.getElementById('donate-target-name-display').innerText = title;
     document.getElementById('donate-target-img').src = "https://img.icons8.com/fluency/96/charity.png";
     document.getElementById('donate-input-amount').value = '';
+    document.getElementById('fee-notice').innerText = '';
+
+    try {
+        // 1. Fetch Premium status and Campaign stats
+        const [viewerSnap, campSnap] = await Promise.all([
+            get(ref(db, `users/${auth.currentUser.uid}`)),
+            get(ref(db, `campaigns/${id}`))
+        ]);
+
+        const viewerData = viewerSnap.val() || {};
+        const campData = campSnap.val() || {};
+        const isViewerPro = viewerData.isPremium || (auth.currentUser.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1");
+
+        // 2. Populate Stats (Matches user field names or uses campaign defaults)
+        document.getElementById('stat-raised-val').innerText = campData.raised || 0;
+        document.getElementById('stat-donors-val').innerText = campData.donorsCount || 0;
+
+        // 3. Handle the Glassy Lock (Same logic as User Tipping)
+        const lockOverlay = document.getElementById('stats-premium-lock');
+        isViewerPro ? lockOverlay.classList.add('hidden') : lockOverlay.classList.remove('hidden');
+
+    } catch (e) { console.error("Campaign Stats Error:", e); }
+
     document.getElementById('modern-donate-modal').classList.remove('hidden');
+    document.body.classList.add('stop-scrolling');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 };
+
 
 // --- 9. INITIALIZE ---
 loadCampaigns();
