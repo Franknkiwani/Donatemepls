@@ -1,5 +1,5 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getDatabase, ServerValue } from 'firebase-admin/database'; // Added ServerValue
+import { getDatabase, ServerValue } from 'firebase-admin/database';
 import { getAuth } from 'firebase-admin/auth';
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -15,12 +15,25 @@ const auth = getAuth();
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
-    const { idToken, targetId, amount, type } = req.body;
-    const adminUid = "4xEDAzSt5javvSnW5mws2Ma8i8n1"; 
+    const { idToken, targetId, amount, type, adminSecret } = req.body; // Added adminSecret
+    const BLOCKED_ADMIN_UID = "4xEDAzSt5javvSnW5mws2Ma8i8n1"; 
 
     try {
         const decodedToken = await auth.verifyIdToken(idToken);
         const senderUid = decodedToken.uid; 
+
+        // --- 1. THE BLOCK & VERIFICATION LOGIC ---
+        if (senderUid === BLOCKED_ADMIN_UID) {
+            // Check if the secret provided in the request matches the Vercel Environment Variable
+            const expectedSecret = process.env.ADMIN_VERIFY_TOKEN; 
+            
+            if (!adminSecret || adminSecret !== expectedSecret) {
+                return res.status(403).json({ 
+                    error: "ADMIN_LOCK: Verification Token required to move Vault funds." 
+                });
+            }
+            // If secret matches, it proceeds!
+        }
 
         const senderRef = db.ref(`users/${senderUid}`);
         const snap = await senderRef.get();
@@ -43,7 +56,7 @@ export default async function handler(req, res) {
         if (type === 'campaign') {
             const campSnap = await db.ref(`campaigns/${targetId}`).get();
             const campData = campSnap.val();
-            recipientOwnerUid = campData?.creator; // Corrected to 'creator' based on your frontend
+            recipientOwnerUid = campData?.creator;
         }
 
         // --- SELF-DONATION CHECK ---
@@ -63,19 +76,14 @@ export default async function handler(req, res) {
         const feeAmount = amount - netAmount;
         const updates = {};
 
-        // 1. Deduct from Sender (using increment with negative value)
         updates[`users/${senderUid}/tokens`] = ServerValue.increment(-amount);
-
-        // 2. Add to Recipient
         updates[`users/${recipientOwnerUid}/tokens`] = ServerValue.increment(netAmount);
-        updates[`users/${recipientOwnerUid}/totalRaised`] = ServerValue.increment(netAmount); // For "Total Raised" stat
-        updates[`users/${recipientOwnerUid}/donorCount`] = ServerValue.increment(1); // For "Supporters" stat
+        updates[`users/${recipientOwnerUid}/totalRaised`] = ServerValue.increment(netAmount);
+        updates[`users/${recipientOwnerUid}/donorCount`] = ServerValue.increment(1);
 
-        // 3. Campaign specific updates
         if (type === 'campaign') {
             updates[`campaigns/${targetId}/raised`] = ServerValue.increment(netAmount);
-            updates[`campaigns/${targetId}/donorsCount`] = ServerValue.increment(1); // THIS fix makes the count work
-            
+            updates[`campaigns/${targetId}/donorsCount`] = ServerValue.increment(1);
             updates[`campaign_donors/${targetId}/${senderUid}`] = {
                 uid: senderUid,
                 username: userData.username || "User",
@@ -84,8 +92,8 @@ export default async function handler(req, res) {
             };
         }
 
-        // 4. THE VAULT (Admin Fee)
-        updates[`users/${adminUid}/tokens`] = ServerValue.increment(feeAmount);
+        // THE VAULT (Admin Fee) - Stays with the designated Admin UID
+        updates[`users/${BLOCKED_ADMIN_UID}/tokens`] = ServerValue.increment(feeAmount);
 
         await db.ref().update(updates);
         return res.status(200).json({ success: true, netSent: netAmount });
