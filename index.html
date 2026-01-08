@@ -1,1 +1,1504 @@
-hu
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+ <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap');
+    
+    body { font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.3s ease; overflow-x: hidden; }
+    
+    /* Variable Definitions */
+    :root {
+        --bg: #050505;
+        --card-bg: #121212;
+        --text-main: #ffffff;
+        --text-dim: #71717a;
+        --border: rgba(255, 255, 255, 0.1);
+        --input-bg: rgba(255, 255, 255, 0.05);
+    }
+
+    body.theme-light {
+        --bg: #f4f4f5;
+        --card-bg: #ffffff;
+        --text-main: #09090b; /* This is the Black for Light Mode */
+        --text-dim: #71717a;
+        --border: rgba(0, 0, 0, 0.1);
+        --input-bg: #ededf0;
+    }
+
+    body.theme-blue {
+        --bg: #020617;
+        --card-bg: #0f172a;
+        --text-main: #f8fafc;
+        --text-dim: #94a3b8;
+        --border: rgba(255, 255, 255, 0.08);
+        --input-bg: rgba(255, 255, 255, 0.03);
+    }
+
+    /* Global Apply */
+    body { background-color: var(--bg); color: var(--text-main); }
+    
+    .glass-header {
+        position: sticky; top: 0; z-index: 50;
+        backdrop-filter: blur(20px);
+        background: var(--input-bg);
+        border-bottom: 1px solid var(--border);
+        padding: 0.6rem 1.2rem;
+    }
+
+    /* Target all Modals and Containers */
+    #token-bar, #auth-modal > div, #profile-modal > div, #upgrade-modal > div, #token-modal > div, #withdraw-modal > div {
+        background-color: var(--card-bg) !important;
+        color: var(--text-main) !important;
+        border-color: var(--border) !important;
+    }
+
+    /* Specific ID Fixes (Ensures Token Count is visible) */
+    #token-count, 
+    #calc-gross, 
+    #pro-name-preview, 
+    #withdraw-modal h2, 
+    #token-modal h2,
+    .pack-option span:not(.text-amber-500) {
+        color: var(--text-main) !important;
+    }
+
+    /* Target Inputs and Items */
+    input, .pack-option, #payout-history-list > div {
+        background-color: var(--input-bg) !important;
+        color: var(--text-main) !important;
+        border-color: var(--border) !important;
+    }
+
+    /* Button Adaptations for Light Mode */
+    body.theme-light button.bg-zinc-800 {
+        background-color: #e4e4e7 !important;
+        color: #09090b !important;
+        border-color: rgba(0,0,0,0.1) !important;
+    }
+
+    .truncate-name { max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
+    .premium-tag { background: #F59E0B; color: black; font-size: 8px; font-weight: 900; padding: 2px 5px; border-radius: 4px; position: absolute; top: 4px; right: 4px; }
+    .theme-btn.active { outline: 2px solid #F59E0B; outline-offset: 2px; }
+
+    #notify-box { position: fixed; top: 80px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+    .toast { background: #F59E0B; color: black; padding: 12px 20px; border-radius: 12px; font-weight: 800; transform: translateX(120%); transition: 0.4s; }
+    .toast.show { transform: translateX(0); }
+
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+.stop-scrolling {
+    height: 100vh;
+    overflow: hidden;
+}
+
+</style>
+
+</head>
+<body class="theme-dark">
+
+    <div id="notify-box"></div>
+
+    <nav class="glass-header flex justify-between items-center">
+        <img src="https://i.imgur.com/BoVp6Td.png" class="h-9 w-auto" alt="Logo">
+        <div class="flex items-center gap-3">
+            <div id="user-tools" class="hidden flex items-center gap-3">
+                <button onclick="openUpgradeModal()" class="bg-amber-500 text-black px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest">Upgrade</button>
+                <div onclick="openProfile()" class="flex items-center gap-2 bg-white/5 p-1 pr-3 rounded-full cursor-pointer border border-white/10">
+                    <div class="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
+                        <img id="header-pfp" class="w-full h-full object-cover hidden">
+                        <span id="header-initial" class="flex items-center justify-center h-full text-[10px] font-bold">?</span>
+                    </div>
+                    <span id="header-handle" class="text-xs font-bold truncate-name">@User</span>
+                    <img id="header-verified" src="https://img.icons8.com/color/48/verified-badge.png" class="w-4 h-4 hidden">
+                </div>
+            </div>
+            <button id="login-btn" onclick="openAuthModal()" class="bg-white text-black px-5 py-1.5 rounded-full font-bold text-xs">Login</button>
+        </div>
+    </nav>
+
+    <div id="auth-modal" class="fixed inset-0 z-[110] hidden bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-zinc-900 text-white w-full max-w-[380px] rounded-[32px] p-8 border border-white/10">
+            <div class="flex gap-4 mb-6 border-b border-white/5">
+                <button onclick="setAuthTab('login')" id="tab-login" class="pb-2 text-xs font-black uppercase border-b-2 border-amber-500">Login</button>
+                <button onclick="setAuthTab('register')" id="tab-register" class="pb-2 text-xs font-black uppercase text-zinc-500">Register</button>
+            </div>
+            <div class="space-y-4">
+                <div id="reg-name-field" class="hidden">
+                    <input type="text" id="auth-username" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl outline-none" placeholder="Username">
+                </div>
+                <input type="email" id="auth-email" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl outline-none" placeholder="Email">
+                <input type="password" id="auth-pass" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl outline-none" placeholder="Password">
+                <button onclick="handleAuthSubmit()" class="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-xs">Continue</button>
+                <div class="relative py-2 text-center"><span class="text-[10px] text-zinc-600 uppercase bg-zinc-900 px-2 relative z-10">or</span><hr class="absolute top-1/2 w-full border-white/5"></div>
+                <button onclick="triggerGoogle()" class="w-full bg-zinc-800 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-white/5">
+                    <img src="https://www.google.com/favicon.ico" class="w-3 h-3"> Google
+                </button>
+            </div>
+            <button onclick="closeAuthModal()" class="w-full mt-4 text-zinc-500 text-[10px] font-bold uppercase">Cancel</button>
+        </div>
+    </div>
+
+    <div id="profile-modal" class="fixed inset-0 z-[100] hidden bg-black/90 flex items-center justify-center p-4">
+    <div class="bg-zinc-900 text-white w-full max-w-sm rounded-[32px] p-8 border border-white/10 overflow-y-auto max-h-[90vh]">
+        <div class="text-center mb-6">
+            <div class="w-20 h-20 mx-auto rounded-full border-2 border-amber-500 p-1 mb-2">
+                <img id="modal-preview-img" src="" class="w-full h-full object-cover rounded-full">
+            </div>
+            <h2 class="text-xl font-black uppercase italic">Profile</h2>
+        </div>
+        <div class="space-y-4">
+            <div>
+                <label class="text-[10px] font-bold text-zinc-500 uppercase">Page Theme</label>
+                <div class="flex gap-2 mt-1">
+                    <button id="btn-theme-dark" onclick="setTheme('theme-dark')" class="theme-btn w-full py-2 bg-zinc-800 rounded-lg text-[10px] font-bold uppercase">Dark</button>
+                    <button id="btn-theme-light" onclick="setTheme('theme-light')" class="theme-btn w-full py-2 bg-white text-black rounded-lg text-[10px] font-bold uppercase">Light</button>
+                    <button id="btn-theme-blue" onclick="setTheme('theme-blue')" class="theme-btn w-full py-2 bg-blue-900 rounded-lg text-[10px] font-bold uppercase">Blue</button>
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-zinc-500 uppercase">Username</label>
+                <input type="text" id="username-input" class="bg-white/5 border border-white/10 w-full p-3 rounded-xl mt-1 outline-none" placeholder="Username">
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-zinc-500 uppercase block mb-2">Avatars</label>
+                <div class="grid grid-cols-4 gap-2" id="avatar-grid">
+                    <div onclick="checkPremiumAndUpload()" class="relative aspect-square bg-zinc-800 rounded-xl flex items-center justify-center border-2 border-dashed border-zinc-700 hover:border-amber-500 cursor-pointer">
+                        <i data-lucide="plus" class="w-4 h-4 text-zinc-500"></i>
+                        <div class="premium-tag">PRO</div>
+                        <input type="file" id="pfp-upload" class="hidden" accept="image/*">
+                    </div>
+                </div>
+            </div>
+
+            <div id="premium-management-zone" class="hidden border-t border-white/5 pt-4">
+                <button onclick="window.open('https://www.paypal.com/myaccount/autopay/')" class="w-full bg-amber-500/10 border border-amber-500/20 text-amber-500 py-3 rounded-xl font-bold text-[10px] uppercase tracking-wider hover:bg-amber-500/20 transition-all">
+                    Manage / Cancel PRO
+                </button>
+            </div>
+
+            <button onclick="saveProfileChanges()" class="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl">Update Profile</button>
+            
+            <div class="flex flex-col gap-2">
+                <button onclick="handleLogout()" class="text-red-500 font-bold text-[10px] uppercase">Logout Account</button>
+                <button onclick="closeProfile()" class="text-zinc-500 text-[10px] font-bold uppercase">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div id="upgrade-modal" class="hidden fixed inset-0 z-[110] bg-black/95 flex items-center justify-center p-4">
+    <div class="bg-zinc-900 text-white w-full max-w-2xl rounded-[40px] border border-white/10 overflow-hidden flex flex-col md:flex-row max-h-[90vh] overflow-y-auto custom-scrollbar">
+        
+        <div class="md:w-1/2 bg-gradient-to-br from-amber-400 to-orange-600 p-10 text-black flex flex-col justify-between sticky top-0">
+            <div>
+                <h2 class="text-5xl font-black uppercase italic leading-none">PRO</h2>
+                <p class="font-bold text-[10px] uppercase tracking-widest mt-2">Elite Status</p>
+                
+                <div class="mt-8">
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-4xl font-black">$5.49</span>
+                        <span class="text-[10px] font-bold uppercase opacity-70">/ month</span>
+                    </div>
+                    <p class="text-[9px] font-bold uppercase tracking-tight opacity-80 mt-1">($4.99 + 10% processing fee)</p>
+                </div>
+            </div>
+            
+            <div class="bg-black/10 p-4 rounded-2xl flex items-center gap-3 mt-10">
+                <div class="w-10 h-10 rounded-full bg-zinc-900 border-2 border-black overflow-hidden flex-shrink-0">
+                    <img id="pro-pfp-preview" class="w-full h-full object-cover">
+                </div>
+                <div class="flex items-center min-w-0">
+                    <span class="font-black text-sm truncate-name" id="pro-name-preview">User</span>
+                    <img src="https://img.icons8.com/color/48/verified-badge.png" class="w-4 h-4 ml-1 flex-shrink-0">
+                </div>
+            </div>
+        </div>
+
+        <div class="md:w-1/2 p-10 bg-zinc-900">
+            <h3 class="font-black uppercase mb-6 text-sm tracking-widest text-white">Elite Perks</h3>
+            <ul class="space-y-4 mb-8 text-[11px] font-bold text-zinc-400">
+                <li class="flex items-center gap-3"><i data-lucide="shield-check" class="text-amber-500 w-4 h-4"></i> Verified Blue Badge</li>
+                <li class="flex items-center gap-3"><i data-lucide="coins" class="text-amber-500 w-4 h-4"></i> 20 Credits / Month</li>
+                <li class="flex items-center gap-3"><i data-lucide="image" class="text-amber-500 w-4 h-4"></i> Custom Profile Uploads</li>
+                <li class="flex items-center gap-3"><i data-lucide="user-cog" class="text-amber-500 w-4 h-4"></i> Unlimited Name Changes</li>
+                <li class="flex items-center gap-3"><i data-lucide="headphones" class="text-amber-500 w-4 h-4"></i> Priority 24/7 Support</li>
+            </ul>
+            
+            <div id="paypal-button-container-PRO" class="min-h-[150px]"></div>
+            
+            <button onclick="closeUpgradeModal()" class="w-full mt-4 text-[10px] font-black text-zinc-500 hover:text-white uppercase tracking-widest transition-colors">Close</button>
+        </div>
+    </div>
+</div>
+
+<div id="token-bar" class="hidden w-full backdrop-blur-xl border-b p-6" style="background-color: var(--card-bg); border-color: var(--border);">
+    <div class="max-w-md mx-auto flex flex-col items-center">
+        
+        <span class="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-1">Current Balance</span>
+        
+        <div class="flex items-center gap-3 my-2">
+            <i data-lucide="coins" class="w-6 h-6 text-amber-500"></i>
+            <span id="token-count" class="text-5xl font-black tracking-tighter" style="color: var(--text-main) !important;">0</span>
+        </div>
+        
+        <span class="text-[11px] font-bold text-amber-500/80 uppercase tracking-widest mb-6">Available Tokens</span>
+
+        <div class="grid grid-cols-2 gap-3 w-full">
+            <button onclick="openTokenModal()" class="flex items-center justify-center gap-2 py-3 bg-amber-500 hover:bg-amber-400 text-black rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span class="text-xs font-black uppercase italic">Buy Tokens</span>
+            </button>
+            
+            <button onclick="openWithdrawModal()" class="flex items-center justify-center gap-2 py-3 rounded-xl transition-all active:scale-95 border theme-light:bg-zinc-200 theme-light:text-black theme-light:border-black/10 theme-dark:bg-zinc-800 theme-dark:text-white theme-dark:border-white/5">
+                <i data-lucide="arrow-up-right" class="w-4 h-4 text-zinc-400"></i>
+                <span class="text-xs font-black uppercase italic">Withdraw</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<div id="token-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="border w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]" style="background-color: var(--card-bg); border-color: var(--border); color: var(--text-main);">
+        
+        <div class="p-6 border-b flex justify-between items-center flex-shrink-0" style="background-color: rgba(0,0,0,0.05); border-color: var(--border);">
+            <div>
+                <h2 class="text-xl font-black italic uppercase tracking-tighter" style="color: var(--text-main);">Refill Tokens</h2>
+                <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Select a one-time credit pack</p>
+            </div>
+            <button onclick="closeTokenModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-zinc-400 hover:text-white transition-colors">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto custom-scrollbar">
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <button onclick="selectPack(this, 3, 30)" class="pack-option group flex flex-col items-center p-4 border rounded-2xl transition-all active:scale-95" style="background-color: var(--input-bg); border-color: var(--border);">
+                    <span class="text-[10px] font-black text-zinc-500 uppercase mb-1">Starter</span>
+                    <span class="text-2xl font-black" style="color: var(--text-main);">30</span>
+                    <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-3">Tokens</span>
+                    <div class="w-full py-2 bg-amber-500 text-black rounded-lg text-xs font-black transition-colors">$3.00</div>
+                </button>
+
+                <button onclick="selectPack(this, 5, 50)" class="pack-option group flex flex-col items-center p-4 border rounded-2xl transition-all active:scale-95" style="background-color: var(--input-bg); border-color: var(--border);">
+                    <span class="text-[10px] font-black text-zinc-500 uppercase mb-1">Popular</span>
+                    <span class="text-2xl font-black" style="color: var(--text-main);">50</span>
+                    <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-3">Tokens</span>
+                    <div class="w-full py-2 bg-amber-500 text-black rounded-lg text-xs font-black transition-colors">$5.00</div>
+                </button>
+
+                <button onclick="selectPack(this, 10, 100)" class="pack-option group flex flex-col items-center p-4 border rounded-2xl transition-all active:scale-95" style="background-color: var(--input-bg); border-color: var(--border);">
+                    <span class="text-[10px] font-black text-zinc-500 uppercase mb-1">Pro</span>
+                    <span class="text-2xl font-black" style="color: var(--text-main);">100</span>
+                    <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-3">Tokens</span>
+                    <div class="w-full py-2 bg-amber-500 text-black rounded-lg text-xs font-black transition-colors">$10.00</div>
+                </button>
+
+                <button onclick="selectPack(this, 25, 250)" class="pack-option group flex flex-col items-center p-4 border rounded-2xl transition-all active:scale-95 relative overflow-hidden" style="background-color: var(--input-bg); border-color: var(--border);">
+                    <div class="absolute top-0 right-0 bg-amber-500 text-[8px] font-black px-2 py-0.5 text-black uppercase italic z-10">Best Value</div>
+                    <span class="text-[10px] font-black text-zinc-500 uppercase mb-1">Whale</span>
+                    <span class="text-2xl font-black" style="color: var(--text-main);">250</span>
+                    <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-3">Tokens</span>
+                    <div class="w-full py-2 bg-amber-500 text-black rounded-lg text-xs font-black transition-colors">$25.00</div>
+                </button>
+            </div>
+
+            <div id="paypal-tokens-container" class="min-h-[150px] pb-4"></div>
+        </div>
+    </div>
+</div>
+
+<div id="withdraw-modal" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+    <div class="border w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]" 
+         style="background-color: var(--card-bg); border-color: var(--border); color: var(--text-main);">
+        
+        <div class="p-8 pb-4 text-center relative">
+            <div class="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
+                <i data-lucide="landmark" class="w-8 h-8 text-emerald-500"></i>
+            </div>
+            <h2 class="text-2xl font-black uppercase italic tracking-tighter" style="color: var(--text-main);">Cash Out</h2>
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.2em]">Secure PayPal Payouts</p>
+        </div>
+
+        <div class="flex justify-around py-4 border-y" style="background-color: rgba(0,0,0,0.05); border-color: var(--border);">
+            <div class="text-center">
+                <span class="block text-[8px] font-black text-zinc-500 uppercase tracking-widest">Total Paid</span>
+                <span id="total-withdrawn" class="text-sm font-black text-emerald-500">$0.00</span>
+            </div>
+            <div class="w-px h-8" style="background-color: var(--border);"></div>
+            <div class="text-center">
+                <span class="block text-[8px] font-black text-zinc-500 uppercase tracking-widest">Pending</span>
+                <span id="pending-count" class="text-sm font-black text-amber-500">0</span>
+            </div>
+        </div>
+
+        <div class="p-8 overflow-y-auto custom-scrollbar space-y-6">
+            <div class="space-y-2">
+                <div class="flex justify-between items-end">
+                    <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">PayPal Recipient</label>
+                    <span class="text-[9px] text-emerald-500 font-bold uppercase">Verified Gateway</span>
+                </div>
+                <div class="relative">
+                    <i data-lucide="mail" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600"></i>
+                    <input type="email" id="withdraw-email" 
+                           class="w-full border p-4 pl-12 rounded-2xl outline-none focus:border-emerald-500/50 transition-all text-sm font-bold" 
+                           style="background-color: var(--input-bg); border-color: var(--border); color: var(--text-main);"
+                           placeholder="paypal@example.com">
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Token Amount</label>
+                <div class="relative">
+                    <i data-lucide="coins" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500"></i>
+                    <input type="number" id="withdraw-amount" 
+                           class="w-full border p-4 pl-12 rounded-2xl outline-none focus:border-amber-500/50 transition-all text-sm font-bold" 
+                           style="background-color: var(--input-bg); border-color: var(--border); color: var(--text-main);"
+                           placeholder="Min. 50">
+                </div>
+            </div>
+
+            <div class="rounded-2xl p-4 border space-y-3" style="background-color: rgba(0,0,0,0.1); border-color: var(--border);">
+                <div class="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
+                    <span class="text-zinc-500">Gross Value</span>
+                    <span id="calc-gross" style="color: var(--text-main);">$0.00</span>
+                </div>
+                <div class="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
+                    <span class="text-zinc-500">Platform Fee (30%)</span>
+                    <span id="calc-fee" class="text-red-500">-$0.00</span>
+                </div>
+                <div class="h-px" style="background-color: var(--border);"></div>
+                <div class="flex justify-between items-center font-black uppercase tracking-tighter italic">
+                    <span class="text-zinc-400 text-xs">Net Payout</span>
+                    <span id="calc-net" class="text-emerald-500 text-xl font-black">$0.00</span>
+                </div>
+            </div>
+
+            <button onclick="handleWithdrawSubmit()" 
+                    class="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all theme-light:bg-zinc-900 theme-light:text-white">
+                Confirm Payout
+            </button>
+
+            <div id="payout-history-container" class="hidden border-t pt-4" style="border-color: var(--border);">
+                <span class="text-[9px] font-black text-zinc-600 uppercase tracking-widest block mb-3 text-center">Recent Activity</span>
+                <div id="payout-history-list" class="space-y-2"></div>
+            </div>
+
+            <button onclick="closeWithdrawModal()" class="w-full text-zinc-600 text-[10px] font-black uppercase tracking-[0.2em] hover:text-white transition-colors">
+                Cancel Request
+            </button>
+        </div>
+    </div>
+</div>
+<div class="max-w-7xl mx-auto p-4 md:p-8">
+    
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        <div>
+            <h2 class="text-3xl font-black uppercase italic tracking-tighter" style="color: var(--text-main);">Discovery</h2>
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Support creators or contribute to foundations</p>
+        </div>
+
+        <div class="flex-1 max-w-md w-full">
+            <div class="relative">
+                <input type="text" id="user-search-input" oninput="searchUser()" 
+                       placeholder="SEARCH @USER, #TAGS, OR CAMPAIGNS..." 
+                       class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-xs font-black uppercase tracking-widest text-white focus:outline-none focus:border-pink-500/50 transition-all">
+                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[8px] font-black text-zinc-700 uppercase italic">Global</span>
+            </div>
+        </div>
+        
+        <div class="flex bg-zinc-900/50 p-1 rounded-2xl border border-white/5" style="background-color: var(--input-bg);">
+            <button onclick="switchView('campaigns')" id="tab-campaigns" class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-white text-black shadow-lg">Campaigns</button>
+            <button onclick="switchView('community')" id="tab-community" class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-zinc-500 hover:text-white">User Tipping</button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div id="view-campaigns" class="lg:col-span-7 space-y-6">
+            <div class="flex items-center justify-between mb-4">
+                <span class="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em]">Active Goals</span>
+                <button onclick="openCreateCampaign()" class="text-[9px] font-black text-zinc-500 hover:text-white uppercase transition-all">+ New Campaign</button>
+            </div>
+            <div id="campaign-grid" class="grid grid-cols-1 gap-6"></div>
+        </div>
+
+        <div id="view-community" class="lg:col-span-5 space-y-6">
+            <div class="flex items-center justify-between mb-4">
+                <span class="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Online Community</span>
+            </div>
+            <div id="user-feed-grid" class="grid grid-cols-1 gap-4"></div>
+        </div>
+    </div>
+</div>
+
+<div id="modern-donate-modal" class="fixed inset-0 z-[999] hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl">
+        <div class="p-8 text-center">
+            <img id="donate-target-img" src="" class="w-20 h-20 rounded-full mx-auto border-4 border-emerald-500 shadow-lg mb-4 object-cover">
+            <h2 id="donate-target-name-display" class="text-xl font-black uppercase text-white">@User</h2>
+            <p class="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Support this member</p>
+
+            <div id="stats-glass-card" class="mt-6 p-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md relative overflow-hidden">
+                <div class="flex justify-around items-center">
+                    <div class="text-center">
+                        <span class="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Total Raised</span>
+                        <span id="stat-raised-val" class="text-emerald-500 font-black text-sm">0</span>
+                    </div>
+                    <div class="w-px h-6 bg-white/10"></div>
+                    <div class="text-center">
+                        <span class="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Supporters</span>
+                        <span id="stat-donors-val" class="text-amber-500 font-black text-sm">0</span>
+                    </div>
+                </div>
+
+                <div id="stats-premium-lock" class="hidden absolute inset-0 bg-black/40 backdrop-blur-md flex items-center justify-center">
+                    <div class="bg-amber-500 text-black px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter flex items-center gap-1 shadow-lg shadow-amber-500/20">
+                        <i data-lucide="crown" class="w-2.5 h-2.5"></i> Premium Only
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8 space-y-4">
+                <div class="relative">
+                    <input type="number" id="donate-input-amount" placeholder="0.00" 
+                           class="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-center text-2xl font-black text-white focus:outline-none focus:border-emerald-500 transition-all">
+                    <span class="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-black text-zinc-600 uppercase">Tokens</span>
+                </div>
+                
+                <div id="fee-notice"></div>
+
+                <button id="confirm-donation-btn" class="w-full py-4 bg-emerald-500 text-black font-black uppercase rounded-2xl hover:bg-emerald-400 transition-all active:scale-95 shadow-lg shadow-emerald-500/20">
+                    Confirm Transfer
+                </button>
+                
+                <button onclick="closeDonateModal()" class="w-full py-4 text-zinc-500 text-[10px] font-black uppercase tracking-widest hover:text-white transition-all">
+                    Cancel & Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="donation-success-modal" class="hidden fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-xs rounded-[40px] overflow-hidden shadow-2xl transform transition-all scale-100">
+        <div class="bg-emerald-500 p-8 text-center relative">
+            <div class="absolute -bottom-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-emerald-500">
+                <i data-lucide="check" class="text-emerald-500 w-6 h-6"></i>
+            </div>
+            <h2 class="text-black text-2xl font-black uppercase italic tracking-tighter">Sent!</h2>
+        </div>
+        
+        <div class="p-8 pt-10 text-center">
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Transaction Complete</p>
+            <div class="flex items-center justify-center gap-2 mb-6">
+                <span id="success-net-amount" class="text-4xl font-black text-white">0</span>
+                <span class="text-xs font-bold text-emerald-500 uppercase tracking-widest mt-2">Tokens</span>
+            </div>
+
+            <div class="space-y-3 border-t border-white/5 pt-6 mb-8">
+                <div class="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                    <span class="text-zinc-500">Total Charged</span>
+                    <span id="success-gross-amount" class="text-white">0</span>
+                </div>
+                <div class="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                    <span class="text-zinc-500">Platform Fee</span>
+                    <span id="success-fee-amount" class="text-amber-500">0</span>
+                </div>
+            </div>
+
+            <button onclick="closeSuccessModal()" class="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white/10 transition-all">
+                Back to Discovery
+            </button>
+        </div>
+    </div>
+</div>
+<div id="error-modal" class="hidden fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-xs rounded-[40px] overflow-hidden shadow-2xl">
+        <div class="bg-red-500 p-8 text-center relative">
+            <div class="absolute -bottom-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-red-500">
+                <i data-lucide="shield-alert" class="text-red-500 w-6 h-6"></i>
+            </div>
+            <h2 class="text-white text-xl font-black uppercase italic tracking-tighter">Action Denied</h2>
+        </div>
+        
+        <div class="p-8 pt-10 text-center">
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-2">Security Limit Reached</p>
+            <p id="error-modal-msg" class="text-white text-sm font-bold leading-relaxed mb-8 px-2">
+                You can only withdraw earned tokens.
+            </p>
+
+            <button onclick="closeErrorModal()" class="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white/20 transition-all">
+                I Understand
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="withdraw-success-modal" class="hidden fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-xs rounded-[40px] overflow-hidden shadow-2xl">
+        <div class="bg-emerald-500 p-8 text-center relative">
+            <div class="absolute -bottom-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-emerald-500">
+                <i data-lucide="send" class="text-emerald-500 w-6 h-6"></i>
+            </div>
+            <h2 class="text-black text-xl font-black uppercase italic tracking-tighter">Request Sent</h2>
+        </div>
+        
+        <div class="p-8 pt-10 text-center">
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Estimated Arrival: 24h</p>
+            <div class="flex items-center justify-center gap-2 mb-6">
+                <span id="payout-success-usd" class="text-4xl font-black text-white">$0.00</span>
+            </div>
+
+            <p class="text-[10px] text-zinc-400 font-bold leading-relaxed mb-8 px-4 uppercase tracking-tighter">
+                Funds are being sent to your PayPal email. Check your dashboard for updates.
+            </p>
+
+            <button onclick="closeWithdrawSuccess()" class="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white/10 transition-all">
+                Perfect, Thanks!
+            </button>
+        </div>
+    </div>
+</div>
+
+ <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
+    import { getDatabase, ref, update, onValue, get, set } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDFHskUWiyHhZke3KT9kkOtFI_gPsKfiGo",
+        authDomain: "itzhoyoo-f9f7e.firebaseapp.com",
+        databaseURL: "https://itzhoyoo-f9f7e-default-rtdb.firebaseio.com",
+        projectId: "itzhoyoo-f9f7e",
+        appId: "1:1094792075584:web:d49e9c3f899d3cd31082a5"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+    const PLAN_ID = 'P-47S21200XM2944742NFPLPEA';
+
+    const presets = [
+        "https://img.pikbest.com/origin/10/25/30/74apIkbEsT5qB.jpg!w700wp",
+        "https://thumbs.dreamstime.com/b/cool-neon-party-wolf-headphones-black-background-colorful-illustration-music-theme-modern-portrait-bright-vibrant-385601082.jpg",
+        "https://wallpapers.com/images/hd/gaming-profile-pictures-tt8bbzdcf6zibhoi.jpg"
+    ];
+// This version ONLY locks for Profile and Donation modals
+const syncScrollLock = () => {
+    const lockIds = ['profile-modal', 'modern-donate-modal', 'donation-success-modal'];
+    const shouldLock = lockIds.some(id => {
+        const el = document.getElementById(id);
+        return el && !el.classList.contains('hidden');
+    });
+    document.body.style.overflow = shouldLock ? 'hidden' : '';
+};
+
+    // --- UTILS & THEME ---
+    window.notify = (msg) => {
+        const t = document.createElement('div');
+        t.className = 'toast show'; t.innerText = msg;
+        const box = document.getElementById('notify-box');
+        if(box) box.appendChild(t);
+        setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000);
+    };
+
+    window.setTheme = (theme) => {
+        document.body.className = theme;
+        localStorage.setItem('user-theme', theme);
+        document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+        const activeBtn = document.getElementById(`btn-${theme}`);
+        if(activeBtn) activeBtn.classList.add('active');
+    };
+    setTheme(localStorage.getItem('user-theme') || 'theme-dark');
+
+    // --- MODAL CONTROLS ---
+    window.openAuthModal = () => document.getElementById('auth-modal').classList.remove('hidden');
+    window.closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
+    
+    window.openProfile = () => {
+        document.getElementById('profile-modal').classList.remove('hidden');
+        document.body.classList.add('stop-scrolling');
+    };
+
+    window.closeProfile = () => {
+        document.getElementById('profile-modal').classList.add('hidden');
+        document.body.classList.remove('stop-scrolling');
+    };
+
+    window.openUpgradeModal = () => {
+        document.getElementById('upgrade-modal').classList.remove('hidden');
+        setTimeout(initPayPal, 100);
+    };
+    
+    window.closeUpgradeModal = () => document.getElementById('upgrade-modal').classList.add('hidden');
+
+    // --- TOKEN MODAL LOGIC ---
+    window.openTokenModal = () => {
+        document.getElementById('token-modal').classList.remove('hidden');
+        // Using the same class for consistency
+        document.body.classList.add('stop-scrolling'); 
+    };
+
+    window.closeTokenModal = () => {
+        document.getElementById('token-modal').classList.add('hidden');
+        document.body.classList.remove('stop-scrolling'); 
+        document.getElementById('paypal-tokens-container').innerHTML = ''; 
+    };
+
+    window.selectPack = (btn, amount, tokens) => {
+        document.querySelectorAll('.pack-option').forEach(el => el.classList.remove('border-amber-500', 'bg-amber-500/10'));
+        btn.classList.add('border-amber-500', 'bg-amber-500/10');
+        window.buyPack(amount, tokens);
+    };
+
+
+    // --- AUTH LOGIC ---
+    window.authTab = 'login';
+    window.setAuthTab = (tab) => {
+        window.authTab = tab;
+        document.getElementById('reg-name-field').classList.toggle('hidden', tab === 'login');
+        document.getElementById('tab-login').className = tab === 'login' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
+        document.getElementById('tab-register').className = tab === 'register' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
+    };
+
+    window.handleAuthSubmit = async () => {
+        const email = document.getElementById('auth-email').value;
+        const pass = document.getElementById('auth-pass').value;
+        try {
+            if (window.authTab === 'register') {
+                const handle = document.getElementById('auth-username').value.trim();
+                const res = await createUserWithEmailAndPassword(auth, email, pass);
+                await set(ref(db, `users/${res.user.uid}`), { username: handle, tokens: 0, isPremium: false });
+            } else { await signInWithEmailAndPassword(auth, email, pass); }
+            closeAuthModal();
+        } catch(e) { notify(e.message); }
+    };
+    window.triggerGoogle = () => signInWithPopup(auth, new GoogleAuthProvider()).then(closeAuthModal);
+    window.handleLogout = () => signOut(auth).then(() => location.reload());
+
+    // --- PROFILE & NAME CHANGE (WITH COOLDOWN) ---
+    window.saveProfileChanges = async () => {
+        const user = auth.currentUser;
+        if(!user) return;
+        const newName = document.getElementById('username-input').value.trim();
+        const snap = await get(ref(db, `users/${user.uid}`));
+        const data = snap.val() || {};
+        let updates = {};
+
+        if (window.tempAvatar) updates.avatar = window.tempAvatar;
+        
+        if (newName && newName !== data.username) {
+            const now = Date.now();
+            const oneWeek = 7 * 24 * 60 * 60 * 1000;
+            let history = (data.nameChanges || []).filter(timestamp => (now - timestamp) < oneWeek);
+
+            if (!data.isPremium && history.length >= 2) {
+                return notify("Free users: Only 2 name changes per week!");
+            }
+            
+            updates.username = newName;
+            history.push(now);
+            updates.nameChanges = history;
+        }
+
+        await update(ref(db, `users/${user.uid}`), updates);
+        notify("Profile Updated!"); 
+        closeProfile();
+    };
+
+    // --- PAYPAL ---
+    function initPayPal() {
+        const target = document.getElementById(`paypal-button-container-${PLAN_ID}`) || document.getElementById('paypal-button-container-PRO');
+        if (!window.paypal || !target || target.hasChildNodes()) return;
+        window.paypal.Buttons({
+            style: { shape: 'pill', color: 'gold', layout: 'vertical', label: 'subscribe' },
+            createSubscription: (data, actions) => {
+                return actions.subscription.create({ plan_id: PLAN_ID, custom_id: auth.currentUser.uid });
+            },
+            onApprove: async (data) => {
+                await update(ref(db, `users/${auth.currentUser.uid}`), { isPremium: true, tokens: 20 });
+                notify("Welcome to PRO!"); 
+                closeUpgradeModal();
+            }
+        }).render(target);
+    }
+
+    // --- AVATAR PRESET GRID ---
+    const grid = document.getElementById('avatar-grid');
+    if(grid) {
+        presets.forEach(url => {
+            const img = document.createElement('img');
+            img.src = url;
+            img.className = "avatar-option w-full aspect-square object-cover rounded-xl cursor-pointer border-2 border-transparent hover:border-amber-500/50 transition-all";
+            img.onclick = () => { 
+                window.tempAvatar = url; 
+                document.getElementById('modal-preview-img').src = url;
+                document.querySelectorAll('.avatar-option').forEach(el => el.classList.remove('selected', 'border-amber-500'));
+                img.classList.add('selected', 'border-amber-500');
+            };
+            grid.appendChild(img);
+        });
+    }
+// --- MASTER DATA SYNC (STABLE VERSION + BAN GUARD) ---
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        // --- ADMIN CHECK ---
+        const isAdmin = user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1";
+
+        // 1. User Data Listener & BAN GUARD
+        onValue(ref(db, `users/${user.uid}`), (s) => {
+            const d = s.val() || {};
+
+            // --- THE BAN GUARD ---
+            if (d.banned) {
+                document.body.innerHTML = `
+                    <div class="h-screen bg-black flex flex-col items-center justify-center text-center p-6 font-sans">
+                        <div class="p-8 border border-red-500/30 bg-red-500/5 rounded-[40px] max-w-sm">
+                            <h1 class="text-red-600 text-5xl font-black mb-4 italic tracking-tighter">ACCESS REVOKED</h1>
+                            <p class="text-zinc-500 text-[10px] uppercase tracking-[0.2em] font-bold mb-6">Security Protocol 403: UID Blacklisted</p>
+                            <p class="text-white/80 text-xs font-medium leading-relaxed mb-8">
+                                This account has been permanently suspended for multiple self-donation attempts or platform abuse.
+                            </p>
+                            <div class="py-3 px-6 bg-red-600 text-black font-black text-[10px] uppercase rounded-full">Contact Support</div>
+                        </div>
+                    </div>`;
+                return; // Stop execution
+            }
+
+            const name = d.username || "User";
+            const avatar = d.avatar || presets[0];
+
+            if (isAdmin) {
+                console.log("Welcome back, Boss. Admin Mode Active.");
+                const tokenElement = document.getElementById('token-count');
+                if(tokenElement) tokenElement.classList.add('text-amber-500');
+            }
+
+            // Update Header & Profile
+            const hHandle = document.getElementById('header-handle');
+            const hPfp = document.getElementById('header-pfp');
+            const hInit = document.getElementById('header-initial');
+            const uInput = document.getElementById('username-input');
+            const mPreview = document.getElementById('modal-preview-img');
+
+            if(hHandle) hHandle.innerText = isAdmin ? `👑 @${name}` : `@${name}`;
+            if(hPfp) { hPfp.src = avatar; hPfp.classList.remove('hidden'); }
+            if(hInit) hInit.classList.add('hidden');
+            if(uInput) uInput.value = name;
+            if(mPreview) mPreview.src = avatar;
+
+            // Update Token Display
+            const tokenElement = document.getElementById('token-count');
+            if(tokenElement) tokenElement.innerText = d.tokens || 0;
+
+            // Update Premium/Verified Toggles
+            const hVerified = document.getElementById('header-verified');
+            const mgmtZone = document.getElementById('premium-management-zone');
+            const upgradeNavBtn = document.querySelector('button[onclick="openUpgradeModal()"]');
+            
+            if(d.isPremium || isAdmin) {
+                if(hVerified) hVerified.classList.remove('hidden');
+                if(mgmtZone && d.isPremium) mgmtZone.classList.remove('hidden');
+                if(upgradeNavBtn) upgradeNavBtn.classList.add('hidden');
+            } else {
+                if(hVerified) hVerified.classList.add('hidden');
+                if(mgmtZone) mgmtZone.classList.add('hidden');
+                if(upgradeNavBtn) upgradeNavBtn.classList.remove('hidden');
+            }
+        });
+
+        // 2. Initial UI Visibility
+        const tools = document.getElementById('user-tools');
+        const loginBtn = document.getElementById('login-btn');
+        const tokenBar = document.getElementById('token-bar');
+        
+        if(tools) tools.classList.remove('hidden');
+        if(loginBtn) loginBtn.classList.add('hidden');
+        if(tokenBar) tokenBar.classList.remove('hidden');
+
+        // 3. Initialize Community Features
+        if (typeof setupPresence === 'function') setupPresence(user.uid);
+        if (typeof loadUserFeed === 'function') loadUserFeed();
+        if (typeof loadCampaigns === 'function') loadCampaigns();
+        if (typeof switchView === 'function') switchView('campaigns');
+
+        // 4. Payout Listener
+        onValue(ref(db, `payouts`), (snapshot) => {
+            const allPayouts = snapshot.val() || {};
+            const historyList = document.getElementById('payout-history-list');
+            const historyContainer = document.getElementById('payout-history-container');
+            
+            if(historyList) historyList.innerHTML = '';
+
+            let totalPaid = 0;
+            let pendingCount = 0;
+            let hasHistory = false;
+
+            const sorted = Object.values(allPayouts)
+                .filter(p => p.uid === user.uid)
+                .sort((a, b) => b.timestamp - a.timestamp);
+
+            sorted.forEach(p => {
+                hasHistory = true; 
+                if (p.status === 'completed') totalPaid += (p.netAmount || 0);
+                if (p.status === 'pending') pendingCount++;
+
+                if(historyList) {
+                    const div = document.createElement('div');
+                    div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5";
+                    const statusColor = p.status === 'completed' ? 'text-emerald-500' : 'text-amber-500';
+                    div.innerHTML = `
+                        <div class="flex flex-col">
+                            <span class="text-[9px] font-black text-white uppercase">$${p.netAmount.toFixed(2)}</span>
+                            <span class="text-[8px] text-zinc-500">${new Date(p.timestamp).toLocaleDateString()}</span>
+                        </div>
+                        <span class="text-[8px] font-black uppercase ${statusColor}">${p.status}</span>
+                    `;
+                    historyList.appendChild(div);
+                }
+            });
+
+            if(hasHistory && historyContainer) historyContainer.classList.remove('hidden');
+            
+            const totalWithdrawnEl = document.getElementById('total-withdrawn');
+            const pendingCountEl = document.getElementById('pending-count');
+            if(totalWithdrawnEl) totalWithdrawnEl.innerText = `$${totalPaid.toFixed(2)}`;
+            if(pendingCountEl) pendingCountEl.innerText = pendingCount;
+        });
+    }
+});
+
+
+    window.checkPremiumAndUpload = async () => {
+        const user = auth.currentUser;
+        if (!user) return notify("Please login first");
+        const snap = await get(ref(db, `users/${user.uid}/isPremium`));
+        if (snap.val()) {
+            document.getElementById('pfp-upload').click();
+        } else {
+            notify("PRO required for custom uploads!");
+            closeProfile();
+            openUpgradeModal();
+        }
+    };
+
+    window.buyPack = (amount, tokens) => {
+        const container = document.getElementById('paypal-tokens-container');
+        container.innerHTML = ''; 
+
+        window.paypal.Buttons({
+            style: { shape: 'pill', color: 'gold', layout: 'vertical', label: 'pay' },
+            createOrder: (data, actions) => {
+                return actions.order.create({
+                    intent: "CAPTURE",
+                    purchase_units: [{
+                        description: `${tokens} Token Pack`,
+                        amount: { currency_code: "USD", value: amount.toString() },
+                        custom_id: auth.currentUser.uid 
+                    }]
+                });
+            },
+            onApprove: async (data, actions) => {
+                const details = await actions.order.capture();
+                const userRef = ref(db, `users/${auth.currentUser.uid}`);
+                const snap = await get(userRef);
+                const currentTokens = snap.val()?.tokens || 0;
+                
+                await update(userRef, { tokens: currentTokens + tokens });
+                notify(`Success! ${tokens} tokens added.`);
+                closeTokenModal();
+            },
+            onError: (err) => {
+                console.error("PayPal Error:", err);
+                notify("Payment failed to initialize.");
+            }
+        }).render('#paypal-tokens-container');
+    };
+
+    lucide.createIcons();
+// --- COMPLETE WITHDRAWAL LOGIC (15% FEE + SAFETY MODALS + API SECURED) ---
+
+// Modal Controllers
+window.showErrorModal = (msg) => {
+    const msgEl = document.getElementById('error-modal-msg');
+    if(msgEl) msgEl.innerText = msg;
+    document.getElementById('error-modal').classList.remove('hidden');
+    document.body.classList.add('stop-scrolling');
+    if (window.lucide) lucide.createIcons();
+};
+
+window.closeErrorModal = () => {
+    document.getElementById('error-modal').classList.add('hidden');
+    document.body.classList.remove('stop-scrolling');
+};
+
+window.showWithdrawSuccess = (usdAmount) => {
+    const usdEl = document.getElementById('payout-success-usd');
+    if(usdEl) usdEl.innerText = `$${usdAmount.toFixed(2)}`;
+    document.getElementById('withdraw-success-modal').classList.remove('hidden');
+    document.body.classList.add('stop-scrolling');
+    if (typeof confetti === 'function') confetti();
+    if (window.lucide) lucide.createIcons();
+};
+
+window.closeWithdrawSuccess = () => {
+    document.getElementById('withdraw-success-modal').classList.add('hidden');
+    document.body.classList.remove('stop-scrolling');
+};
+
+window.openWithdrawModal = () => {
+    document.getElementById('withdraw-modal').classList.remove('hidden');
+    document.body.classList.add('stop-scrolling');
+};
+
+// --- FIX: Added specific close button handler ---
+window.closeWithdrawModal = () => {
+    document.getElementById('withdraw-modal').classList.add('hidden');
+    document.body.classList.remove('stop-scrolling');
+    // Clear inputs on close
+    document.getElementById('withdraw-amount').value = '';
+    document.getElementById('withdraw-email').value = '';
+};
+
+// Real-time Math for UI (Matches your exact 15% logic)
+document.getElementById('withdraw-amount')?.addEventListener('input', (e) => {
+    const tokens = parseInt(e.target.value) || 0;
+    const gross = tokens / 10;
+    const fee = gross * 0.15; 
+    const net = gross - fee;
+
+    const grossEl = document.getElementById('calc-gross');
+    const feeEl = document.getElementById('calc-fee');
+    const netEl = document.getElementById('calc-net');
+
+    if(grossEl) grossEl.innerText = `$${gross.toFixed(2)}`;
+    if(feeEl) feeEl.innerText = `-$${fee.toFixed(2)}`;
+    if(netEl) netEl.innerText = `$${net.toFixed(2)}`;
+});
+
+window.handleWithdrawSubmit = async () => {
+    const user = auth.currentUser;
+    const emailEl = document.getElementById('withdraw-email');
+    const amountEl = document.getElementById('withdraw-amount');
+    
+    const email = emailEl?.value?.trim();
+    const amount = parseInt(amountEl?.value);
+    
+    // Find button even if the selector is slightly different
+    const btn = document.querySelector('button[onclick="handleWithdrawSubmit()"]');
+
+    // --- PRE-API SAFETY CHECKS (Local) ---
+    if (!user) return notify("Auth required");
+    if (!email || !email.includes('@')) return notify("Invalid PayPal email");
+    
+    if (isNaN(amount) || amount < 50) {
+        return showErrorModal("The minimum withdrawal is 50 Tokens ($5.00).");
+    }
+
+    // Start UI Loading State
+    if(btn) {
+        btn.disabled = true;
+        btn.innerText = "Processing...";
+    }
+
+    try {
+        // --- 1. GET THE SECURE TOKEN ---
+        const idToken = await user.getIdToken(true);
+
+        // --- 2. SEND TO VERCEL API ---
+        const response = await fetch('/api/withdraw', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken, email, amount })
+        });
+
+        const text = await response.text();
+        let result;
+        
+        try {
+            result = JSON.parse(text);
+        } catch (e) {
+            // If the server didn't send JSON, it likely sent a 404 HTML error
+            throw new Error("Withdrawal server not found. Check Vercel deployment.");
+        }
+
+        if (!response.ok) {
+            throw new Error(result.error || "Withdrawal failed");
+        }
+
+        // --- 3. SUCCESS UI FLOW ---
+        closeWithdrawModal();
+        showWithdrawSuccess(result.netAmount);
+
+    } catch (e) { 
+        console.error("Withdrawal Error:", e);
+        showErrorModal(e.message); 
+    } finally {
+        if(btn) {
+            btn.disabled = false;
+            btn.innerText = "Confirm Payout";
+        }
+    }
+};
+
+// --- IMGUR UPLOAD HANDLER ---
+document.getElementById('pfp-upload')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validation
+    if (file.size > 2 * 1024 * 1024) return notify("Image too large (Max 2MB)");
+    
+    notify("Uploading to Imgur...");
+    
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+        const response = await fetch('https://api.imgur.com/3/image', {
+            method: 'POST',
+            headers: { 
+                Authorization: 'Client-ID 891e5bb4aa94282' 
+            },
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            const link = data.data.link;
+            window.tempAvatar = link; // Stores the URL for saveProfileChanges()
+            document.getElementById('modal-preview-img').src = link;
+            notify("Uploaded! Click 'Update Profile' to save.");
+        } else {
+            notify("Imgur upload failed. Check API limits.");
+        }
+    } catch (err) {
+        notify("Network error during upload.");
+        console.error(err);
+    }
+});
+// --- 0. CONFIG & PRESETS ---
+const communityPresets = [
+    "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix",
+    "https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka",
+    "https://api.dicebear.com/7.x/avataaars/svg?seed=James"
+];
+
+let activeTarget = { id: null, type: null };
+
+// --- 1. DYNAMIC SEARCH (CAMPAIGNS & USERS) ---
+window.searchUser = () => {
+    const query = document.getElementById('user-search-input')?.value.toLowerCase().replace('@', '').replace('#', '');
+    
+    // Search Campaigns (checks title, desc, tags, country)
+    const campaignCards = document.querySelectorAll('#campaign-grid > div');
+    campaignCards.forEach(card => {
+        const text = card.innerText.toLowerCase();
+        card.classList.toggle('hidden', !text.includes(query));
+    });
+
+    // Search Users
+    const userCards = document.querySelectorAll('#user-feed-grid > div');
+    userCards.forEach(card => {
+        const handle = card.getAttribute('data-handle')?.toLowerCase() || "";
+        const email = card.getAttribute('data-email')?.toLowerCase() || "";
+        card.classList.toggle('hidden', !(handle.includes(query) || email.includes(query)));
+    });
+};
+
+// --- 2. MODAL CONTROLS ---
+window.closeDonateModal = () => {
+    document.getElementById('modern-donate-modal')?.classList.add('hidden');
+    document.body.classList.remove('stop-scrolling');
+};
+
+window.closeCreateModal = () => {
+    document.getElementById('create-campaign-modal')?.classList.add('hidden');
+    document.body.classList.remove('stop-scrolling');
+};
+
+document.getElementById('donate-input-amount')?.addEventListener('input', (e) => {
+    const amount = parseInt(e.target.value) || 0;
+    const net = Math.floor(amount * 0.7);
+    const notice = document.getElementById('fee-notice');
+    if(notice) {
+        notice.innerText = amount > 0 ? `Recipient receives: ${net} (30% fee applied)` : '';
+        notice.className = "text-[10px] font-bold text-pink-500 mt-2 italic";
+    }
+});
+
+
+// --- 3. VIEW SWITCHER ---
+window.switchView = (view) => {
+    const campView = document.getElementById('view-campaigns');
+    const commView = document.getElementById('view-community');
+    const campBtn = document.getElementById('tab-campaigns');
+    const commBtn = document.getElementById('tab-community');
+
+    if (view === 'campaigns') {
+        if(campBtn) campBtn.className = "px-6 py-2.5 rounded-xl text-[10px] font-black uppercase bg-amber-500 text-black shadow-lg";
+        if(commBtn) commBtn.className = "px-6 py-2.5 rounded-xl text-[10px] font-black uppercase text-zinc-500 hover:text-white";
+        campView?.classList.remove('hidden');
+        commView?.classList.add('hidden');
+    } else {
+        if(commBtn) commBtn.className = "px-6 py-2.5 rounded-xl text-[10px] font-black uppercase bg-emerald-500 text-black shadow-lg";
+        if(campBtn) campBtn.className = "px-6 py-2.5 rounded-xl text-[10px] font-black uppercase text-zinc-500 hover:text-white";
+        commView?.classList.remove('hidden');
+        campView?.classList.add('hidden');
+    }
+};
+
+// --- 4. CAMPAIGN FEED (With Auto-Archive & Rich Details) ---
+const loadCampaigns = () => {
+    const grid = document.getElementById('campaign-grid');
+    if (!grid) return;
+
+    onValue(ref(db, 'campaigns'), (snapshot) => {
+        const campaigns = snapshot.val();
+        grid.innerHTML = '';
+        if(!campaigns) return;
+
+        Object.keys(campaigns).forEach(id => {
+            const c = campaigns[id];
+            const now = Date.now();
+            
+            // AUTO-REMOVE & ARCHIVE EXPIRED
+            if (c.deadline && now > c.deadline) {
+                set(ref(db, `archived_campaigns/${id}`), { ...c, status: 'expired' });
+                set(ref(db, `campaigns/${id}`), null);
+                return;
+            }
+
+            const progress = Math.min((c.raised / c.goal) * 100, 100);
+            const isPro = c.creatorIsPremium || false;
+            
+            const card = document.createElement('div');
+            card.className = `p-6 rounded-[32px] border relative flex flex-col gap-4 transition-all mb-4 ${isPro ? 'border-pink-500/50 shadow-[0_0_20px_rgba(236,72,153,0.1)] bg-white/5' : 'border-white/5 bg-zinc-900/40'}`;
+
+            card.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div class="text-[8px] font-black uppercase px-2 py-1 rounded-full bg-black/40 text-pink-500 border border-pink-500/20">
+                        Ends: <span id="timer-${id}">...</span>
+                    </div>
+                    <span class="text-[8px] font-bold text-zinc-500 uppercase italic">${c.country || 'Global'}</span>
+                </div>
+
+                <div class="flex gap-4 items-start">
+                    <div class="w-14 h-14 rounded-xl bg-zinc-800 flex-shrink-0 border border-white/10 overflow-hidden">
+                        <img src="https://img.icons8.com/fluency/96/charity.png" class="w-full h-full p-2">
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-1">
+                            <h3 class="text-sm font-black uppercase text-white truncate">${c.title}</h3>
+                            ${isPro ? '<img src="https://img.icons8.com/color/48/verified-badge.png" class="w-3 h-3">' : ''}
+                        </div>
+                        <p class="text-[10px] text-zinc-400 mt-2 leading-relaxed">${formatCampaignText(c.description || '')}</p>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            ${(c.tags || '').split(',').map(tag => tag.trim() ? `<span class="text-[8px] text-amber-500 font-bold uppercase">#${tag}</span>` : '').join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div class="h-full bg-gradient-to-r from-pink-500 to-rose-400" style="width: ${progress}%"></div>
+                    </div>
+                    <div class="flex justify-between text-[9px] font-black text-pink-500 uppercase italic">
+                        <span>${c.raised} Raised</span>
+                        <span class="text-zinc-500">Goal: ${c.goal}</span>
+                    </div>
+                </div>
+
+                <div class="border-t border-white/5 pt-3">
+                    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+                        <span class="text-[8px] font-black text-zinc-600 uppercase flex-shrink-0">Donors:</span>
+                        <div id="donors-${id}" class="flex -space-x-2">
+                             <span class="text-[8px] text-zinc-700 italic ml-4">Be the first to help!</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between mt-2">
+                    <button onclick="viewCreatorProfile('${c.creator}')" class="text-[9px] font-black uppercase text-zinc-400 hover:text-white flex items-center gap-1">
+                        <div class="w-4 h-4 rounded-full bg-zinc-700 overflow-hidden">
+                            <img src="${c.creatorAvatar || communityPresets[0]}" class="w-full h-full object-cover">
+                        </div>
+                        @${c.creatorName || 'Member'}
+                    </button>
+                    <button onclick="handleDonateCampaign('${id}', '${c.title}')" class="px-5 py-2 bg-white text-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:bg-emerald-500 transition-all">Donate</button>
+                </div>
+            `;
+            grid.appendChild(card);
+            if(c.deadline) startCountdown(id, c.deadline);
+            loadDonors(id);
+        });
+    });
+};
+
+// Formatting Helper
+function formatCampaignText(text) {
+    return text
+        .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-pink-500 underline">$1</a>')
+        .replace(/#(\w+)/g, '<span class="text-amber-500 font-bold">#$1</span>');
+}
+
+const loadDonors = (campaignId) => {
+    onValue(ref(db, `campaign_donors/${campaignId}`), (snap) => {
+        const donors = snap.val();
+        const container = document.getElementById(`donors-${campaignId}`);
+        if(!donors || !container) return;
+        container.innerHTML = '';
+        Object.values(donors).forEach(d => {
+            const img = document.createElement('img');
+            img.src = d.avatar || communityPresets[0];
+            img.className = "w-6 h-6 rounded-full border-2 border-zinc-900 object-cover cursor-pointer hover:scale-110 transition-all";
+            img.onclick = () => viewCreatorProfile(d.uid);
+            container.appendChild(img);
+        });
+    });
+};
+
+// --- 5. USER FEED ---
+const loadUserFeed = () => {
+    const feedGrid = document.getElementById('user-feed-grid');
+    if (!feedGrid) return;
+
+    onValue(ref(db, 'users'), (snapshot) => {
+        const users = snapshot.val();
+        feedGrid.innerHTML = '';
+        if (!users) return;
+        
+        Object.keys(users).forEach(uid => {
+            const u = users[uid];
+            const isPro = u.isPremium || false;
+
+            const card = document.createElement('div');
+            card.setAttribute('data-handle', u.username || "");
+            card.setAttribute('data-email', u.email || "");
+            card.className = `p-5 rounded-[24px] border relative transition-all ${isPro ? 'border-pink-500/30 bg-white/5' : 'border-white/5 bg-zinc-900/40'}`;
+            
+            card.innerHTML = `
+                <div class="flex items-start gap-4">
+                    <div onclick="viewCreatorProfile('${uid}')" class="w-12 h-12 rounded-full border-2 ${isPro ? 'border-pink-500' : 'border-zinc-800'} p-0.5 overflow-hidden cursor-pointer">
+                        <img src="${u.avatar || communityPresets[0]}" class="w-full h-full object-cover rounded-full">
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center">
+                            <span class="font-black text-xs text-white uppercase italic">@${u.username}</span>
+                            <span class="text-xs">${u.mood === 'happy' ? '😊' : u.mood === 'sad' ? '😔' : '😐'}</span>
+                        </div>
+                        <p class="text-[9px] text-zinc-400 mt-1 italic line-clamp-2">${u.bio || 'Sharing the energy!'}</p>
+                        <div class="flex items-center gap-2 mt-2">
+                             <span class="text-[8px] bg-white/5 px-2 py-0.5 rounded text-zinc-500 font-bold uppercase">${u.country || 'Global'}</span>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="handleTip('${uid}', '${u.username}', '${u.avatar}')" class="w-full mt-4 py-2 bg-emerald-500 text-black text-[10px] font-black uppercase rounded-xl hover:bg-emerald-400 transition-all">Tip User</button>
+            `;
+            feedGrid.appendChild(card);
+        });
+    });
+};
+
+// --- 6. TIMER & PROFILE REDIRECT ---
+const startCountdown = (id, deadline) => {
+    const timerInterval = setInterval(() => {
+        const el = document.getElementById(`timer-${id}`);
+        if (!el) return clearInterval(timerInterval);
+        const diff = deadline - Date.now();
+        if (diff <= 0) {
+            el.innerText = "ENDED";
+            loadCampaigns(); // Trigger archive logic
+            return clearInterval(timerInterval);
+        }
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        el.innerText = `${d}d ${h}h ${m}m ${s}s`;
+    }, 1000);
+};
+
+window.viewCreatorProfile = async (targetUid) => {
+    const user = auth.currentUser;
+    if (!user) return notify("Login required");
+    const snap = await get(ref(db, `users/${user.uid}`));
+    if (snap.val()?.isPremium) {
+        window.location.href = `profile.html?id=${targetUid}`;
+    } else {
+        notify("PRO required to view profiles!");
+        if(window.openUpgradeModal) openUpgradeModal();
+    }
+};
+// --- 7. TRANSACTIONS & DONOR LOGGING (API POWERED + MAX SECURITY) ---
+
+window.closeSuccessModal = () => {
+    document.getElementById('donation-success-modal').classList.add('hidden');
+    document.body.classList.remove('stop-scrolling');
+};
+
+window.confirmDonation = async () => {
+    const user = auth.currentUser;
+    if (!user) return notify("Login required to donate!");
+
+    const amountInput = document.getElementById('donate-input-amount');
+    const amount = parseInt(amountInput.value);
+    const btn = document.getElementById('confirm-donation-btn');
+
+    // Basic Validation
+    if (!amount || amount <= 0) return notify("Enter a valid amount");
+    if (amount < 1) return notify("Minimum donation is 1 token");
+
+    // UI Feedback: Lock the button
+    btn.disabled = true;
+    btn.innerText = "Verifying Transaction...";
+
+    try {
+        // --- STEP 1: GENERATE SECURE PASS (ID TOKEN) ---
+        // This token proves to Vercel exactly who is logged in.
+        const idToken = await user.getIdToken(true);
+
+        // --- STEP 2: CALL VERCEL SERVERLESS API ---
+        const response = await fetch('/api/donate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                idToken,
+                targetId: activeTarget.id,
+                amount: amount,
+                type: activeTarget.type // 'user' or 'campaign'
+            })
+        });
+
+        const result = await response.json();
+
+        // --- STEP 3: HANDLE SERVER ERRORS ---
+        if (!response.ok) {
+            // If the server tells us the user is banned (3rd strike), refresh to show ban screen
+            if (result.error && result.error.includes("BANNED")) {
+                location.reload();
+                return;
+            }
+            throw new Error(result.error || "Transaction failed");
+        }
+
+        // --- STEP 4: SUCCESS UI ---
+        // Net amount and fees are now calculated by the server for accuracy
+        const netAmount = result.netSent;
+        const feeAmount = amount - netAmount;
+
+        document.getElementById('success-net-amount').innerText = netAmount;
+        document.getElementById('success-gross-amount').innerText = amount;
+        document.getElementById('success-fee-amount').innerText = feeAmount;
+        
+        closeDonateModal(); 
+        document.getElementById('donation-success-modal').classList.remove('hidden'); 
+        document.body.classList.add('stop-scrolling');
+        
+        // Celebrate!
+        if(typeof confetti === 'function') confetti();
+        amountInput.value = '';
+
+    } catch (e) { 
+        console.error("Donation Error:", e);
+        showErrorModal(e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Confirm Transfer";
+    }
+};
+
+// --- 8. GLOBAL HANDLERS ---
+window.handleTip = async (uid, username, avatar) => {
+    activeTarget = { id: uid, type: 'user' };
+    
+    // 1. Basic UI Setup
+    document.getElementById('donate-target-name-display').innerText = `@${username}`;
+    document.getElementById('donate-target-img').src = avatar || communityPresets[0];
+    document.getElementById('donate-input-amount').value = '';
+    document.getElementById('fee-notice').innerText = '';
+
+    try {
+        // 2. Fetch Premium status and Stats
+        const [viewerSnap, targetSnap] = await Promise.all([
+            get(ref(db, `users/${auth.currentUser.uid}`)),
+            get(ref(db, `users/${uid}`))
+        ]);
+
+        const viewerData = viewerSnap.val() || {};
+        const targetData = targetSnap.val() || {};
+        const isViewerPro = viewerData.isPremium || (auth.currentUser.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1");
+
+        // 3. Populate Stats
+        document.getElementById('stat-raised-val').innerText = targetData.totalRaised || 0;
+        document.getElementById('stat-donors-val').innerText = targetData.donorCount || 0;
+
+        // 4. Handle the Glassy Lock
+        const lockOverlay = document.getElementById('stats-premium-lock');
+        isViewerPro ? lockOverlay.classList.add('hidden') : lockOverlay.classList.remove('hidden');
+
+    } catch (e) { console.error("Stats Error:", e); }
+
+    document.getElementById('modern-donate-modal').classList.remove('hidden');
+    document.body.classList.add('stop-scrolling');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+};
+
+window.handleDonateCampaign = async (id, title) => {
+    activeTarget = { id: id, type: 'campaign' };
+    
+    document.getElementById('donate-target-name-display').innerText = title;
+    document.getElementById('donate-target-img').src = "https://img.icons8.com/fluency/96/charity.png";
+    document.getElementById('donate-input-amount').value = '';
+    document.getElementById('fee-notice').innerText = '';
+
+    try {
+        // 1. Fetch Premium status and Campaign stats
+        const [viewerSnap, campSnap] = await Promise.all([
+            get(ref(db, `users/${auth.currentUser.uid}`)),
+            get(ref(db, `campaigns/${id}`))
+        ]);
+
+        const viewerData = viewerSnap.val() || {};
+        const campData = campSnap.val() || {};
+        const isViewerPro = viewerData.isPremium || (auth.currentUser.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1");
+
+        // 2. Populate Stats (Matches user field names or uses campaign defaults)
+        document.getElementById('stat-raised-val').innerText = campData.raised || 0;
+        document.getElementById('stat-donors-val').innerText = campData.donorsCount || 0;
+
+        // 3. Handle the Glassy Lock (Same logic as User Tipping)
+        const lockOverlay = document.getElementById('stats-premium-lock');
+        isViewerPro ? lockOverlay.classList.add('hidden') : lockOverlay.classList.remove('hidden');
+
+    } catch (e) { console.error("Campaign Stats Error:", e); }
+
+    document.getElementById('modern-donate-modal').classList.remove('hidden');
+    document.body.classList.add('stop-scrolling');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+};
+
+
+// --- 9. INITIALIZE ---
+loadCampaigns();
+loadUserFeed();
+switchView('campaigns');
+
+const cBtn = document.getElementById('confirm-donation-btn');
+if(cBtn) cBtn.onclick = window.confirmDonation;
+const sBtn = document.getElementById('submit-campaign-btn');
+if(sBtn) sBtn.onclick = window.createCampaign;
+
+
+</script>
+
+</body>
+</html>
