@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
     const { idToken, email, amount } = req.body;
-    const ADMIN_UID = "4xEDAzSt5javvSnW5mws2Ma8i8n1"; // Your Vault
+    const ADMIN_UID = "4xEDAzSt5javvSnW5mws2Ma8i8n1"; // THE FEE VAULT
 
     try {
         const decodedToken = await auth.verifyIdToken(idToken);
@@ -31,17 +31,17 @@ export default async function handler(req, res) {
             const currentBalance = userData.tokens || 0;
             const withdrawable = userData.totalEarned || 0;
 
-            // 1. CHECK TOTAL BALANCE (Everyone)
+            // 1. CHECK PHYSICAL BALANCE (Everyone must have the tokens)
             if (currentBalance < amount) return; 
             
-            // 2. CHECK EARNED BALANCE (Users Only - Admin Bypasses this)
-            // This is likely why your 1M account was blocked.
-            if (!isAdmin && withdrawable < amount) return; 
-            
-            // 3. MINIMUM LIMIT (Users Only)
-            if (!isAdmin && amount < 50) return; 
+            // 2. THE SECURITY LOCK
+            // Regular users: Must have "Earned" tokens.
+            // Admin: Bypasses this because your money comes from Fees.
+            if (!isAdmin && withdrawable < amount) {
+                return; // This triggers the "Action Denied" on frontend
+            }
 
-            // EXECUTE DEDUCTION
+            // 3. EXECUTE DEDUCTION
             userData.tokens = currentBalance - amount;
             
             // Only deduct totalEarned for regular users
@@ -58,31 +58,26 @@ export default async function handler(req, res) {
             });
         }
 
-        // 4. CALCULATE PAYOUT 
-        // Admin gets 100% ($0.10 per token). Users get 85% ($0.085 per token).
-        const rate = isAdmin ? 0.10 : 0.085;
-        const netUSD = (amount * rate);
+        // 4. PAYOUT MATH
+        // Admin: 1 Token = $0.10 (No Fee)
+        // User: 1 Token = $0.085 (15% Fee)
+        const netUSD = isAdmin ? (amount / 10) : (amount / 10) * 0.85;
         const payoutId = Date.now();
 
-        // 5. LOG THE REQUEST
+        // 5. LOG TRANSACTION
         await db.ref(`payouts/${payoutId}_${uid}`).set({
             uid: uid,
-            username: result.snapshot.val().username || "User",
             paypal: email,
             tokensRequested: amount,
             netAmount: netUSD,
             status: 'pending',
-            type: isAdmin ? 'ADMIN_PROFIT' : 'USER_EARNINGS',
+            type: isAdmin ? 'PLATFORM_PROFIT_WITHDRAWAL' : 'USER_EARNINGS',
             timestamp: payoutId
         });
 
-        return res.status(200).json({ 
-            success: true, 
-            netAmount: netUSD 
-        });
+        return res.status(200).json({ success: true, netAmount: netUSD });
 
     } catch (error) {
-        console.error("Withdraw API Error:", error);
         return res.status(500).json({ error: "Internal Server Error" });
     }
 }
