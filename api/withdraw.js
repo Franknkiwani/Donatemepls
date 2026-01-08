@@ -16,13 +16,25 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
     const { idToken, email, amount } = req.body;
-    const ADMIN_UID = "4xEDAzSt5javvSnW5mws2Ma8i8n1"; // THE FEE VAULT
+    
+    // THE UID YOU WANT TO BLOCK
+    const BLOCKED_UID = "4xEDAzSt5javvSnW5mws2Ma8i8n1"; 
+    // If you ever want a DIFFERENT admin to work, put their ID here:
+    const ACTIVE_ADMIN_UID = "NEW_ADMIN_UID_HERE"; 
 
     try {
         const decodedToken = await auth.verifyIdToken(idToken);
         const uid = decodedToken.uid;
-        const isAdmin = (uid === ADMIN_UID);
 
+        // --- HARD BLOCK CHECK ---
+        // If the user is the blocked UID, stop immediately.
+        if (uid === BLOCKED_UID) {
+            return res.status(403).json({ 
+                error: "Withdrawals are disabled for this specific Admin/User account." 
+            });
+        }
+
+        const isAdmin = (uid === ACTIVE_ADMIN_UID);
         const userRef = db.ref(`users/${uid}`);
 
         const result = await userRef.transaction((userData) => {
@@ -31,20 +43,19 @@ export default async function handler(req, res) {
             const currentBalance = userData.tokens || 0;
             const withdrawable = userData.totalEarned || 0;
 
-            // 1. CHECK PHYSICAL BALANCE (Everyone must have the tokens)
+            // 1. CHECK PHYSICAL BALANCE
             if (currentBalance < amount) return; 
             
             // 2. THE SECURITY LOCK
-            // Regular users: Must have "Earned" tokens.
-            // Admin: Bypasses this because your money comes from Fees.
+            // Everyone (including the blocked UID if they got past the first check)
+            // must now follow the "Earned" rule unless they match ACTIVE_ADMIN_UID.
             if (!isAdmin && withdrawable < amount) {
-                return; // This triggers the "Action Denied" on frontend
+                return; 
             }
 
             // 3. EXECUTE DEDUCTION
             userData.tokens = currentBalance - amount;
             
-            // Only deduct totalEarned for regular users
             if (!isAdmin) {
                 userData.totalEarned = withdrawable - amount;
             }
@@ -54,13 +65,11 @@ export default async function handler(req, res) {
 
         if (!result.committed) {
             return res.status(400).json({ 
-                error: "Security Limit: You can only withdraw earned tokens." 
+                error: "Security Limit: Insufficient earned balance." 
             });
         }
 
         // 4. PAYOUT MATH
-        // Admin: 1 Token = $0.10 (No Fee)
-        // User: 1 Token = $0.085 (15% Fee)
         const netUSD = isAdmin ? (amount / 10) : (amount / 10) * 0.85;
         const payoutId = Date.now();
 
@@ -78,6 +87,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, netAmount: netUSD });
 
     } catch (error) {
+        console.error("Auth Error:", error);
         return res.status(500).json({ error: "Internal Server Error" });
     }
 }
