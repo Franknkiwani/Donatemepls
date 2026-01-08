@@ -152,6 +152,83 @@
             </div>
         </div>
     </div>
+  <div id="token-bar" class="hidden w-full bg-zinc-900/50 backdrop-blur-xl border-b border-white/5 p-6">
+    <div class="max-w-md mx-auto flex flex-col items-center">
+        
+        <span class="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-1">Current Balance</span>
+        
+        <div class="flex items-center gap-3 my-2">
+            <i data-lucide="coins" class="w-6 h-6 text-amber-500"></i>
+            <span id="token-count" class="text-5xl font-black text-white tracking-tighter">0</span>
+        </div>
+        
+        <span class="text-[11px] font-bold text-amber-500/80 uppercase tracking-widest mb-6">Available Tokens</span>
+
+        <div class="grid grid-cols-2 gap-3 w-full">
+            <button onclick="openTokenModal()" class="flex items-center justify-center gap-2 py-3 bg-amber-500 hover:bg-amber-400 text-black rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span class="text-xs font-black uppercase italic">Buy Tokens</span>
+            </button>
+            
+            <button onclick="notify('Withdrawals coming soon!')" class="flex items-center justify-center gap-2 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl transition-all active:scale-95 border border-white/5">
+                <i data-lucide="arrow-up-right" class="w-4 h-4 text-zinc-400"></i>
+                <span class="text-xs font-black uppercase italic">Withdraw</span>
+            </button>
+        </div>
+        
+    </div>
+</div>
+
+    </div>
+</div>
+
+<div id="token-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="bg-zinc-950 border border-white/10 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
+        <div class="p-6 border-b border-white/5 flex justify-between items-center bg-zinc-900/50">
+            <div>
+                <h2 class="text-xl font-black text-white italic uppercase tracking-tighter">Refill Tokens</h2>
+                <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Select a one-time credit pack</p>
+            </div>
+            <button onclick="closeTokenModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-zinc-400 hover:text-white transition-colors">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <div class="p-6 grid grid-cols-2 gap-3">
+            <button onclick="buyPack(3, 30)" class="group flex flex-col items-center p-4 bg-zinc-900 border border-white/5 rounded-2xl hover:border-amber-500/50 transition-all active:scale-95">
+                <span class="text-[10px] font-black text-zinc-500 uppercase mb-1">Starter</span>
+                <span class="text-2xl font-black text-white">30</span>
+                <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-3">Tokens</span>
+                <div class="w-full py-2 bg-white/5 group-hover:bg-amber-500 group-hover:text-black rounded-lg text-xs font-black transition-colors">$3.00</div>
+            </button>
+
+            <button onclick="buyPack(5, 50)" class="group flex flex-col items-center p-4 bg-zinc-900 border border-white/5 rounded-2xl hover:border-amber-500/50 transition-all active:scale-95">
+                <span class="text-[10px] font-black text-zinc-500 uppercase mb-1">Popular</span>
+                <span class="text-2xl font-black text-white">50</span>
+                <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-3">Tokens</span>
+                <div class="w-full py-2 bg-white/5 group-hover:bg-amber-500 group-hover:text-black rounded-lg text-xs font-black transition-colors">$5.00</div>
+            </button>
+
+            <button onclick="buyPack(10, 100)" class="group flex flex-col items-center p-4 bg-zinc-900 border border-white/5 rounded-2xl hover:border-amber-500/50 transition-all active:scale-95">
+                <span class="text-[10px] font-black text-zinc-500 uppercase mb-1">Pro</span>
+                <span class="text-2xl font-black text-white">100</span>
+                <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-3">Tokens</span>
+                <div class="w-full py-2 bg-white/5 group-hover:bg-amber-500 group-hover:text-black rounded-lg text-xs font-black transition-colors">$10.00</div>
+            </button>
+
+            <button onclick="buyPack(25, 250)" class="group flex flex-col items-center p-4 bg-zinc-900 border border-white/10 rounded-2xl hover:border-amber-500 transition-all active:scale-95 relative overflow-hidden">
+                <div class="absolute top-0 right-0 bg-amber-500 text-[8px] font-black px-2 py-0.5 text-black uppercase italic">Best Value</div>
+                <span class="text-[10px] font-black text-zinc-500 uppercase mb-1">Whale</span>
+                <span class="text-2xl font-black text-white">250</span>
+                <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-3">Tokens</span>
+                <div class="w-full py-2 bg-white/10 group-hover:bg-amber-500 group-hover:text-black rounded-lg text-xs font-black transition-colors">$25.00</div>
+            </button>
+        </div>
+
+        <div id="paypal-tokens-container" class="p-6 pt-0 min-h-[50px]"></div>
+    </div>
+</div>
+
 
     <script src="https://www.paypal.com/sdk/js?client-id=AQlRInnmKjWmwHMNBE-z6za2NcSqhfaj3vD9x_AoQEoeVVtOxqvfjtGN9ixSVARi0IT9vhPeLo3AxwC5&vault=true&intent=subscription"></script>
     <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&vault=true&intent=subscription"></script>
@@ -172,9 +249,6 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getDatabase(app);
-    const IMGUR_ID = "891e5bb4aa94282";
-    
-    // --- PAYPAL PLAN CONFIG ---
     const PLAN_ID = 'P-47S21200XM2944742NFPLPEA';
 
     const presets = [
@@ -183,6 +257,7 @@
         "https://wallpapers.com/images/hd/gaming-profile-pictures-tt8bbzdcf6zibhoi.jpg"
     ];
 
+    // --- UTILS & THEME ---
     window.notify = (msg) => {
         const t = document.createElement('div');
         t.className = 'toast show'; t.innerText = msg;
@@ -200,9 +275,18 @@
     };
     setTheme(localStorage.getItem('user-theme') || 'theme-dark');
 
-    // --- AUTH LOGIC ---
+    // --- MODAL CONTROLS ---
     window.openAuthModal = () => document.getElementById('auth-modal').classList.remove('hidden');
     window.closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
+    window.openProfile = () => document.getElementById('profile-modal').classList.remove('hidden');
+    window.closeProfile = () => document.getElementById('profile-modal').classList.add('hidden');
+    window.openUpgradeModal = () => {
+        document.getElementById('upgrade-modal').classList.remove('hidden');
+        setTimeout(initPayPal, 100);
+    };
+    window.closeUpgradeModal = () => document.getElementById('upgrade-modal').classList.add('hidden');
+
+    // --- AUTH LOGIC ---
     window.authTab = 'login';
     window.setAuthTab = (tab) => {
         window.authTab = tab;
@@ -226,7 +310,7 @@
     window.triggerGoogle = () => signInWithPopup(auth, new GoogleAuthProvider()).then(closeAuthModal);
     window.handleLogout = () => signOut(auth).then(() => location.reload());
 
-    // --- PROFILE ---
+    // --- PROFILE & NAME CHANGE (WITH COOLDOWN) ---
     window.saveProfileChanges = async () => {
         const user = auth.currentUser;
         if(!user) return;
@@ -234,40 +318,37 @@
         const snap = await get(ref(db, `users/${user.uid}`));
         const data = snap.val() || {};
         let updates = {};
+
         if (window.tempAvatar) updates.avatar = window.tempAvatar;
+        
         if (newName && newName !== data.username) {
             const now = Date.now();
-            const week = 7 * 24 * 60 * 60 * 1000;
-            let history = (data.nameChanges || []).filter(t => (now - t) < week);
-            if (!data.isPremium && history.length >= 2) return notify("Cooldown: 2 per week!");
+            const oneWeek = 7 * 24 * 60 * 60 * 1000;
+            // Filter history to only keep changes from the last 7 days
+            let history = (data.nameChanges || []).filter(timestamp => (now - timestamp) < oneWeek);
+
+            if (!data.isPremium && history.length >= 2) {
+                return notify("Free users: Only 2 name changes per week!");
+            }
+            
             updates.username = newName;
             history.push(now);
             updates.nameChanges = history;
         }
+
         await update(ref(db, `users/${user.uid}`), updates);
-        notify("Saved!"); closeProfile();
+        notify("Profile Updated!"); 
+        closeProfile();
     };
 
-    // --- PAYPAL (PRO PLAN) ---
+    // --- PAYPAL ---
     function initPayPal() {
-        // IMPORTANT: In your HTML, change id="paypal-button-container-PRO" 
-        // to id="paypal-button-container-P-47S21200XM2944742NFPLPEA"
-        const containerId = `paypal-button-container-${PLAN_ID}`;
-        const container = document.getElementById(containerId);
-        
-        // If the container is missing, try the fallback ID "paypal-button-container-PRO"
-        const fallbackContainer = document.getElementById('paypal-button-container-PRO');
-        const target = container || fallbackContainer;
-
+        const target = document.getElementById(`paypal-button-container-${PLAN_ID}`) || document.getElementById('paypal-button-container-PRO');
         if (!window.paypal || !target || target.hasChildNodes()) return;
-
         window.paypal.Buttons({
             style: { shape: 'pill', color: 'gold', layout: 'vertical', label: 'subscribe' },
             createSubscription: (data, actions) => {
-                return actions.subscription.create({ 
-                    plan_id: PLAN_ID,
-                    custom_id: auth.currentUser.uid 
-                });
+                return actions.subscription.create({ plan_id: PLAN_ID, custom_id: auth.currentUser.uid });
             },
             onApprove: async (data) => {
                 await update(ref(db, `users/${auth.currentUser.uid}`), { isPremium: true, tokens: 20 });
@@ -277,71 +358,120 @@
         }).render(target);
     }
 
-    // --- MODAL CONTROLS ---
-    window.openProfile = () => document.getElementById('profile-modal').classList.remove('hidden');
-    window.closeProfile = () => document.getElementById('profile-modal').classList.add('hidden');
-    window.openUpgradeModal = () => {
-        document.getElementById('upgrade-modal').classList.remove('hidden');
-        setTimeout(initPayPal, 100); // Tiny delay to ensure modal is visible
-    };
-    window.closeUpgradeModal = () => document.getElementById('upgrade-modal').classList.add('hidden');
-
-    // --- INITIALIZE AVATAR GRID ---
+    // --- AVATAR PRESET GRID ---
     const grid = document.getElementById('avatar-grid');
     if(grid) {
         presets.forEach(url => {
             const img = document.createElement('img');
             img.src = url;
-            img.className = "avatar-option w-full aspect-square object-cover rounded-xl cursor-pointer";
+            img.className = "avatar-option w-full aspect-square object-cover rounded-xl cursor-pointer border-2 border-transparent hover:border-amber-500/50 transition-all";
             img.onclick = () => { 
                 window.tempAvatar = url; 
                 document.getElementById('modal-preview-img').src = url;
-                document.querySelectorAll('.avatar-option').forEach(el => el.classList.remove('selected'));
-                img.classList.add('selected');
+                document.querySelectorAll('.avatar-option').forEach(el => el.classList.remove('selected', 'border-amber-500'));
+                img.classList.add('selected', 'border-amber-500');
             };
-            grid.prepend(img);
+            grid.appendChild(img);
         });
     }
 
-    onAuthStateChanged(auth, (user) => {
+    // --- DATA SYNC ---
+        onAuthStateChanged(auth, (user) => {
         if (user) {
             document.getElementById('user-tools').classList.remove('hidden');
             document.getElementById('login-btn').classList.add('hidden');
+            document.getElementById('token-bar')?.classList.remove('hidden');
+
             onValue(ref(db, `users/${user.uid}`), (s) => {
                 const d = s.val() || {};
                 const name = d.username || "User";
-                document.getElementById('header-handle').innerText = `@${name}`;
-                document.getElementById('username-input').value = name;
-                document.getElementById('pro-name-preview').innerText = name;
                 const avatar = d.avatar || presets[0];
+
+                // 1. Update Header
+                document.getElementById('header-handle').innerText = `@${name}`;
                 document.getElementById('header-pfp').src = avatar;
                 document.getElementById('header-pfp').classList.remove('hidden');
                 document.getElementById('header-initial').classList.add('hidden');
+
+                // 2. Update Profile Modal (Inputs & Top Preview)
+                document.getElementById('username-input').value = name;
                 document.getElementById('modal-preview-img').src = avatar;
-                document.getElementById('pro-pfp-preview').src = avatar;
-                if(d.isPremium) document.getElementById('header-verified').classList.remove('hidden');
+
+                // 3. Update ELITE STATUS Preview (The one in the Upgrade Modal)
+                const eliteName = document.getElementById('pro-name-preview');
+                const elitePfp = document.getElementById('pro-pfp-preview');
+                const eliteBadge = document.getElementById('pro-badge-preview'); // Ensure this ID exists on your badge icon
+
+                if(eliteName) eliteName.innerText = name;
+                if(elitePfp) elitePfp.src = avatar;
+
+                // 4. Update Token Count
+                const tokenElement = document.getElementById('token-count');
+                if(tokenElement) tokenElement.innerText = d.tokens || 0;
+
+                // 5. Premium Logic: Badge & Hide Upgrade Button
+                if(d.isPremium) {
+                    document.getElementById('header-verified').classList.remove('hidden');
+                    if(eliteBadge) eliteBadge.classList.remove('hidden');
+                    document.getElementById('upgrade-nav-btn')?.classList.add('hidden');
+                } else {
+                    document.getElementById('header-verified').classList.add('hidden');
+                    if(eliteBadge) eliteBadge.classList.add('hidden');
+                    document.getElementById('upgrade-nav-btn')?.classList.remove('hidden');
+                }
             });
         }
     });
 
-    lucide.createIcons();
     window.checkPremiumAndUpload = async () => {
-    const user = auth.currentUser;
-    if (!user) return notify("Please login first");
+        const user = auth.currentUser;
+        if (!user) return notify("Please login first");
+        const snap = await get(ref(db, `users/${user.uid}/isPremium`));
+        if (snap.val()) {
+            document.getElementById('pfp-upload').click();
+        } else {
+            notify("PRO required for custom uploads!");
+            closeProfile();
+            openUpgradeModal();
+        }
+    };
 
-    // Get the user's premium status from the database
-    const snap = await get(ref(db, `users/${user.uid}/isPremium`));
-    const isPremium = snap.val();
+    lucide.createIcons();
+    window.openTokenModal = () => document.getElementById('token-modal').classList.remove('hidden');
+window.closeTokenModal = () => {
+    document.getElementById('token-modal').classList.add('hidden');
+    document.getElementById('paypal-tokens-container').innerHTML = ''; // Clear buttons on close
+};
 
-    if (isPremium) {
-        // User is PRO: Allow them to upload
-        document.getElementById('pfp-upload').click();
-    } else {
-        // User is NOT PRO: Close profile and show upgrade modal
-        notify("PRO required for custom uploads!");
-        closeProfile(); // Close profile modal so it's not messy
-        openUpgradeModal(); // Trigger the PayPal modal
-    }
+window.buyPack = (amount, tokens) => {
+    const container = document.getElementById('paypal-tokens-container');
+    container.innerHTML = ''; // Reset container for new selection
+
+    window.paypal.Buttons({
+        style: { shape: 'pill', color: 'gold', layout: 'horizontal', label: 'pay' },
+        createOrder: (data, actions) => {
+            return actions.order.create({
+                purchase_units: [{
+                    description: `${tokens} Token Pack`,
+                    amount: { value: amount.toString() },
+                    custom_id: auth.currentUser.uid // So webhook knows who to give tokens to
+                }]
+            });
+        },
+        onApprove: async (data, actions) => {
+            const details = await actions.order.capture();
+            
+            // Immediately give tokens in frontend for speed
+            const userRef = ref(db, `users/${auth.currentUser.uid}`);
+            const snap = await get(userRef);
+            const currentTokens = snap.val()?.tokens || 0;
+            
+            await update(userRef, { tokens: currentTokens + tokens });
+            
+            notify(`Successfully added ${tokens} tokens!`);
+            closeTokenModal();
+        }
+    }).render('#paypal-tokens-container');
 };
 
 </script>
