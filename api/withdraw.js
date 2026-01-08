@@ -15,26 +15,32 @@ const auth = getAuth();
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-    const { idToken, email, amount } = req.body;
+    // Added adminSecret to the incoming request body
+    const { idToken, email, amount, adminSecret } = req.body;
     
-    // THE UID YOU WANT TO BLOCK
-    const BLOCKED_UID = "4xEDAzSt5javvSnW5mws2Ma8i8n1"; 
-    // If you ever want a DIFFERENT admin to work, put their ID here:
-    const ACTIVE_ADMIN_UID = "NEW_ADMIN_UID_HERE"; 
+    // The account we want to protect with a secret
+    const BLOCKED_ADMIN_UID = "4xEDAzSt5javvSnW5mws2Ma8i8n1"; 
 
     try {
         const decodedToken = await auth.verifyIdToken(idToken);
         const uid = decodedToken.uid;
 
-        // --- HARD BLOCK CHECK ---
-        // If the user is the blocked UID, stop immediately.
-        if (uid === BLOCKED_UID) {
-            return res.status(403).json({ 
-                error: "Withdrawals are disabled for this specific Admin/User account." 
-            });
+        // --- THE SECRET VERIFICATION LOGIC ---
+        let isAuthorizedAdmin = false;
+
+        if (uid === BLOCKED_ADMIN_UID) {
+            const expectedSecret = process.env.ADMIN_VERIFY_TOKEN;
+            
+            // If the secret from the prompt doesn't match Vercel, BLOCK IT
+            if (!adminSecret || adminSecret !== expectedSecret) {
+                return res.status(403).json({ 
+                    error: "Action Denied: Valid Admin Secret Token required for this account." 
+                });
+            }
+            // If we reach here, the admin secret was correct
+            isAuthorizedAdmin = true;
         }
 
-        const isAdmin = (uid === ACTIVE_ADMIN_UID);
         const userRef = db.ref(`users/${uid}`);
 
         const result = await userRef.transaction((userData) => {
@@ -47,17 +53,18 @@ export default async function handler(req, res) {
             if (currentBalance < amount) return; 
             
             // 2. THE SECURITY LOCK
-            // Everyone (including the blocked UID if they got past the first check)
-            // must now follow the "Earned" rule unless they match ACTIVE_ADMIN_UID.
-            if (!isAdmin && withdrawable < amount) {
+            // Regular users must have "withdrawable" (earned) tokens.
+            // Authorized Admin (with secret) bypasses the "earned" check to access Fees.
+            if (!isAuthorizedAdmin && withdrawable < amount) {
                 return; 
             }
 
             // 3. EXECUTE DEDUCTION
             userData.tokens = currentBalance - amount;
             
-            if (!isAdmin) {
-                userData.totalEarned = withdrawable - amount;
+            // Admin doesn't reduce totalEarned (since it's 0), regular users do
+            if (!isAuthorizedAdmin) {
+                userData.totalEarned = Math.max(0, withdrawable - amount);
             }
 
             return userData;
@@ -65,12 +72,13 @@ export default async function handler(req, res) {
 
         if (!result.committed) {
             return res.status(400).json({ 
-                error: "Security Limit: Insufficient earned balance." 
+                error: "Security Limit: You can only withdraw earned tokens." 
             });
         }
 
         // 4. PAYOUT MATH
-        const netUSD = isAdmin ? (amount / 10) : (amount / 10) * 0.85;
+        // Admin gets full value ($0.10/token), Users get 15% fee removed ($0.085/token)
+        const netUSD = isAuthorizedAdmin ? (amount / 10) : (amount / 10) * 0.85;
         const payoutId = Date.now();
 
         // 5. LOG TRANSACTION
@@ -80,7 +88,7 @@ export default async function handler(req, res) {
             tokensRequested: amount,
             netAmount: netUSD,
             status: 'pending',
-            type: isAdmin ? 'PLATFORM_PROFIT_WITHDRAWAL' : 'USER_EARNINGS',
+            type: isAuthorizedAdmin ? 'PLATFORM_PROFIT_WITHDRAWAL' : 'USER_EARNINGS',
             timestamp: payoutId
         });
 
