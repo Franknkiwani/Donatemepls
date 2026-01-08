@@ -923,7 +923,7 @@ onAuthStateChanged(auth, (user) => {
     };
 
     lucide.createIcons();
-// --- COMPLETE WITHDRAWAL LOGIC (15% FEE + SAFETY MODALS) ---
+// --- COMPLETE WITHDRAWAL LOGIC (15% FEE + SAFETY MODALS + API SECURED) ---
 
 // Modal Controllers
 window.showErrorModal = (msg) => {
@@ -958,81 +958,93 @@ window.openWithdrawModal = () => {
     document.body.classList.add('stop-scrolling');
 };
 
+// --- FIX: Added specific close button handler ---
 window.closeWithdrawModal = () => {
     document.getElementById('withdraw-modal').classList.add('hidden');
     document.body.classList.remove('stop-scrolling');
+    // Clear inputs on close
+    document.getElementById('withdraw-amount').value = '';
+    document.getElementById('withdraw-email').value = '';
 };
 
-// Real-time Math for UI
+// Real-time Math for UI (Matches your exact 15% logic)
 document.getElementById('withdraw-amount')?.addEventListener('input', (e) => {
     const tokens = parseInt(e.target.value) || 0;
     const gross = tokens / 10;
     const fee = gross * 0.15; 
     const net = gross - fee;
 
-    document.getElementById('calc-gross').innerText = `$${gross.toFixed(2)}`;
-    document.getElementById('calc-fee').innerText = `-$${fee.toFixed(2)}`;
-    document.getElementById('calc-net').innerText = `$${net.toFixed(2)}`;
+    const grossEl = document.getElementById('calc-gross');
+    const feeEl = document.getElementById('calc-fee');
+    const netEl = document.getElementById('calc-net');
+
+    if(grossEl) grossEl.innerText = `$${gross.toFixed(2)}`;
+    if(feeEl) feeEl.innerText = `-$${fee.toFixed(2)}`;
+    if(netEl) netEl.innerText = `$${net.toFixed(2)}`;
 });
 
 window.handleWithdrawSubmit = async () => {
     const user = auth.currentUser;
-    const email = document.getElementById('withdraw-email').value?.trim();
-    const amount = parseInt(document.getElementById('withdraw-amount').value);
+    const emailEl = document.getElementById('withdraw-email');
+    const amountEl = document.getElementById('withdraw-amount');
+    
+    const email = emailEl?.value?.trim();
+    const amount = parseInt(amountEl?.value);
+    
+    // Find button even if the selector is slightly different
+    const btn = document.querySelector('button[onclick="handleWithdrawSubmit()"]');
 
+    // --- PRE-API SAFETY CHECKS (Local) ---
     if (!user) return notify("Auth required");
     if (!email || !email.includes('@')) return notify("Invalid PayPal email");
     
-    // Safety 1: Minimum Floor
     if (isNaN(amount) || amount < 50) {
         return showErrorModal("The minimum withdrawal is 50 Tokens ($5.00).");
     }
 
+    // Start UI Loading State
+    if(btn) {
+        btn.disabled = true;
+        btn.innerText = "Processing...";
+    }
+
     try {
-        const userRef = ref(db, `users/${user.uid}`);
-        const snap = await get(userRef);
-        const userData = snap.val() || {};
+        // --- 1. GET THE SECURE TOKEN ---
+        const idToken = await user.getIdToken(true);
+
+        // --- 2. SEND TO VERCEL API ---
+        const response = await fetch('/api/withdraw', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken, email, amount })
+        });
+
+        const text = await response.text();
+        let result;
         
-        const currentBalance = userData.tokens || 0;
-        const withdrawableBalance = userData.totalEarned || 0;
-
-        // Safety 2: Check balance
-        if (currentBalance < amount) {
-            return showErrorModal("Your total token balance is insufficient for this request.");
+        try {
+            result = JSON.parse(text);
+        } catch (e) {
+            // If the server didn't send JSON, it likely sent a 404 HTML error
+            throw new Error("Withdrawal server not found. Check Vercel deployment.");
         }
 
-        // Safety 3: Earned Tokens Check
-        if (amount > withdrawableBalance) {
-            return showErrorModal(`Safety Limit: You can only withdraw tokens earned from donations. Current withdrawable: ${withdrawableBalance}`);
+        if (!response.ok) {
+            throw new Error(result.error || "Withdrawal failed");
         }
 
-        const netToPay = (amount / 10) * 0.85; 
-        const payoutId = Date.now();
-
-        // 1. Deduct instantly
-        await update(userRef, { 
-            tokens: currentBalance - amount,
-            totalEarned: withdrawableBalance - amount 
-        });
-
-        // 2. Log Payout (netAmount matches your history listener)
-        await set(ref(db, `payouts/${payoutId}_${user.uid}`), {
-            uid: user.uid,
-            username: userData.username || "User",
-            paypal: email,
-            tokensRequested: amount,
-            netAmount: netToPay,
-            status: 'pending',
-            timestamp: payoutId
-        });
-
-        // 3. UI Flow
+        // --- 3. SUCCESS UI FLOW ---
         closeWithdrawModal();
-        showWithdrawSuccess(netToPay);
+        showWithdrawSuccess(result.netAmount);
 
     } catch (e) { 
-        console.error(e);
-        showErrorModal("System Error: " + e.message); 
+        console.error("Withdrawal Error:", e);
+        showErrorModal(e.message); 
+    } finally {
+        if(btn) {
+            btn.disabled = false;
+            btn.innerText = "Confirm Payout";
+        }
     }
 };
 
@@ -1326,7 +1338,7 @@ window.viewCreatorProfile = async (targetUid) => {
         if(window.openUpgradeModal) openUpgradeModal();
     }
 };
-// --- 7. TRANSACTIONS & DONOR LOGGING (STRIKE SYSTEM + VAULT) ---
+// --- 7. TRANSACTIONS & DONOR LOGGING (API POWERED + MAX SECURITY) ---
 
 window.closeSuccessModal = () => {
     document.getElementById('donation-success-modal').classList.add('hidden');
@@ -1339,92 +1351,50 @@ window.confirmDonation = async () => {
 
     const amountInput = document.getElementById('donate-input-amount');
     const amount = parseInt(amountInput.value);
-    
-    // --- THE VERCEL VAULT (ADMIN UID) ---
-    const adminUid = "4xEDAzSt5javvSnW5mws2Ma8i8n1"; 
-
-    if (!amount || amount <= 0) return notify("Enter a valid amount");
-
     const btn = document.getElementById('confirm-donation-btn');
+
+    // Basic Validation
+    if (!amount || amount <= 0) return notify("Enter a valid amount");
+    if (amount < 1) return notify("Minimum donation is 1 token");
+
+    // UI Feedback: Lock the button
     btn.disabled = true;
-    btn.innerText = "Processing...";
+    btn.innerText = "Verifying Transaction...";
 
     try {
-        const myRef = ref(db, `users/${user.uid}`);
-        const senderSnap = await get(myRef);
-        const myData = senderSnap.val() || {};
-        const myTokens = myData.tokens || 0;
-        
-        // --- 1. STRIKE SYSTEM & SELF-BLOCK ---
-        let isSelf = false;
-        let recipientUid = "";
+        // --- STEP 1: GENERATE SECURE PASS (ID TOKEN) ---
+        // This token proves to Vercel exactly who is logged in.
+        const idToken = await user.getIdToken(true);
 
-        if (activeTarget.type === 'user') {
-            recipientUid = activeTarget.id;
-            if (user.uid === recipientUid) isSelf = true;
-        } else {
-            const cSnap = await get(ref(db, `campaigns/${activeTarget.id}`));
-            const cData = cSnap.val() || {};
-            recipientUid = cData.ownerUid;
-            if (user.uid === recipientUid) isSelf = true;
-        }
+        // --- STEP 2: CALL VERCEL SERVERLESS API ---
+        const response = await fetch('/api/donate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                idToken,
+                targetId: activeTarget.id,
+                amount: amount,
+                type: activeTarget.type // 'user' or 'campaign'
+            })
+        });
 
-        if (isSelf) {
-            const newStrikes = (myData.strikes || 0) + 1;
-            
-            if (newStrikes >= 3) {
-                // AUTO BAN ON 3RD STRIKE
-                await update(myRef, { banned: true, strikes: newStrikes });
-                location.reload(); // Refresh to trigger ban screen
+        const result = await response.json();
+
+        // --- STEP 3: HANDLE SERVER ERRORS ---
+        if (!response.ok) {
+            // If the server tells us the user is banned (3rd strike), refresh to show ban screen
+            if (result.error && result.error.includes("BANNED")) {
+                location.reload();
                 return;
             }
-
-            await update(myRef, { strikes: newStrikes });
-            throw new Error(`Self-Donation Strike ${newStrikes}/3: Continued attempts will result in an automatic ban.`);
+            throw new Error(result.error || "Transaction failed");
         }
 
-        // --- 2. BALANCE CHECK ---
-        if (myTokens < amount) throw new Error("Insufficient tokens!");
-
-        // --- 3. CALCULATIONS & FEE ROUTING ---
-        const netAmount = Math.floor(amount * 0.7);
+        // --- STEP 4: SUCCESS UI ---
+        // Net amount and fees are now calculated by the server for accuracy
+        const netAmount = result.netSent;
         const feeAmount = amount - netAmount;
-        const updates = {};
-        
-        // Deduct from Sender
-        updates[`users/${user.uid}/tokens`] = myTokens - amount;
 
-        // Add to Recipient (Tokens + Safety Net)
-        if (recipientUid) {
-            const tSnap = await get(ref(db, `users/${recipientUid}`));
-            const tData = tSnap.val() || {};
-            updates[`users/${recipientUid}/tokens`] = (tData.tokens || 0) + netAmount;
-            updates[`users/${recipientUid}/totalEarned`] = (tData.totalEarned || 0) + netAmount;
-            updates[`users/${recipientUid}/totalRaised`] = (tData.totalRaised || 0) + netAmount;
-            updates[`users/${recipientUid}/donorCount`] = (tData.donorCount || 0) + 1;
-        }
-
-        // Add to Campaign Stats (if applicable)
-        if (activeTarget.type === 'campaign') {
-            const cRef = ref(db, `campaigns/${activeTarget.id}`);
-            const cSnap = await get(cRef);
-            updates[`campaigns/${activeTarget.id}/raised`] = (cSnap.val()?.raised || 0) + netAmount;
-            updates[`campaign_donors/${activeTarget.id}/${user.uid}`] = {
-                uid: user.uid,
-                username: myData.username || "User",
-                avatar: myData.avatar || '',
-                timestamp: Date.now()
-            };
-        }
-
-        // --- 4. THE VERCEL VAULT: ROUTE FEE ---
-        const aSnap = await get(ref(db, `users/${adminUid}/tokens`));
-        updates[`users/${adminUid}/tokens`] = (aSnap.val() || 0) + feeAmount;
-
-        // Finalize Transaction
-        await update(ref(db), updates);
-
-        // UI Feedback
         document.getElementById('success-net-amount').innerText = netAmount;
         document.getElementById('success-gross-amount').innerText = amount;
         document.getElementById('success-fee-amount').innerText = feeAmount;
@@ -1433,11 +1403,12 @@ window.confirmDonation = async () => {
         document.getElementById('donation-success-modal').classList.remove('hidden'); 
         document.body.classList.add('stop-scrolling');
         
+        // Celebrate!
         if(typeof confetti === 'function') confetti();
         amountInput.value = '';
 
     } catch (e) { 
-        // Use the Red Error Modal for strikes or system errors
+        console.error("Donation Error:", e);
         showErrorModal(e.message);
     } finally {
         btn.disabled = false;
