@@ -230,8 +230,7 @@
 </div>
 
 
-    <script src="https://www.paypal.com/sdk/js?client-id=AQlRInnmKjWmwHMNBE-z6za2NcSqhfaj3vD9x_AoQEoeVVtOxqvfjtGN9ixSVARi0IT9vhPeLo3AxwC5&vault=true&intent=subscription"></script>
-    <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&vault=true&intent=subscription"></script>
+ <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD"></script>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
@@ -437,42 +436,66 @@
     };
 
     lucide.createIcons();
-    window.openTokenModal = () => document.getElementById('token-modal').classList.remove('hidden');
+window.openTokenModal = () => {
+    const modal = document.getElementById('token-modal');
+    if (modal) modal.classList.remove('hidden');
+};
+
 window.closeTokenModal = () => {
-    document.getElementById('token-modal').classList.add('hidden');
-    document.getElementById('paypal-tokens-container').innerHTML = ''; // Clear buttons on close
+    const modal = document.getElementById('token-modal');
+    if (modal) modal.classList.add('hidden');
+    // Important: Clear the container so buttons don't duplicate
+    document.getElementById('paypal-tokens-container').innerHTML = ''; 
 };
 
 window.buyPack = (amount, tokens) => {
     const container = document.getElementById('paypal-tokens-container');
-    container.innerHTML = ''; // Reset container for new selection
+    container.innerHTML = ''; // Clear previous button instance
 
     window.paypal.Buttons({
-        style: { shape: 'pill', color: 'gold', layout: 'horizontal', label: 'pay' },
+        style: { 
+            shape: 'pill', 
+            color: 'gold', 
+            layout: 'vertical', // Vertical looks better in small popups
+            label: 'pay' 
+        },
+        // Tell PayPal this is a ONE-TIME payment
         createOrder: (data, actions) => {
             return actions.order.create({
+                intent: "CAPTURE",
                 purchase_units: [{
                     description: `${tokens} Token Pack`,
-                    amount: { value: amount.toString() },
-                    custom_id: auth.currentUser.uid // So webhook knows who to give tokens to
+                    amount: { 
+                        currency_code: "USD", // Required for one-time orders
+                        value: amount.toString() 
+                    },
+                    custom_id: auth.currentUser.uid 
                 }]
             });
         },
         onApprove: async (data, actions) => {
+            // Capture the funds
             const details = await actions.order.capture();
             
-            // Immediately give tokens in frontend for speed
+            // Update Firebase
             const userRef = ref(db, `users/${auth.currentUser.uid}`);
             const snap = await get(userRef);
             const currentTokens = snap.val()?.tokens || 0;
             
-            await update(userRef, { tokens: currentTokens + tokens });
+            await update(userRef, { 
+                tokens: currentTokens + tokens 
+            });
             
-            notify(`Successfully added ${tokens} tokens!`);
+            notify(`Success! ${tokens} tokens added.`);
             closeTokenModal();
+        },
+        onError: (err) => {
+            console.error("PayPal Error:", err);
+            notify("Payment failed to initialize.");
         }
     }).render('#paypal-tokens-container');
 };
+
 
 </script>
 
