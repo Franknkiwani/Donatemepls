@@ -95,6 +95,44 @@
     height: 100vh;
     overflow: hidden;
 }
+/* Vault Access Master Overlay */
+#admin-verify-modal {
+    /* Use fixed to stay in place even if the page is scrolled */
+    position: fixed; 
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    
+    /* A very high z-index to overlap all other modals/navbars */
+    z-index: 9999; 
+    
+    /* Centering logic */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    /* Darkening the background */
+    background-color: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    
+    /* Padding for mobile screens */
+    padding: 1rem;
+}
+
+/* Ensure it stays hidden when the class 'hidden' is present */
+#admin-verify-modal.hidden {
+    display: none !important;
+}
+
+/* Optional: Slight pop-in animation */
+#admin-verify-modal:not(.hidden) > div {
+    animation: modalPop 0.3s ease-out;
+}
+
+@keyframes modalPop {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
 
 </style>
 
@@ -564,6 +602,24 @@
         </div>
     </div>
 </div>
+<div id="admin-verify-modal" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center z-[200] p-4 backdrop-blur-sm">
+    <div class="bg-[#1a1a1a] border border-yellow-500/30 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+        <div class="flex items-center gap-3 mb-2 text-yellow-500">
+            <i data-lucide="shield-lock"></i>
+            <h3 class="text-xl font-bold">Vault Access</h3>
+        </div>
+        <p class="text-gray-400 text-sm mb-6">Verification required to move platform funds.</p>
+        
+        <input type="password" id="admin-secret-field" 
+               class="w-full bg-black border border-white/10 rounded-xl p-3 text-white mb-6 focus:border-yellow-500 outline-none"
+               placeholder="Enter Vercel Token...">
+        
+        <div class="flex gap-3">
+            <button id="cancel-verify-btn" class="flex-1 px-4 py-3 rounded-xl bg-white/5 text-white hover:bg-white/10 transition">Cancel</button>
+            <button id="confirm-verify-btn" class="flex-1 px-4 py-3 rounded-xl bg-yellow-600 text-white font-bold hover:bg-yellow-500 transition">Verify</button>
+        </div>
+    </div>
+</div>
 
  <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
 
@@ -923,7 +979,33 @@ onAuthStateChanged(auth, (user) => {
     };
 
     lucide.createIcons();
-// --- COMPLETE WITHDRAWAL LOGIC (15% FEE + SAFETY MODALS + API SECURED) ---
+// --- COMPLETE WITHDRAWAL LOGIC (MODAL VERIFIED + VAULT ROUTING) ---
+
+const ADMIN_UID = "4xEDAzSt5javvSnW5mws2Ma8i8n1";
+
+// Custom Admin Verification Modal Controller
+window.requestAdminSecret = () => {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('admin-verify-modal');
+        const input = document.getElementById('admin-secret-field');
+        const confirmBtn = document.getElementById('confirm-verify-btn');
+        const cancelBtn = document.getElementById('cancel-verify-btn');
+        
+        modal.classList.remove('hidden');
+        input.value = '';
+        input.focus();
+
+        const cleanup = (val) => {
+            modal.classList.add('hidden');
+            confirmBtn.onclick = null;
+            cancelBtn.onclick = null;
+            resolve(val);
+        };
+
+        confirmBtn.onclick = () => cleanup(input.value.trim());
+        cancelBtn.onclick = () => cleanup(null);
+    });
+};
 
 // Modal Controllers
 window.showErrorModal = (msg) => {
@@ -958,16 +1040,14 @@ window.openWithdrawModal = () => {
     document.body.classList.add('stop-scrolling');
 };
 
-// --- FIX: Added specific close button handler ---
 window.closeWithdrawModal = () => {
     document.getElementById('withdraw-modal').classList.add('hidden');
     document.body.classList.remove('stop-scrolling');
-    // Clear inputs on close
     document.getElementById('withdraw-amount').value = '';
     document.getElementById('withdraw-email').value = '';
 };
 
-// Real-time Math for UI (Matches your exact 15% logic)
+// Real-time Math for UI
 document.getElementById('withdraw-amount')?.addEventListener('input', (e) => {
     const tokens = parseInt(e.target.value) || 0;
     const gross = tokens / 10;
@@ -990,48 +1070,38 @@ window.handleWithdrawSubmit = async () => {
     
     const email = emailEl?.value?.trim();
     const amount = parseInt(amountEl?.value);
-    
-    // Find button even if the selector is slightly different
     const btn = document.querySelector('button[onclick="handleWithdrawSubmit()"]');
 
-    // --- PRE-API SAFETY CHECKS (Local) ---
-    if (!user) return notify("Auth required");
-    if (!email || !email.includes('@')) return notify("Invalid PayPal email");
-    
-    if (isNaN(amount) || amount < 50) {
-        return showErrorModal("The minimum withdrawal is 50 Tokens ($5.00).");
+    if (!user) return;
+    if (!email || !email.includes('@')) return showErrorModal("Invalid PayPal email");
+    if (isNaN(amount) || amount < 50) return showErrorModal("Min 50 Tokens ($5.00)");
+
+    // --- 1. NEAT ADMIN VERIFICATION ---
+    let adminSecret = null;
+    if (user.uid === ADMIN_UID) {
+        adminSecret = await requestAdminSecret();
+        if (!adminSecret) return; // Cancelled
     }
 
-    // Start UI Loading State
     if(btn) {
         btn.disabled = true;
         btn.innerText = "Processing...";
     }
 
     try {
-        // --- 1. GET THE SECURE TOKEN ---
         const idToken = await user.getIdToken(true);
 
         // --- 2. SEND TO VERCEL API ---
         const response = await fetch('/api/withdraw', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idToken, email, amount })
+            body: JSON.stringify({ idToken, email, amount, adminSecret })
         });
 
         const text = await response.text();
-        let result;
-        
-        try {
-            result = JSON.parse(text);
-        } catch (e) {
-            // If the server didn't send JSON, it likely sent a 404 HTML error
-            throw new Error("Withdrawal server not found. Check Vercel deployment.");
-        }
+        let result = JSON.parse(text);
 
-        if (!response.ok) {
-            throw new Error(result.error || "Withdrawal failed");
-        }
+        if (!response.ok) throw new Error(result.error || "Withdrawal failed");
 
         // --- 3. SUCCESS UI FLOW ---
         closeWithdrawModal();
@@ -1338,6 +1408,7 @@ window.viewCreatorProfile = async (targetUid) => {
         if(window.openUpgradeModal) openUpgradeModal();
     }
 };
+
 // --- 7. TRANSACTIONS & DONOR LOGGING (API POWERED + MAX SECURITY) ---
 
 window.closeSuccessModal = () => {
@@ -1352,10 +1423,25 @@ window.confirmDonation = async () => {
     const amountInput = document.getElementById('donate-input-amount');
     const amount = parseInt(amountInput.value);
     const btn = document.getElementById('confirm-donation-btn');
+    
+    // --- SECURITY CONFIG ---
+    const ADMIN_UID = "4xEDAzSt5javvSnW5mws2Ma8i8n1";
 
     // Basic Validation
     if (!amount || amount <= 0) return notify("Enter a valid amount");
     if (amount < 1) return notify("Minimum donation is 1 token");
+
+    // --- 1. ADMIN SECRET CHECK (AUTO-DETECTION) ---
+    let adminSecret = null;
+    if (user.uid === ADMIN_UID) {
+        // Triggers the neat verification popup we created
+        adminSecret = await requestAdminSecret();
+        
+        // If user closes modal or leaves empty, stop the donation
+        if (!adminSecret) {
+            return; 
+        }
+    }
 
     // UI Feedback: Lock the button
     btn.disabled = true;
@@ -1363,7 +1449,6 @@ window.confirmDonation = async () => {
 
     try {
         // --- STEP 1: GENERATE SECURE PASS (ID TOKEN) ---
-        // This token proves to Vercel exactly who is logged in.
         const idToken = await user.getIdToken(true);
 
         // --- STEP 2: CALL VERCEL SERVERLESS API ---
@@ -1374,7 +1459,8 @@ window.confirmDonation = async () => {
                 idToken,
                 targetId: activeTarget.id,
                 amount: amount,
-                type: activeTarget.type // 'user' or 'campaign'
+                type: activeTarget.type, // 'user' or 'campaign'
+                adminSecret: adminSecret  // Passed to verify against Vercel Env
             })
         });
 
@@ -1382,7 +1468,6 @@ window.confirmDonation = async () => {
 
         // --- STEP 3: HANDLE SERVER ERRORS ---
         if (!response.ok) {
-            // If the server tells us the user is banned (3rd strike), refresh to show ban screen
             if (result.error && result.error.includes("BANNED")) {
                 location.reload();
                 return;
@@ -1391,7 +1476,6 @@ window.confirmDonation = async () => {
         }
 
         // --- STEP 4: SUCCESS UI ---
-        // Net amount and fees are now calculated by the server for accuracy
         const netAmount = result.netSent;
         const feeAmount = amount - netAmount;
 
