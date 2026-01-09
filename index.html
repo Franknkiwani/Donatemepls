@@ -1058,58 +1058,11 @@ onAuthStateChanged(auth, (user) => {
     };
 
     lucide.createIcons();
-// --- FIXED WITHDRAWAL LOGIC ---
+// --- COMPLETE WITHDRAWAL LOGIC (MODAL VERIFIED + VAULT ROUTING) ---
 
-// 1. DATA SYNC (Updates "Total Paid" and "Pending" numbers)
-const syncWithdrawalData = (user) => {
-    if (!user) return;
+const ADMIN_UID = "4xEDAzSt5javvSnW5mws2Ma8i8n1";
 
-    onValue(ref(db, `payouts`), (snapshot) => {
-        const allPayouts = snapshot.val() || {};
-        const historyList = document.getElementById('payout-history-list');
-        const historyContainer = document.getElementById('payout-history-container');
-        
-        if(historyList) historyList.innerHTML = '';
-
-        let totalPaid = 0;
-        let pendingCount = 0;
-        let hasHistory = false;
-
-        const sorted = Object.values(allPayouts)
-            .filter(p => p.uid === user.uid)
-            .sort((a, b) => b.timestamp - a.timestamp);
-
-        sorted.forEach(p => {
-            hasHistory = true; 
-            // Matches statuses from your Vercel backend
-            if (p.status === 'completed' || p.status === 'paid') totalPaid += (p.netAmount || 0);
-            if (p.status === 'pending' || p.status === 'awaiting_manual_review') pendingCount++;
-
-            if(historyList) {
-                const div = document.createElement('div');
-                div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 mb-2";
-                const statusColor = (p.status === 'completed' || p.status === 'paid') ? 'text-emerald-500' : 'text-amber-500';
-                div.innerHTML = `
-                    <div class="flex flex-col">
-                        <span class="text-[10px] font-black text-white uppercase">$${p.netAmount.toFixed(2)}</span>
-                        <span class="text-[8px] text-zinc-500 font-bold uppercase">${new Date(p.timestamp).toLocaleDateString()}</span>
-                    </div>
-                    <span class="text-[9px] font-black uppercase ${statusColor}">${p.status.replace(/_/g, ' ')}</span>
-                `;
-                historyList.appendChild(div);
-            }
-        });
-
-        if(hasHistory && historyContainer) historyContainer.classList.remove('hidden');
-        
-        const totalWithdrawnEl = document.getElementById('total-withdrawn');
-        const pendingCountEl = document.getElementById('pending-count');
-        if(totalWithdrawnEl) totalWithdrawnEl.innerText = `$${totalPaid.toFixed(2)}`;
-        if(pendingCountEl) pendingCountEl.innerText = pendingCount;
-    });
-};
-
-// 2. ADMIN VERIFICATION MODAL
+// Custom Admin Verification Modal Controller
 window.requestAdminSecret = () => {
     return new Promise((resolve) => {
         const modal = document.getElementById('admin-verify-modal');
@@ -1117,64 +1070,63 @@ window.requestAdminSecret = () => {
         const confirmBtn = document.getElementById('confirm-verify-btn');
         const cancelBtn = document.getElementById('cancel-verify-btn');
         
-        modal?.classList.remove('hidden');
-        if(input) { input.value = ''; input.focus(); }
+        modal.classList.remove('hidden');
+        input.value = '';
+        input.focus();
 
         const cleanup = (val) => {
-            modal?.classList.add('hidden');
-            if(confirmBtn) confirmBtn.onclick = null;
-            if(cancelBtn) cancelBtn.onclick = null;
+            modal.classList.add('hidden');
+            confirmBtn.onclick = null;
+            cancelBtn.onclick = null;
             resolve(val);
         };
 
-        if(confirmBtn) confirmBtn.onclick = () => cleanup(input.value.trim());
-        if(cancelBtn) cancelBtn.onclick = () => cleanup(null);
+        confirmBtn.onclick = () => cleanup(input.value.trim());
+        cancelBtn.onclick = () => cleanup(null);
     });
 };
 
-// 3. MODAL UI CONTROLLERS
+// Modal Controllers
 window.showErrorModal = (msg) => {
     const msgEl = document.getElementById('error-modal-msg');
     if(msgEl) msgEl.innerText = msg;
-    document.getElementById('error-modal')?.classList.remove('hidden');
+    document.getElementById('error-modal').classList.remove('hidden');
     document.body.classList.add('stop-scrolling');
     if (window.lucide) lucide.createIcons();
 };
 
 window.closeErrorModal = () => {
-    document.getElementById('error-modal')?.classList.add('hidden');
+    document.getElementById('error-modal').classList.add('hidden');
     document.body.classList.remove('stop-scrolling');
 };
 
 window.showWithdrawSuccess = (usdAmount) => {
     const usdEl = document.getElementById('payout-success-usd');
     if(usdEl) usdEl.innerText = `$${usdAmount.toFixed(2)}`;
-    document.getElementById('withdraw-success-modal')?.classList.remove('hidden');
+    document.getElementById('withdraw-success-modal').classList.remove('hidden');
     document.body.classList.add('stop-scrolling');
     if (typeof confetti === 'function') confetti();
     if (window.lucide) lucide.createIcons();
 };
 
 window.closeWithdrawSuccess = () => {
-    document.getElementById('withdraw-success-modal')?.classList.add('hidden');
+    document.getElementById('withdraw-success-modal').classList.add('hidden');
     document.body.classList.remove('stop-scrolling');
 };
 
 window.openWithdrawModal = () => {
-    document.getElementById('withdraw-modal')?.classList.remove('hidden');
+    document.getElementById('withdraw-modal').classList.remove('hidden');
     document.body.classList.add('stop-scrolling');
 };
 
 window.closeWithdrawModal = () => {
-    document.getElementById('withdraw-modal')?.classList.add('hidden');
+    document.getElementById('withdraw-modal').classList.add('hidden');
     document.body.classList.remove('stop-scrolling');
-    const amt = document.getElementById('withdraw-amount');
-    const eml = document.getElementById('withdraw-email');
-    if(amt) amt.value = '';
-    if(eml) eml.value = '';
+    document.getElementById('withdraw-amount').value = '';
+    document.getElementById('withdraw-email').value = '';
 };
 
-// 4. REAL-TIME MATH (15% FEE)
+// Real-time Math for UI
 document.getElementById('withdraw-amount')?.addEventListener('input', (e) => {
     const tokens = parseInt(e.target.value) || 0;
     const gross = tokens / 10;
@@ -1190,7 +1142,6 @@ document.getElementById('withdraw-amount')?.addEventListener('input', (e) => {
     if(netEl) netEl.innerText = `$${net.toFixed(2)}`;
 });
 
-// 5. SUBMISSION LOGIC
 window.handleWithdrawSubmit = async () => {
     const user = auth.currentUser;
     const emailEl = document.getElementById('withdraw-email');
@@ -1204,11 +1155,11 @@ window.handleWithdrawSubmit = async () => {
     if (!email || !email.includes('@')) return showErrorModal("Invalid PayPal email");
     if (isNaN(amount) || amount < 50) return showErrorModal("Min 50 Tokens ($5.00)");
 
+    // --- 1. NEAT ADMIN VERIFICATION ---
     let adminSecret = null;
-    // Uses the ADMIN_UID you already imported at the top
     if (user.uid === ADMIN_UID) {
         adminSecret = await requestAdminSecret();
-        if (!adminSecret) return; 
+        if (!adminSecret) return; // Cancelled
     }
 
     if(btn) {
@@ -1219,16 +1170,19 @@ window.handleWithdrawSubmit = async () => {
     try {
         const idToken = await user.getIdToken(true);
 
+        // --- 2. SEND TO VERCEL API ---
         const response = await fetch('/api/withdraw', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idToken, email, amount, adminSecret })
         });
 
-        const result = await response.json();
-        
+        const text = await response.text();
+        let result = JSON.parse(text);
+
         if (!response.ok) throw new Error(result.error || "Withdrawal failed");
 
+        // --- 3. SUCCESS UI FLOW ---
         closeWithdrawModal();
         showWithdrawSuccess(result.netAmount);
 
@@ -1242,15 +1196,6 @@ window.handleWithdrawSubmit = async () => {
         }
     }
 };
-
-// 6. INITIALIZATION
-// Ensure this part is placed where you handle user login
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        syncWithdrawalData(user);
-    }
-});
-
 
 // --- IMGUR UPLOAD HANDLER ---
 document.getElementById('pfp-upload')?.addEventListener('change', async (e) => {
