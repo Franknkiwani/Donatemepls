@@ -23,36 +23,64 @@ export default async function handler(req, res) {
         const uid = decodedToken.uid;
         const isAuthorizedAdmin = (uid === BLOCKED_ADMIN_UID && adminSecret === process.env.ADMIN_VERIFY_TOKEN);
 
-        // --- STEP 1: PARALLEL AI AUDIT ---
+        // --- STEP 1: FETCH DAILY LIMIT STATS ---
+        const today = new Date().toISOString().split('T')[0]; // Current date for limit tracking
+        const dailyRef = db.ref(`stats/daily_withdrawals/${today}/${uid}`);
+        const dailySnap = await dailyRef.get();
+        const currentDailyTotal = Number(dailySnap.val() || 0);
+        const newDailyTotal = currentDailyTotal + Number(amount);
+
+        // --- STEP 2: PARALLEL AI FRAUD AUDIT ---
         const auditPromise = fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
                 model: "llama-3.3-70b-versatile",
-                messages: [{ role: "system", content: "Respond ONLY 'PASS' or 'BLOCK'." },
-                           { role: "user", content: `Audit: UID ${uid}, Amt ${amount}` }],
-                max_tokens: 5
+                messages: [
+                    { 
+                        role: "system", 
+                        content: "Respond ONLY with 'PASS', 'FLAG' (suspicious/large), or 'BLOCK' (scam/drain)." 
+                    },
+                    { 
+                        role: "user", 
+                        content: `UID: ${uid}, Request: ${amount}, DailyTotal: ${newDailyTotal}. Rules: FLAG if amount > 10000 or DailyTotal > 20000. BLOCK if DailyTotal > 50000.` 
+                    }
+                ],
+                max_tokens: 5,
+                temperature: 0
             })
         }).then(r => r.json()).catch(() => ({ choices: [{ message: { content: "PASS" } }] }));
 
         const userRef = db.ref(`users/${uid}`);
         const [auditData] = await Promise.all([auditPromise]);
 
-        if (auditData.choices?.[0]?.message?.content.includes("BLOCK") && !isAuthorizedAdmin) {
-            return res.status(403).json({ error: "Security Alert: Transaction blocked by AI." });
+        const aiDecision = auditData.choices?.[0]?.message?.content || "PASS";
+        let finalStatus = 'pending';
+        let reviewRequired = false;
+
+        // --- STEP 3: HANDLE AI DECISION ---
+        if (!isAuthorizedAdmin) {
+            if (aiDecision.includes("BLOCK")) {
+                await userRef.update({ isBanned: true, banReason: "AI Anti-Drain Trigger" });
+                return res.status(403).json({ error: "Security Alert: Unusual activity detected. Account locked." });
+            }
+            if (aiDecision.includes("FLAG")) {
+                finalStatus = 'awaiting_manual_review';
+                reviewRequired = true;
+            }
         }
 
-        // --- STEP 2: TRANSACTION (The Fix) ---
+        // --- STEP 4: DATABASE TRANSACTION ---
         const result = await userRef.transaction((userData) => {
-            if (userData === null) return userData; // Important: Tell Firebase to retry
+            if (userData === null) return userData;
             if (userData.isBanned) return;
 
             const bal = Number(userData.tokens || 0);
             const earned = Number(userData.totalEarned || 0);
             const reqAmt = Number(amount);
 
-            if (bal < reqAmt) return; // Not enough total tokens
-            if (!isAuthorizedAdmin && earned < reqAmt) return; // Not enough EARNED tokens
+            if (bal < reqAmt) return; 
+            if (!isAuthorizedAdmin && earned < reqAmt) return; 
 
             userData.tokens = bal - reqAmt;
             if (!isAuthorizedAdmin) userData.totalEarned = Math.max(0, earned - reqAmt);
@@ -61,14 +89,34 @@ export default async function handler(req, res) {
 
         if (!result.committed) return res.status(400).json({ error: "Insufficient or restricted funds." });
 
+        // --- STEP 5: LOGGING & STATS UPDATE ---
         const netUSD = isAuthorizedAdmin ? (amount / 10) : (amount / 10) * 0.85;
         const payoutId = Date.now();
+
+        // Update the user's daily total in Firebase
+        await dailyRef.set(newDailyTotal);
+
+        // Record the payout with the review status
         await db.ref(`payouts/${payoutId}_${uid}`).set({
-            uid, paypal: email, tokensRequested: amount, netAmount: netUSD, status: 'pending', timestamp: payoutId
+            uid,
+            paypal: email,
+            tokensRequested: amount,
+            netAmount: netUSD,
+            status: finalStatus,
+            review_required: reviewRequired,
+            ai_judgment: aiDecision,
+            timestamp: payoutId
         });
 
-        return res.status(200).json({ success: true, netAmount: netUSD });
+        return res.status(200).json({ 
+            success: true, 
+            netAmount: netUSD,
+            review: reviewRequired,
+            message: reviewRequired ? "Large withdrawal flagged for admin review." : "Payout processing."
+        });
+
     } catch (e) {
-        return res.status(500).json({ error: "Security Bridge Error" });
+        console.error("Critical Error:", e);
+        return res.status(500).json({ error: "Security Bridge Offline" });
     }
 }
