@@ -1058,13 +1058,9 @@ onAuthStateChanged(auth, (user) => {
     };
 
     lucide.createIcons();
-// --- COMPLETE WITHDRAWAL LOGIC (MODAL VERIFIED + VAULT ROUTING) ---
-// Make sure this file is loaded as type="module" and imports from your config
-import { auth, db, ADMIN_UID } from './firebase-config.js';
-import { ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+// --- FIXED WITHDRAWAL LOGIC ---
 
-// 1. DATA SYNC (Total Paid, Pending & History List)
+// 1. DATA SYNC (Updates "Total Paid" and "Pending" numbers)
 const syncWithdrawalData = (user) => {
     if (!user) return;
 
@@ -1085,19 +1081,20 @@ const syncWithdrawalData = (user) => {
 
         sorted.forEach(p => {
             hasHistory = true; 
-            if (p.status === 'completed') totalPaid += (p.netAmount || 0);
-            if (p.status === 'pending') pendingCount++;
+            // Matches statuses from your Vercel backend
+            if (p.status === 'completed' || p.status === 'paid') totalPaid += (p.netAmount || 0);
+            if (p.status === 'pending' || p.status === 'awaiting_manual_review') pendingCount++;
 
             if(historyList) {
                 const div = document.createElement('div');
                 div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 mb-2";
-                const statusColor = p.status === 'completed' ? 'text-emerald-500' : 'text-amber-500';
+                const statusColor = (p.status === 'completed' || p.status === 'paid') ? 'text-emerald-500' : 'text-amber-500';
                 div.innerHTML = `
                     <div class="flex flex-col">
-                        <span class="text-[10px] font-black text-white uppercase">$${(p.netAmount || 0).toFixed(2)}</span>
+                        <span class="text-[10px] font-black text-white uppercase">$${p.netAmount.toFixed(2)}</span>
                         <span class="text-[8px] text-zinc-500 font-bold uppercase">${new Date(p.timestamp).toLocaleDateString()}</span>
                     </div>
-                    <span class="text-[9px] font-black uppercase ${statusColor}">${p.status}</span>
+                    <span class="text-[9px] font-black uppercase ${statusColor}">${p.status.replace(/_/g, ' ')}</span>
                 `;
                 historyList.appendChild(div);
             }
@@ -1177,7 +1174,7 @@ window.closeWithdrawModal = () => {
     if(eml) eml.value = '';
 };
 
-// 4. REAL-TIME MATH (FIXED TO 15% FEE)
+// 4. REAL-TIME MATH (15% FEE)
 document.getElementById('withdraw-amount')?.addEventListener('input', (e) => {
     const tokens = parseInt(e.target.value) || 0;
     const gross = tokens / 10;
@@ -1203,13 +1200,14 @@ window.handleWithdrawSubmit = async () => {
     const amount = parseInt(amountEl?.value);
     const btn = document.querySelector('button[onclick="handleWithdrawSubmit()"]');
 
-    if (!user) return showErrorModal("Please log in first");
+    if (!user) return;
     if (!email || !email.includes('@')) return showErrorModal("Invalid PayPal email");
     if (isNaN(amount) || amount < 50) return showErrorModal("Min 50 Tokens ($5.00)");
 
     let adminSecret = null;
+    // Uses the ADMIN_UID you already imported at the top
     if (user.uid === ADMIN_UID) {
-        adminSecret = await window.requestAdminSecret();
+        adminSecret = await requestAdminSecret();
         if (!adminSecret) return; 
     }
 
@@ -1229,17 +1227,14 @@ window.handleWithdrawSubmit = async () => {
 
         const result = await response.json();
         
-        if (!response.ok) {
-            throw new Error(result.error || "Withdrawal failed");
-        }
+        if (!response.ok) throw new Error(result.error || "Withdrawal failed");
 
-        // --- SUCCESS ---
-        window.closeWithdrawModal();
-        window.showWithdrawSuccess(result.netAmount);
+        closeWithdrawModal();
+        showWithdrawSuccess(result.netAmount);
 
     } catch (e) { 
         console.error("Withdrawal Error:", e);
-        window.showErrorModal(e.message); 
+        showErrorModal(e.message); 
     } finally {
         if(btn) {
             btn.disabled = false;
@@ -1248,12 +1243,14 @@ window.handleWithdrawSubmit = async () => {
     }
 };
 
-// 6. TRIGGER DATA ON AUTH
+// 6. INITIALIZATION
+// Ensure this part is placed where you handle user login
 onAuthStateChanged(auth, (user) => {
     if (user) {
         syncWithdrawalData(user);
     }
 });
+
 
 // --- IMGUR UPLOAD HANDLER ---
 document.getElementById('pfp-upload')?.addEventListener('change', async (e) => {
