@@ -1402,115 +1402,182 @@ window.switchView = (view) => {
     }
 };
 
-// --- 4. CAMPAIGN FEED (With Auto-Archive & Rich Details) ---
+// --- 4. CAMPAIGN FEED (ENHANCED & STABLE) ---
+
+let activeCampaignListeners = [];
+
 const loadCampaigns = () => {
     const grid = document.getElementById('campaign-grid');
     if (!grid) return;
 
-    onValue(ref(db, 'campaigns'), (snapshot) => {
+    // CLEANUP: Prevent memory stacking
+    activeCampaignListeners.forEach(unsub => unsub());
+    activeCampaignListeners = [];
+
+    const campaignsRef = ref(db, 'campaigns');
+    
+    const unsubscribe = onValue(campaignsRef, (snapshot) => {
         const campaigns = snapshot.val();
-        grid.innerHTML = '';
-        if(!campaigns) return;
+        grid.innerHTML = ''; 
+        
+        if (!campaigns) {
+            grid.innerHTML = `<div class="col-span-full py-20 text-center opacity-40 text-white text-[10px] font-black uppercase tracking-widest">No active missions available</div>`;
+            return;
+        }
 
-        Object.keys(campaigns).forEach(id => {
+        const now = Date.now();
+        const currentDomain = window.location.origin;
+
+        // Sort: Boosted first, then newest
+        const sortedKeys = Object.keys(campaigns).sort((a, b) => {
+            const isABoosted = (campaigns[a].tokensBudget > (campaigns[a].viewsActive || 0));
+            const isBBoosted = (campaigns[b].tokensBudget > (campaigns[b].viewsActive || 0));
+            if (isABoosted && !isBBoosted) return -1;
+            if (!isABoosted && isBBoosted) return 1;
+            return campaigns[b].timestamp - campaigns[a].timestamp;
+        });
+
+        sortedKeys.forEach(id => {
             const c = campaigns[id];
-            const now = Date.now();
             
-            // AUTO-REMOVE & ARCHIVE EXPIRED
-            if (c.deadline && now > c.deadline) {
-                set(ref(db, `archived_campaigns/${id}`), { ...c, status: 'expired' });
-                set(ref(db, `campaigns/${id}`), null);
-                return;
-            }
+            // FILTER: Public Only
+            if (c.visibility === 'private') return;
 
-            const progress = Math.min((c.raised / c.goal) * 100, 100);
+            const views = c.viewsActive || 0;
+            const isCurrentlyBoosted = (c.tokensBudget > 0 && views < c.tokensBudget);
             const isPro = c.creatorIsPremium || false;
+            const progress = Math.min((c.raised / c.goal) * 100, 100);
             
             const card = document.createElement('div');
-            card.className = `p-6 rounded-[32px] border relative flex flex-col gap-4 transition-all mb-4 ${isPro ? 'border-pink-500/50 shadow-[0_0_20px_rgba(236,72,153,0.1)] bg-white/5' : 'border-white/5 bg-zinc-900/40'}`;
+            card.className = `p-5 rounded-[32px] border relative flex flex-col gap-4 transition-all duration-500 hover:translate-y-[-4px] ${
+                isCurrentlyBoosted ? 'border-amber-500 shadow-[0_0_25px_rgba(245,158,11,0.25)] bg-zinc-900 scale-[1.01]' : 
+                isPro ? 'border-pink-500/40 bg-zinc-900/90 shadow-[0_10px_30px_rgba(236,72,153,0.1)]' : 
+                'border-white/5 bg-zinc-900/40'
+            }`;
 
             card.innerHTML = `
                 <div class="flex justify-between items-center">
-                    <div class="text-[8px] font-black uppercase px-2 py-1 rounded-full bg-black/40 text-pink-500 border border-pink-500/20">
-                        Ends: <span id="timer-${id}">...</span>
+                    <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-full border border-white/5">
+                            <div class="w-1.5 h-1.5 rounded-full ${now > (c.deadline - 3600000) ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}"></div>
+                            <span class="text-[9px] font-black text-white uppercase countdown-timer" data-deadline="${c.deadline}">SYNCING...</span>
+                        </div>
+                        ${isCurrentlyBoosted ? '<span class="bg-amber-500 text-black text-[7px] font-black px-2 py-0.5 rounded-full shadow-[0_0_10px_#f59e0b]">BOOSTED</span>' : ''}
                     </div>
-                    <span class="text-[8px] font-bold text-zinc-500 uppercase italic">${c.country || 'Global'}</span>
+                    <span class="text-[9px] font-black text-zinc-500 uppercase tracking-widest">${c.category || 'Global'}</span>
                 </div>
 
                 <div class="flex gap-4 items-start">
-                    <div class="w-14 h-14 rounded-xl bg-zinc-800 flex-shrink-0 border border-white/10 overflow-hidden">
-                        <img src="https://img.icons8.com/fluency/96/charity.png" class="w-full h-full p-2">
+                    <div class="w-16 h-16 rounded-2xl bg-zinc-800 flex-shrink-0 border border-white/10 overflow-hidden shadow-2xl">
+                        <img src="${c.imageUrl}" class="w-full h-full object-cover">
                     </div>
                     <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-1">
-                            <h3 class="text-sm font-black uppercase text-white truncate">${c.title}</h3>
-                            ${isPro ? '<img src="https://img.icons8.com/color/48/verified-badge.png" class="w-3 h-3">' : ''}
-                        </div>
-                        <p class="text-[10px] text-zinc-400 mt-2 leading-relaxed">${formatCampaignText(c.description || '')}</p>
-                        <div class="flex flex-wrap gap-2 mt-2">
-                            ${(c.tags || '').split(',').map(tag => tag.trim() ? `<span class="text-[8px] text-amber-500 font-bold uppercase">#${tag}</span>` : '').join('')}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="space-y-2">
-                    <div class="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                        <div class="h-full bg-gradient-to-r from-pink-500 to-rose-400" style="width: ${progress}%"></div>
-                    </div>
-                    <div class="flex justify-between text-[9px] font-black text-pink-500 uppercase italic">
-                        <span>${c.raised} Raised</span>
-                        <span class="text-zinc-500">Goal: ${c.goal}</span>
-                    </div>
-                </div>
-
-                <div class="border-t border-white/5 pt-3">
-                    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-                        <span class="text-[8px] font-black text-zinc-600 uppercase flex-shrink-0">Donors:</span>
-                        <div id="donors-${id}" class="flex -space-x-2">
-                             <span class="text-[8px] text-zinc-700 italic ml-4">Be the first to help!</span>
+                        <h3 class="text-sm font-black uppercase text-white truncate tracking-tight mb-1">${c.title}</h3>
+                        <div>
+                            ${c.isAiGenerated ? '<span class="text-[7px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-black mr-1 uppercase border border-blue-500/20">AI</span>' : ''}
+                            <div class="text-[11px] text-zinc-400 leading-snug">
+                                <span id="desc-short-${id}">${formatCampaignText(c.description || '', 85)}</span>
+                                <span id="desc-full-${id}" class="hidden">${formatCampaignText(c.description || '')}</span>
+                                ${c.description?.length > 85 ? `<button onclick="toggleDesc('${id}')" id="btn-${id}" class="text-pink-500 font-bold ml-1 hover:underline">Read More</button>` : ''}
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex items-center justify-between mt-2">
-                    <button onclick="viewCreatorProfile('${c.creator}')" class="text-[9px] font-black uppercase text-zinc-400 hover:text-white flex items-center gap-1">
-                        <div class="w-4 h-4 rounded-full bg-zinc-700 overflow-hidden">
-                            <img src="${c.creatorAvatar || communityPresets[0]}" class="w-full h-full object-cover">
-                        </div>
-                        @${c.creatorName || 'Member'}
-                    </button>
-                    <button onclick="handleDonateCampaign('${id}', '${c.title}')" class="px-5 py-2 bg-white text-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:bg-emerald-500 transition-all">Donate</button>
+                <div class="bg-black/30 p-3 rounded-2xl border border-white/5">
+                    <div class="flex justify-between text-[10px] font-black mb-2 px-1 uppercase">
+                        <span class="text-emerald-400">$${Number(c.raised || 0).toLocaleString()} <span class="text-zinc-600 text-[8px] ml-1">Raised</span></span>
+                        <span class="text-zinc-400">$${Number(c.goal || 0).toLocaleString()} <span class="text-zinc-600 text-[8px] ml-1">Goal</span></span>
+                    </div>
+                    <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div class="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 shadow-[0_0_10px_#10b981]" style="width: ${progress}%"></div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between border-t border-white/5 pt-3 mt-auto">
+                    <div class="flex items-center gap-3">
+                        <button onclick="viewCreatorProfile('${c.creator}')" class="group flex items-center gap-2">
+                            <div class="relative">
+                                <img src="${c.creatorAvatar || 'https://img.icons8.com/fluency/48/user-male-circle.png'}" class="w-6 h-6 rounded-full object-cover border border-white/10 group-hover:border-pink-500 transition-all">
+                                ${isPro ? '<img src="https://img.icons8.com/color/48/verified-badge.png" class="absolute -right-1 -bottom-1 w-3 h-3 bg-zinc-900 rounded-full">' : ''}
+                            </div>
+                            <span class="text-[9px] font-black text-zinc-500 group-hover:text-white uppercase">@${c.creatorName || 'Member'}</span>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="shareMission('${id}', '${c.title.replace(/'/g, "\\'")}')" class="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5 active:scale-90">
+                            <img src="https://img.icons8.com/material-outlined/24/ffffff/share.png" class="w-3.5 h-3.5 opacity-70">
+                        </button>
+                        <button onclick="handleDonateCampaign('${id}', '${c.title.replace(/'/g, "\\'")}')" class="px-5 py-2.5 bg-white text-black rounded-xl text-[10px] font-black uppercase hover:bg-emerald-500 hover:text-white transition-all shadow-xl active:scale-95">Donate</button>
+                    </div>
                 </div>
             `;
             grid.appendChild(card);
-            if(c.deadline) startCountdown(id, c.deadline);
             loadDonors(id);
         });
     });
+    activeCampaignListeners.push(unsubscribe);
 };
 
-// Formatting Helper
-function formatCampaignText(text) {
-    return text
-        .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-pink-500 underline">$1</a>')
-        .replace(/#(\w+)/g, '<span class="text-amber-500 font-bold">#$1</span>');
+// --- SUPPORTING UTILITIES ---
+
+window.shareMission = (id, title) => {
+    const shareUrl = `${window.location.origin}/donate?id=${id}`;
+    if (navigator.share) {
+        navigator.share({ title: title, url: shareUrl }).catch(() => copyLink(shareUrl));
+    } else {
+        copyLink(shareUrl);
+    }
+};
+
+const copyLink = (url) => {
+    navigator.clipboard.writeText(url);
+    notify("Mission link copied to clipboard!");
+};
+
+function formatCampaignText(text, limit = null) {
+    if (!text) return "";
+    let clean = text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-pink-500 hover:underline">$1</a>')
+                    .replace(/#(\w+)/g, '<span class="text-amber-500">#$1</span>');
+    if (limit && text.length > limit) return clean.substring(0, limit) + "...";
+    return clean;
 }
+
+window.toggleDesc = (id) => {
+    const s = document.getElementById(`desc-short-${id}`);
+    const f = document.getElementById(`desc-full-${id}`);
+    const b = document.getElementById(`btn-${id}`);
+    const isHidden = f.classList.contains('hidden');
+    f.classList.toggle('hidden', !isHidden);
+    s.classList.toggle('hidden', isHidden);
+    b.innerText = isHidden ? "Less" : "Read More";
+};
 
 const loadDonors = (campaignId) => {
     onValue(ref(db, `campaign_donors/${campaignId}`), (snap) => {
-        const donors = snap.val();
         const container = document.getElementById(`donors-${campaignId}`);
-        if(!donors || !container) return;
+        if(!container) return;
         container.innerHTML = '';
-        Object.values(donors).forEach(d => {
-            const img = document.createElement('img');
-            img.src = d.avatar || communityPresets[0];
-            img.className = "w-6 h-6 rounded-full border-2 border-zinc-900 object-cover cursor-pointer hover:scale-110 transition-all";
-            img.onclick = () => viewCreatorProfile(d.uid);
-            container.appendChild(img);
+        const data = snap.val();
+        if(!data) return;
+        Object.values(data).slice(0, 3).forEach(d => {
+            container.innerHTML += `<img src="${d.avatar || 'https://img.icons8.com/fluency/48/user-male-circle.png'}" class="w-5 h-5 rounded-full border-2 border-zinc-900 -ml-1.5 first:ml-0">`;
         });
-    });
+    }, { onlyOnce: true });
 };
+
+// TIMER LOOP
+setInterval(() => {
+    document.querySelectorAll('.countdown-timer').forEach(el => {
+        const deadline = parseInt(el.getAttribute('data-deadline'));
+        const diff = deadline - Date.now();
+        if (diff <= 0) { el.innerText = "ENDED"; el.className = "text-[9px] font-black text-red-500 uppercase"; return; }
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        el.innerText = `${h}H ${m}M ${s}S`;
+    });
+}, 1000);
 
 // --- 5. USER FEED ---
 const loadUserFeed = () => {
@@ -1754,12 +1821,11 @@ switchView('campaigns');
 
 const cBtn = document.getElementById('confirm-donation-btn');
 if(cBtn) cBtn.onclick = window.confirmDonation;
-
-// --- Global State & Configuration ---
+// --- 1. Global State & Configuration ---
 let selectedCampaignImg = "https://images.hive.blog/p/NTy4GV6ooFRmaCXZ8UYgPhoud1kjiNX8QokLEZtbBKLuLWQ9yt7K3o4MTgeicR2JF9fLXTD4sRt27d8vG5aiRCoDjrf24e3CMD5msbfdUbX1MzSVDjCMsn17K2A775iLEM4LvckBAcG8CU92RjLTtvsDiS6HzSxeXpvTZjux?format=match&mode=fit";
 const IMGUR_CLIENT_ID = '891e5bb4aa94282';
 
-// --- Helper: Unique Modal Routing ---
+// --- 2. Helper: Custom Studio Success Modal ---
 const studioReport = (type, msg, customTitle = "Studio Success") => {
     if (type === 'success') {
         const modal = document.getElementById('studio-success-modal');
@@ -1778,73 +1844,48 @@ const studioReport = (type, msg, customTitle = "Studio Success") => {
 
 window.closeStudioSuccess = () => document.getElementById('studio-success-modal').classList.add('hidden');
 
-// --- UI Reset Logic ---
+// --- 3. UI Reset & Reach Math ---
 window.resetStudioData = () => {
     ['cp-title', 'cp-desc', 'cp-goal', 'reach-input-manual', 'reach-slider'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = (id.includes('reach')) ? 0 : '';
     });
-    // Reset Image to default preset
     selectedCampaignImg = "https://images.hive.blog/p/NTy4GV6ooFRmaCXZ8UYgPhoud1kjiNX8QokLEZtbBKLuLWQ9yt7K3o4MTgeicR2JF9fLXTD4sRt27d8vG5aiRCoDjrf24e3CMD5msbfdUbX1MzSVDjCMsn17K2A775iLEM4LvckBAcG8CU92RjLTtvsDiS6HzSxeXpvTZjux?format=match&mode=fit";
     document.getElementById('cp-preview-img').src = selectedCampaignImg;
-    
-    // Reset presets borders
-    document.querySelectorAll('.preset-option').forEach((img, idx) => {
-        img.classList.replace('border-blue-500', 'border-transparent');
-        if(idx === 0) img.classList.replace('border-transparent', 'border-blue-500');
-    });
-
     window.updateReachMath(0);
 };
 
-// --- Boost Calculation Logic ---
 window.updateReachMath = (val) => {
     const tokens = parseInt(val) || 0;
-    const views = tokens * 3;
+    const views = tokens; 
     document.getElementById('reach-slider').value = tokens;
     document.getElementById('reach-input-manual').value = tokens;
-    document.getElementById('reach-display').innerHTML = `${views.toLocaleString()} <span class="text-xs text-zinc-500 font-black">Views</span>`;
+    document.getElementById('reach-display').innerHTML = `${views.toLocaleString()} <span class="text-xs text-zinc-500 font-black">Reach</span>`;
     document.getElementById('cost-display').innerHTML = `${tokens.toLocaleString()} <span class="text-xs text-zinc-500 font-black">Tokens</span>`;
 };
 
-// --- AI Auto-Write Logic (Optimized for Vercel/Gemini Bridge) ---
+// --- 4. AI & Image Handling ---
 window.generateAIContent = async () => {
     const title = document.getElementById('cp-title').value.trim();
     const descField = document.getElementById('cp-desc');
     const aiBtn = document.getElementById('ai-gen-btn');
-    
     if (!title || title.length < 5) return studioReport('error', "Enter a heading first!");
-    
-    aiBtn.innerText = "✨ Thinking...";
-    aiBtn.disabled = true;
+    aiBtn.innerText = "✨ Thinking..."; aiBtn.disabled = true;
 
     try {
         const response = await fetch('/api/generate', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, // Force JSON headers
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt: title }) 
         });
-
-        if (!response.ok) throw new Error("Bridge connection failed");
-
         const data = await response.json();
-        
         if (data.text) {
             descField.value = data.text;
             studioReport('success', "AI Description Generated!", "AI Content Ready");
-        } else {
-            throw new Error("No response content");
         }
-    } catch (err) { 
-        console.error(err);
-        studioReport('error', "AI Bridge connection failed. Ensure your API Key is set in Vercel."); 
-    } finally { 
-        aiBtn.innerText = "✨ AI Auto-Write"; 
-        aiBtn.disabled = false; 
-    }
+    } catch (err) { studioReport('error', "AI Bridge failed."); }
+    finally { aiBtn.innerText = "✨ AI Auto-Write"; aiBtn.disabled = false; }
 };
 
-// --- Image Selection (Presets) ---
 window.selectPreset = (url, el) => {
     selectedCampaignImg = url;
     document.getElementById('cp-preview-img').src = url;
@@ -1852,38 +1893,7 @@ window.selectPreset = (url, el) => {
     el.classList.replace('border-transparent', 'border-blue-500');
 };
 
-// --- Custom Image Upload (Imgur) ---
-window.triggerCampaignUpload = async () => {
-    const user = auth.currentUser;
-    if(!user) return studioReport('error', "Login required");
-    const snap = await get(ref(db, `users/${user.uid}`));
-    // Premium check
-    if (snap.val()?.isPremium || user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1") {
-        document.getElementById('cp-image-input').click();
-    } else { studioReport('error', "PRO required for custom images!"); }
-};
-
-document.getElementById('cp-image-input')?.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    document.getElementById('upload-loading')?.classList.remove('hidden');
-    const formData = new FormData();
-    formData.append('image', file);
-    try {
-        const res = await fetch('https://api.imgur.com/3/image', {
-            method: 'POST', headers: { Authorization: `Client-ID ${IMGUR_CLIENT_ID}` }, body: formData
-        });
-        const data = await res.json();
-        if (data.success) {
-            selectedCampaignImg = data.data.link;
-            document.getElementById('cp-preview-img').src = selectedCampaignImg;
-            studioReport('success', "Custom Image Uploaded!", "Upload Success");
-        }
-    } catch (err) { studioReport('error', "Upload failed."); }
-    finally { document.getElementById('upload-loading')?.classList.add('hidden'); }
-});
-
-// --- Tab Switching & Controls ---
+// --- 5. Tab & Lifecycle ---
 window.openCreateCampaignModal = () => {
     document.getElementById('campaign-studio-modal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -1901,51 +1911,76 @@ window.switchStudioTab = (tab) => {
     const manageView = document.getElementById('studio-manage-view');
     const createBtn = document.getElementById('tab-btn-create');
     const manageBtn = document.getElementById('tab-btn-manage');
+    const activeClass = "px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest bg-blue-600 text-white transition-all";
+    const idleClass = "px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest text-zinc-500 transition-all";
+
     if(tab === 'create') {
-        createView.classList.remove('hidden');
-        manageView.classList.add('hidden');
-        createBtn.className = "px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest bg-blue-600 text-white transition-all";
-        manageBtn.className = "px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest text-zinc-500 transition-all";
+        createView.classList.remove('hidden'); manageView.classList.add('hidden');
+        createBtn.className = activeClass; manageBtn.className = idleClass;
     } else {
-        createView.classList.add('hidden');
-        manageView.classList.remove('hidden');
-        manageBtn.className = "px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest bg-blue-600 text-white transition-all";
-        createBtn.className = "px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest text-zinc-500 transition-all";
+        createView.classList.add('hidden'); manageView.classList.remove('hidden');
+        manageBtn.className = activeClass; createBtn.className = idleClass;
         window.loadMyCampaigns(); 
     }
 };
 
-// --- Create Logic ---
+// --- 6. The "Fix" - Modern Create & Save ---
 window.createNewCampaign = async () => {
     const user = auth.currentUser;
     if (!user) return studioReport('error', "Login first");
+
     const title = document.getElementById('cp-title').value.trim();
     const desc = document.getElementById('cp-desc').value.trim();
     const goal = parseInt(document.getElementById('cp-goal').value);
     const boostBudget = parseInt(document.getElementById('reach-slider').value) || 0;
-    const locationVal = document.getElementById('cp-location').value; 
+    
+    // Metadata for Feed logic
+    const isAi = document.getElementById('cp-ai-flag')?.checked || false;
+    const visibility = document.getElementById('cp-visibility')?.value || 'public';
+    const durationDays = parseInt(document.getElementById('cp-duration')?.value) || 7; 
 
     if (!title || !desc || isNaN(goal)) return studioReport('error', "Fill all fields");
+
     try {
         const userRef = ref(db, `users/${user.uid}`);
         const userSnap = await get(userRef);
-        if ((userSnap.val()?.tokens || 0) < boostBudget) throw new Error("Not enough tokens!");
+        const userData = userSnap.val();
+
+        if ((userData?.tokens || 0) < boostBudget) throw new Error("Not enough tokens!");
         
         const newRef = push(ref(db, 'campaigns'));
+        const now = Date.now();
+        const deadline = now + (durationDays * 24 * 60 * 60 * 1000);
+
         await set(newRef, {
-            id: newRef.key, creator: user.uid, creatorName: userSnap.val()?.username || "Member",
-            title, description: desc, goal, image: selectedCampaignImg, raised: 0,
-            viewsActive: 0, tokensBudget: boostBudget, location: locationVal,
-            privacy: locationVal === 'Global' ? 'public' : 'private',
-            expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000), timestamp: Date.now()
+            id: newRef.key,
+            creator: user.uid,
+            creatorName: userData?.username || "Member",
+            creatorAvatar: userData?.avatar || "", 
+            creatorIsPremium: userData?.isPremium || (user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1"),
+            title, description: desc, goal, raised: 0,
+            imageUrl: selectedCampaignImg, // FIXED KEY
+            tokensBudget: boostBudget,
+            viewsActive: 0,
+            category: document.getElementById('cp-category')?.value || 'General',
+            deadline: deadline,
+            timestamp: now,
+            visibility: visibility, // FOR PUBLIC ONLY FILTER
+            isAiGenerated: isAi,
+            status: 'active'
         });
-        if (boostBudget > 0) await update(userRef, { tokens: userSnap.val().tokens - boostBudget });
+
+        if (boostBudget > 0) {
+            await update(userRef, { tokens: (userData.tokens || 0) - boostBudget });
+        }
+
         window.closeStudio();
-        studioReport('success', `Campaign is now ${locationVal} & Live!`, "Mission Launched");
+        studioReport('success', `Mission Live!`, "Launch Success");
+
     } catch (e) { studioReport('error', e.message); }
 };
 
-// --- Manage / Boost / Delete Logic ---
+// --- 7. The "Fix" - Modern Management (Restored Modals) ---
 window.loadMyCampaigns = () => {
     const user = auth.currentUser;
     if(!user) return;
@@ -1956,63 +1991,67 @@ window.loadMyCampaigns = () => {
         const data = snap.val();
         if(!data) return;
         Object.values(data).filter(c => c.creator === user.uid).forEach(c => {
-            const spentTokens = Math.floor((c.viewsActive || 0) / 3);
-            const tokensLeft = Math.max(0, (c.tokensBudget || 0) - spentTokens);
+            const tokensLeft = Math.max(0, (c.tokensBudget || 0) - (c.viewsActive || 0));
             const div = document.createElement('div');
             div.className = "bg-white/5 border border-white/10 p-6 rounded-[32px] mb-4 space-y-4";
             div.innerHTML = `
                 <div class="flex justify-between items-start">
                     <div class="flex items-center gap-3">
-                        <img src="${c.image}" class="w-12 h-12 rounded-xl object-cover">
+                        <img src="${c.imageUrl}" class="w-12 h-12 rounded-xl object-cover border border-white/10">
                         <div>
                             <h4 class="text-white font-black text-xs uppercase truncate w-32">${c.title}</h4>
-                            <span class="text-[7px] font-black uppercase italic ${c.privacy === 'public' ? 'text-emerald-500' : 'text-amber-500'}">
-                                ● ${c.privacy === 'public' ? 'Public' : 'Private'}
+                            <span class="text-[7px] font-black uppercase italic ${c.visibility === 'public' ? 'text-emerald-500' : 'text-amber-500'}">
+                                ● ${c.visibility || 'public'}
                             </span>
                         </div>
                     </div>
-                    <button onclick="handleDeleteRequest('${c.id}')" class="text-red-500 text-xs p-2">✕</button>
+                    <button onclick="handleDeleteRequest('${c.id}')" class="text-red-500 p-2 hover:bg-red-500/10 rounded-full transition-all">✕</button>
                 </div>
                 <div class="bg-black/30 p-4 rounded-2xl">
                     <div class="flex justify-between text-[10px] font-black uppercase mb-2">
-                        <span class="text-zinc-500">Reach: ${c.viewsActive || 0}</span>
-                        <span class="text-blue-500">${tokensLeft} Tokens Left</span>
+                        <span class="text-zinc-500">Reach Used: ${c.viewsActive || 0}</span>
+                        <span class="text-blue-500">${tokensLeft.toLocaleString()} Tokens Left</span>
                     </div>
                     <div class="w-full h-1 bg-white/5 rounded-full overflow-hidden">
                         <div class="h-full bg-blue-500" style="width: ${c.tokensBudget > 0 ? (tokensLeft/c.tokensBudget)*100 : 0}%"></div>
                     </div>
                 </div>
-                <button onclick="handleBoostRequest('${c.id}')" class="w-full py-3 bg-blue-600 rounded-2xl text-[10px] font-black uppercase text-white shadow-lg">⚡ Add Reach Boost</button>
+                <button onclick="handleBoostRequest('${c.id}')" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-2xl text-[10px] font-black uppercase text-white shadow-lg transition-all active:scale-95">⚡ Add Reach Boost</button>
             `;
             container.appendChild(div);
         });
     });
 };
 
+// RESTORED: Custom Modal Logic
 window.handleDeleteRequest = (id) => {
-    document.getElementById('delete-modal').classList.remove('hidden');
+    const modal = document.getElementById('delete-modal');
+    if(!modal) return;
+    modal.classList.remove('hidden');
     document.getElementById('confirm-delete-btn').onclick = async () => {
         await set(ref(db, `campaigns/${id}`), null);
-        document.getElementById('delete-modal').classList.add('hidden');
-        studioReport('success', "Campaign removed.", "Mission Deleted");
+        modal.classList.add('hidden');
+        studioReport('success', "Mission Terminated.", "Deleted");
     };
 };
 
 window.handleBoostRequest = (id) => {
-    document.getElementById('boost-modal').classList.remove('hidden');
+    const modal = document.getElementById('boost-modal');
+    if(!modal) return;
+    modal.classList.remove('hidden');
     document.getElementById('confirm-boost-btn').onclick = async () => {
         const amount = parseInt(document.getElementById('boost-modal-input').value);
         if(!amount || amount <= 0) return;
         try {
             const userRef = ref(db, `users/${auth.currentUser.uid}`);
             const userSnap = await get(userRef);
-            if(userSnap.val().tokens < amount) return studioReport('error', "Insufficient Balance");
+            if(userSnap.val().tokens < amount) return studioReport('error', "Insufficient Tokens");
             const campRef = ref(db, `campaigns/${id}`);
             const cSnap = await get(campRef);
             await update(userRef, { tokens: userSnap.val().tokens - amount });
             await update(campRef, { tokensBudget: (cSnap.val().tokensBudget || 0) + amount });
-            document.getElementById('boost-modal').classList.add('hidden');
-            studioReport('success', "Budget refueled!", "Reach Boosted");
+            modal.classList.add('hidden');
+            studioReport('success', "Reach Refueled!", "Boost Active");
         } catch(e) { studioReport('error', "Boost failed"); }
     };
 };
