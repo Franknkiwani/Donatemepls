@@ -6,39 +6,43 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  try {
-    // 2. Grab the prompt (the campaign title) from the frontend
-    const { prompt } = JSON.parse(req.body);
+  // 2. Immediate Security Check
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({ error: "Server Configuration Error: API Key missing." });
+  }
 
-    if (!prompt) {
-      return res.status(400).json({ error: 'No title provided' });
+  try {
+    const body = JSON.parse(req.body);
+    const prompt = body.prompt?.trim();
+
+    if (!prompt || prompt.length < 3) {
+      return res.status(400).json({ error: 'Campaign title is too short.' });
     }
 
-    // 3. Initialize Gemini with your Environment Variable
+    // 3. Initialize with latest 2026 model
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    
-    // Using gemini-1.5-flash because it's the fastest and best for short descriptions
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.0-flash", // Faster & smarter for 2026
+        systemInstruction: "You are a professional crowdfunding copywriter. Your goal is to write high-impact mission statements."
+    });
 
-    // 4. Set the "Persona" for the AI
-    const aiInstructions = `
-      Write a compelling, professional crowdfunding mission description for a campaign titled: "${prompt}". 
-      Requirements:
-      - Max 3 sentences.
-      - Tone: High-energy, inspiring, and urgent.
-      - Do not include hashtags or emojis.
-      - Focus on the impact the tokens will have.
-    `;
+    // 4. Structured Prompt for exact output
+    const aiPrompt = `Write a powerful 3-sentence description for a campaign titled: "${prompt}". 
+    Focus on social impact and urgency. 
+    Output ONLY the description text. Do not use hashtags, emojis, or introductory phrases like 'Here is your description'.`;
 
-    // 5. Generate and send back
-    const result = await model.generateContent(aiInstructions);
+    // 5. Generate and clean response
+    const result = await model.generateContent(aiPrompt);
     const response = await result.response;
-    const text = response.text().trim();
+    let text = response.text().trim();
+
+    // Remove quotes if the AI adds them accidentally
+    text = text.replace(/^["']+|["']+$/g, '');
 
     return res.status(200).json({ text });
 
   } catch (error) {
-    console.error("Gemini Error:", error);
-    return res.status(500).json({ error: "AI failed to generate content. Check API key." });
+    console.error("Gemini API Error:", error);
+    return res.status(500).json({ error: "The AI is currently refueling. Please try again in a moment." });
   }
 }
