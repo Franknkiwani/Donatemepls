@@ -1,36 +1,41 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  // Ensure it's a POST request
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   const API_KEY = process.env.GEMINI_API_KEY;
-  if (!API_KEY) return res.status(500).json({ error: "API Key missing." });
+  if (!API_KEY) {
+    return res.status(500).json({ error: "API Key missing in Vercel settings." });
+  }
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    const prompt = body.prompt?.trim();
+    const prompt = body.prompt;
 
-    // Use a direct fetch call. This is the "Lightest" way to talk to Google.
-    // We use gemini-1.5-flash because it has the highest free-tier quota.
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: `Write a powerful 3-sentence crowdfunding mission for: "${prompt}". Focus on impact and urgency. No emojis or hashtags.` }]
-        }]
-      })
+    const genAI = new GoogleGenerativeAI(API_KEY);
+    
+    // We are using 1.5-Flash because your logs show 2.0-Flash is completely out of quota
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash" 
     });
 
-    const data = await response.json();
+    const result = await model.generateContent(`Write a 3-sentence crowdfunding mission for: "${prompt}". No emojis.`);
+    const response = await result.response;
+    const text = response.text().trim();
 
-    // If Google says 429, we catch it here
-    if (data.error) {
-      return res.status(data.error.code || 500).json({ error: data.error.message });
-    }
-
-    const aiText = data.candidates[0].content.parts[0].text.trim();
-    return res.status(200).json({ text: aiText.replace(/^["']+|["']+$/g, '') });
+    return res.status(200).json({ text });
 
   } catch (error) {
-    return res.status(500).json({ error: "AI Bridge reset. Please try again." });
+    console.error("AI Error:", error.message);
+    
+    // If we hit the 429 quota again, this sends a clear message to your UI
+    if (error.status === 429 || error.message.includes('429')) {
+        return res.status(429).json({ error: "AI is over-capacity. Wait 30 seconds." });
+    }
+
+    return res.status(500).json({ error: "AI Bridge Error" });
   }
 }
