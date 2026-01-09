@@ -1,48 +1,42 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 export default async function handler(req, res) {
-  // 1. Only allow POST requests
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // 2. Immediate Security Check
-  if (!process.env.GEMINI_API_KEY) {
-    return res.status(500).json({ error: "Server Configuration Error: API Key missing." });
-  }
+  const API_KEY = process.env.GEMINI_API_KEY;
+  if (!API_KEY) return res.status(500).json({ error: "Key Missing" });
 
   try {
-    const body = JSON.parse(req.body);
-    const prompt = body.prompt?.trim();
+    // 1. Parse the incoming request correctly
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const prompt = body.prompt;
 
-    if (!prompt || prompt.length < 3) {
-      return res.status(400).json({ error: 'Campaign title is too short.' });
-    }
-
-    // 3. Initialize with latest 2026 model
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.0-flash", // Faster & smarter for 2026
-        systemInstruction: "You are a professional crowdfunding copywriter. Your goal is to write high-impact mission statements."
+    // 2. Direct HTTPS fetch to Google (Bypasses library bugs)
+    // We use gemini-1.5-flash because your logs proved 2.0-flash is over-quota
+    const googleResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `Write a 3-sentence crowdfunding description for: "${prompt}". No emojis.` }] }]
+      })
     });
 
-    // 4. Structured Prompt for exact output
-    const aiPrompt = `Write a powerful 3-sentence description for a campaign titled: "${prompt}". 
-    Focus on social impact and urgency. 
-    Output ONLY the description text. Do not use hashtags, emojis, or introductory phrases like 'Here is your description'.`;
+    const data = await googleResponse.json();
 
-    // 5. Generate and clean response
-    const result = await model.generateContent(aiPrompt);
-    const response = await result.response;
-    let text = response.text().trim();
+    // 3. Handle Google's internal errors
+    if (data.error) {
+      console.error("Google Error:", data.error.message);
+      return res.status(data.error.code || 500).json({ error: data.error.message });
+    }
 
-    // Remove quotes if the AI adds them accidentally
-    text = text.replace(/^["']+|["']+$/g, '');
-
-    return res.status(200).json({ text });
+    // 4. Extract text safely
+    if (data.candidates && data.candidates[0].content.parts[0].text) {
+      const aiText = data.candidates[0].content.parts[0].text.trim();
+      return res.status(200).json({ text: aiText });
+    } else {
+      throw new Error("Invalid AI response format");
+    }
 
   } catch (error) {
-    console.error("Gemini API Error:", error);
-    return res.status(500).json({ error: "The AI is currently refueling. Please try again in a moment." });
+    console.error("Bridge Error:", error.message);
+    return res.status(500).json({ error: "Connection to AI Bridge lost. Try again." });
   }
 }
