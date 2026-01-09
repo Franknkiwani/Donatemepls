@@ -2,16 +2,16 @@
   "version": 2,
   "cleanUrls": true,
   "functions": {
-    "api/*.js": {
-      "maxDuration": 10
-    },
     "api/refill-tokens.js": {
       "maxDuration": 60
+    },
+    "api/paypal-webhook.js": {
+      "maxDuration": 10
     }
   },
   "rewrites": [
     { "source": "/api/paypal-webhook", "destination": "/api/paypal-webhook.js" },
-    { "source": "/api/(.*)", "destination": "/api/$1" }
+    { "source": "/api/refill-tokens", "destination": "/api/refill-tokens.js" }
   ],
   "crons": [
     { 
