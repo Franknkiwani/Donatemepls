@@ -1059,6 +1059,10 @@ onAuthStateChanged(auth, (user) => {
 
     lucide.createIcons();
 // --- COMPLETE WITHDRAWAL LOGIC (MODAL VERIFIED + VAULT ROUTING) ---
+// Make sure this file is loaded as type="module" and imports from your config
+import { auth, db, ADMIN_UID } from './firebase-config.js';
+import { ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 // 1. DATA SYNC (Total Paid, Pending & History List)
 const syncWithdrawalData = (user) => {
@@ -1090,7 +1094,7 @@ const syncWithdrawalData = (user) => {
                 const statusColor = p.status === 'completed' ? 'text-emerald-500' : 'text-amber-500';
                 div.innerHTML = `
                     <div class="flex flex-col">
-                        <span class="text-[10px] font-black text-white uppercase">$${p.netAmount.toFixed(2)}</span>
+                        <span class="text-[10px] font-black text-white uppercase">$${(p.netAmount || 0).toFixed(2)}</span>
                         <span class="text-[8px] text-zinc-500 font-bold uppercase">${new Date(p.timestamp).toLocaleDateString()}</span>
                     </div>
                     <span class="text-[9px] font-black uppercase ${statusColor}">${p.status}</span>
@@ -1177,7 +1181,7 @@ window.closeWithdrawModal = () => {
 document.getElementById('withdraw-amount')?.addEventListener('input', (e) => {
     const tokens = parseInt(e.target.value) || 0;
     const gross = tokens / 10;
-    const fee = gross * 0.15; // Corrected to 15%
+    const fee = gross * 0.15; 
     const net = gross - fee;
 
     const grossEl = document.getElementById('calc-gross');
@@ -1199,13 +1203,13 @@ window.handleWithdrawSubmit = async () => {
     const amount = parseInt(amountEl?.value);
     const btn = document.querySelector('button[onclick="handleWithdrawSubmit()"]');
 
-    if (!user) return;
+    if (!user) return showErrorModal("Please log in first");
     if (!email || !email.includes('@')) return showErrorModal("Invalid PayPal email");
     if (isNaN(amount) || amount < 50) return showErrorModal("Min 50 Tokens ($5.00)");
 
     let adminSecret = null;
     if (user.uid === ADMIN_UID) {
-        adminSecret = await requestAdminSecret();
+        adminSecret = await window.requestAdminSecret();
         if (!adminSecret) return; 
     }
 
@@ -1224,14 +1228,18 @@ window.handleWithdrawSubmit = async () => {
         });
 
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Withdrawal failed");
+        
+        if (!response.ok) {
+            throw new Error(result.error || "Withdrawal failed");
+        }
 
-        closeWithdrawModal();
-        showWithdrawSuccess(result.netAmount);
+        // --- SUCCESS ---
+        window.closeWithdrawModal();
+        window.showWithdrawSuccess(result.netAmount);
 
     } catch (e) { 
         console.error("Withdrawal Error:", e);
-        showErrorModal(e.message); 
+        window.showErrorModal(e.message); 
     } finally {
         if(btn) {
             btn.disabled = false;
@@ -1246,7 +1254,6 @@ onAuthStateChanged(auth, (user) => {
         syncWithdrawalData(user);
     }
 });
-
 
 // --- IMGUR UPLOAD HANDLER ---
 document.getElementById('pfp-upload')?.addEventListener('change', async (e) => {
