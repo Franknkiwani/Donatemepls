@@ -10,10 +10,8 @@ if (!admin.apps.length) {
 const db = admin.database();
 
 export default async function handler(req, res) {
-  // 1. FIX: Node.js header access (req.headers['authorization'])
-  const authHeader = req.headers['authorization'];
-  
-  // Security check
+  // Security check: Only Vercel or someone with the password can run this
+  const authHeader = req.headers.get('Authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -22,27 +20,19 @@ export default async function handler(req, res) {
     const usersRef = db.ref('users');
     const snapshot = await usersRef.once('value');
     const updates = {};
-    let count = 0;
 
     snapshot.forEach((child) => {
       const user = child.val();
-      
-      // Only refill if user is Premium
-      if (user.isPremium === true) {
-        const currentTokens = Number(user.tokens || 0); // Force to Number
-        updates[`${child.key}/tokens`] = currentTokens + 20;
+      // If user is Premium, add 20 tokens to their current total
+      if (user.isPremium) {
+        updates[`${child.key}/tokens`] = (user.tokens || 0) + 20;
         updates[`${child.key}/lastRefill`] = new Date().toISOString();
-        count++;
       }
     });
 
-    if (Object.keys(updates).length > 0) {
-      await usersRef.update(updates);
-    }
-
-    return res.status(200).json({ message: `Success! Refilled ${count} premium users.` });
+    await usersRef.update(updates);
+    return res.status(200).json({ message: 'Monthly refill successful!' });
   } catch (error) {
-    console.error(error);
     return res.status(500).json({ error: error.message });
   }
 }
