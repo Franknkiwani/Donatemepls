@@ -829,151 +829,117 @@
  <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
-// ADD 'push' TO THE LINE BELOW:
-import { getDatabase, ref, update, onValue, get, set, push } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+import { auth, db, PLAN_ID, AVATAR_PRESETS as presets } from './firebase-config.js';
+import { notify } from './ui-manager.js';
+import { 
+    onAuthStateChanged, 
+    signInWithPopup, 
+    GoogleAuthProvider, 
+    signOut, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword 
+} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
+import { 
+    ref, 
+    update, 
+    onValue, 
+    get, 
+    set, 
+    push 
+} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyDFHskUWiyHhZke3KT9kkOtFI_gPsKfiGo",
-        authDomain: "itzhoyoo-f9f7e.firebaseapp.com",
-        databaseURL: "https://itzhoyoo-f9f7e-default-rtdb.firebaseio.com",
-        projectId: "itzhoyoo-f9f7e",
-        appId: "1:1094792075584:web:d49e9c3f899d3cd31082a5"
-    };
+// --- UI & THEME ---
+window.setTheme = (theme) => {
+    document.body.className = theme;
+    localStorage.setItem('user-theme', theme);
+    document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.getElementById(`btn-${theme}`);
+    if(activeBtn) activeBtn.classList.add('active');
+};
+setTheme(localStorage.getItem('user-theme') || 'theme-dark');
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
-    const PLAN_ID = 'P-47S21200XM2944742NFPLPEA';
-
-    const presets = [
-        "https://img.pikbest.com/origin/10/25/30/74apIkbEsT5qB.jpg!w700wp",
-        "https://thumbs.dreamstime.com/b/cool-neon-party-wolf-headphones-black-background-colorful-illustration-music-theme-modern-portrait-bright-vibrant-385601082.jpg",
-        "https://wallpapers.com/images/hd/gaming-profile-pictures-tt8bbzdcf6zibhoi.jpg"
-    ];
-// This version ONLY locks for Profile and Donation modals
-const syncScrollLock = () => {
-    const lockIds = ['profile-modal', 'modern-donate-modal', 'donation-success-modal'];
-    const shouldLock = lockIds.some(id => {
-        const el = document.getElementById(id);
-        return el && !el.classList.contains('hidden');
-    });
-    document.body.style.overflow = shouldLock ? 'hidden' : '';
+// --- MODAL CONTROLS ---
+window.openAuthModal = () => document.getElementById('auth-modal').classList.remove('hidden');
+window.closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
+window.openProfile = () => {
+    document.getElementById('profile-modal').classList.remove('hidden');
+    document.body.classList.add('stop-scrolling');
+};
+window.closeProfile = () => {
+    document.getElementById('profile-modal').classList.add('hidden');
+    document.body.classList.remove('stop-scrolling');
+};
+window.openUpgradeModal = () => {
+    document.getElementById('upgrade-modal').classList.remove('hidden');
+    if (window.initPayPal) setTimeout(window.initPayPal, 100);
+};
+window.closeUpgradeModal = () => document.getElementById('upgrade-modal').classList.add('hidden');
+window.openTokenModal = () => {
+    document.getElementById('token-modal').classList.remove('hidden');
+    document.body.classList.add('stop-scrolling'); 
+};
+window.closeTokenModal = () => {
+    document.getElementById('token-modal').classList.add('hidden');
+    document.body.classList.remove('stop-scrolling'); 
+    document.getElementById('paypal-tokens-container').innerHTML = ''; 
 };
 
-    // --- UTILS & THEME ---
-    window.notify = (msg) => {
-        const t = document.createElement('div');
-        t.className = 'toast show'; t.innerText = msg;
-        const box = document.getElementById('notify-box');
-        if(box) box.appendChild(t);
-        setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000);
-    };
+window.selectPack = (btn, amount, tokens) => {
+    document.querySelectorAll('.pack-option').forEach(el => el.classList.remove('border-amber-500', 'bg-amber-500/10'));
+    btn.classList.add('border-amber-500', 'bg-amber-500/10');
+    if (window.buyPack) window.buyPack(amount, tokens);
+};
 
-    window.setTheme = (theme) => {
-        document.body.className = theme;
-        localStorage.setItem('user-theme', theme);
-        document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
-        const activeBtn = document.getElementById(`btn-${theme}`);
-        if(activeBtn) activeBtn.classList.add('active');
-    };
-    setTheme(localStorage.getItem('user-theme') || 'theme-dark');
+// --- AUTH LOGIC ---
+window.authTab = 'login';
+window.setAuthTab = (tab) => {
+    window.authTab = tab;
+    document.getElementById('reg-name-field').classList.toggle('hidden', tab === 'login');
+    document.getElementById('tab-login').className = tab === 'login' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
+    document.getElementById('tab-register').className = tab === 'register' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
+};
 
-    // --- MODAL CONTROLS ---
-    window.openAuthModal = () => document.getElementById('auth-modal').classList.remove('hidden');
-    window.closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
-    
-    window.openProfile = () => {
-        document.getElementById('profile-modal').classList.remove('hidden');
-        document.body.classList.add('stop-scrolling');
-    };
-
-    window.closeProfile = () => {
-        document.getElementById('profile-modal').classList.add('hidden');
-        document.body.classList.remove('stop-scrolling');
-    };
-
-    window.openUpgradeModal = () => {
-        document.getElementById('upgrade-modal').classList.remove('hidden');
-        setTimeout(initPayPal, 100);
-    };
-    
-    window.closeUpgradeModal = () => document.getElementById('upgrade-modal').classList.add('hidden');
-
-    // --- TOKEN MODAL LOGIC ---
-    window.openTokenModal = () => {
-        document.getElementById('token-modal').classList.remove('hidden');
-        // Using the same class for consistency
-        document.body.classList.add('stop-scrolling'); 
-    };
-
-    window.closeTokenModal = () => {
-        document.getElementById('token-modal').classList.add('hidden');
-        document.body.classList.remove('stop-scrolling'); 
-        document.getElementById('paypal-tokens-container').innerHTML = ''; 
-    };
-
-    window.selectPack = (btn, amount, tokens) => {
-        document.querySelectorAll('.pack-option').forEach(el => el.classList.remove('border-amber-500', 'bg-amber-500/10'));
-        btn.classList.add('border-amber-500', 'bg-amber-500/10');
-        window.buyPack(amount, tokens);
-    };
-
-
-    // --- AUTH LOGIC ---
-    window.authTab = 'login';
-    window.setAuthTab = (tab) => {
-        window.authTab = tab;
-        document.getElementById('reg-name-field').classList.toggle('hidden', tab === 'login');
-        document.getElementById('tab-login').className = tab === 'login' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
-        document.getElementById('tab-register').className = tab === 'register' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
-    };
-
-    window.handleAuthSubmit = async () => {
-        const email = document.getElementById('auth-email').value;
-        const pass = document.getElementById('auth-pass').value;
-        try {
-            if (window.authTab === 'register') {
-                const handle = document.getElementById('auth-username').value.trim();
-                const res = await createUserWithEmailAndPassword(auth, email, pass);
-                await set(ref(db, `users/${res.user.uid}`), { username: handle, tokens: 0, isPremium: false });
-            } else { await signInWithEmailAndPassword(auth, email, pass); }
-            closeAuthModal();
-        } catch(e) { notify(e.message); }
-    };
-    window.triggerGoogle = () => signInWithPopup(auth, new GoogleAuthProvider()).then(closeAuthModal);
-    window.handleLogout = () => signOut(auth).then(() => location.reload());
-
-    // --- PROFILE & NAME CHANGE (WITH COOLDOWN) ---
-    window.saveProfileChanges = async () => {
-        const user = auth.currentUser;
-        if(!user) return;
-        const newName = document.getElementById('username-input').value.trim();
-        const snap = await get(ref(db, `users/${user.uid}`));
-        const data = snap.val() || {};
-        let updates = {};
-
-        if (window.tempAvatar) updates.avatar = window.tempAvatar;
-        
-        if (newName && newName !== data.username) {
-            const now = Date.now();
-            const oneWeek = 7 * 24 * 60 * 60 * 1000;
-            let history = (data.nameChanges || []).filter(timestamp => (now - timestamp) < oneWeek);
-
-            if (!data.isPremium && history.length >= 2) {
-                return notify("Free users: Only 2 name changes per week!");
-            }
-            
-            updates.username = newName;
-            history.push(now);
-            updates.nameChanges = history;
+window.handleAuthSubmit = async () => {
+    const email = document.getElementById('auth-email').value;
+    const pass = document.getElementById('auth-pass').value;
+    try {
+        if (window.authTab === 'register') {
+            const handle = document.getElementById('auth-username').value.trim();
+            const res = await createUserWithEmailAndPassword(auth, email, pass);
+            await set(ref(db, `users/${res.user.uid}`), { username: handle, tokens: 0, isPremium: false });
+        } else { 
+            await signInWithEmailAndPassword(auth, email, pass); 
         }
+        closeAuthModal();
+    } catch(e) { notify(e.message); }
+};
 
-        await update(ref(db, `users/${user.uid}`), updates);
-        notify("Profile Updated!"); 
-        closeProfile();
-    };
+window.triggerGoogle = () => signInWithPopup(auth, new GoogleAuthProvider()).then(closeAuthModal);
+window.handleLogout = () => signOut(auth).then(() => location.reload());
+
+// --- PROFILE & NAME CHANGE ---
+window.saveProfileChanges = async () => {
+    const user = auth.currentUser;
+    if(!user) return;
+    const newName = document.getElementById('username-input').value.trim();
+    const snap = await get(ref(db, `users/${user.uid}`));
+    const data = snap.val() || {};
+    let updates = {};
+
+    if (window.tempAvatar) updates.avatar = window.tempAvatar;
+    if (newName && newName !== data.username) {
+        const now = Date.now();
+        const oneWeek = 7 * 24 * 60 * 60 * 1000;
+        let history = (data.nameChanges || []).filter(timestamp => (now - timestamp) < oneWeek);
+        if (!data.isPremium && history.length >= 2) return notify("Free users: Only 2 name changes per week!");
+        updates.username = newName;
+        history.push(now);
+        updates.nameChanges = history;
+    }
+    await update(ref(db, `users/${user.uid}`), updates);
+    notify("Profile Updated!"); 
+    closeProfile();
+};
 
     // --- PAYPAL ---
     function initPayPal() {
