@@ -2,6 +2,7 @@ import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { getAuth } from 'firebase-admin/auth';
 
+// Initialize Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 if (!getApps().length) {
     initializeApp({
@@ -9,41 +10,49 @@ if (!getApps().length) {
         databaseURL: "https://itzhoyoo-f9f7e-default-rtdb.firebaseio.com"
     });
 }
+
 const db = getDatabase();
 const auth = getAuth();
 
 export default async function handler(req, res) {
+    // Only allow POST requests
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
     const { idToken, email, amount, adminSecret } = req.body;
     const BLOCKED_ADMIN_UID = "4xEDAzSt5javvSnW5mws2Ma8i8n1"; 
 
     try {
+        // --- AUTH VERIFICATION ---
         const decodedToken = await auth.verifyIdToken(idToken);
         const uid = decodedToken.uid;
+        
+        // Check if requester is the specific Admin and provided the correct ENV secret
         const isAuthorizedAdmin = (uid === BLOCKED_ADMIN_UID && adminSecret === process.env.ADMIN_VERIFY_TOKEN);
 
         // --- STEP 1: FETCH DAILY LIMIT STATS ---
-        const today = new Date().toISOString().split('T')[0]; // Current date for limit tracking
+        const today = new Date().toISOString().split('T')[0]; 
         const dailyRef = db.ref(`stats/daily_withdrawals/${today}/${uid}`);
         const dailySnap = await dailyRef.get();
         const currentDailyTotal = Number(dailySnap.val() || 0);
         const newDailyTotal = currentDailyTotal + Number(amount);
 
-        // --- STEP 2: PARALLEL AI FRAUD AUDIT ---
+        // --- STEP 2: AI FRAUD AUDIT (GROQ) ---
         const auditPromise = fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
-            headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+            headers: { 
+                "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, 
+                "Content-Type": "application/json" 
+            },
             body: JSON.stringify({
                 model: "llama-3.3-70b-versatile",
                 messages: [
                     { 
                         role: "system", 
-                        content: "Respond ONLY with 'PASS', 'FLAG' (suspicious/large), or 'BLOCK' (scam/drain)." 
+                        content: "Respond ONLY with 'PASS', 'FLAG', or 'BLOCK'." 
                     },
                     { 
                         role: "user", 
-                        content: `UID: ${uid}, Request: ${amount}, DailyTotal: ${newDailyTotal}. Rules: FLAG if amount > 10000 or DailyTotal > 20000. BLOCK if DailyTotal > 50000.` 
+                        content: `UID: ${uid}, Request: ${amount}, DailyTotal: ${newDailyTotal}. Rules: FLAG if amount > 10000. BLOCK if DailyTotal > 50000.` 
                     }
                 ],
                 max_tokens: 5,
@@ -62,7 +71,7 @@ export default async function handler(req, res) {
         if (!isAuthorizedAdmin) {
             if (aiDecision.includes("BLOCK")) {
                 await userRef.update({ isBanned: true, banReason: "AI Anti-Drain Trigger" });
-                return res.status(403).json({ error: "Security Alert: Unusual activity detected. Account locked." });
+                return res.status(403).json({ error: "Security Alert: Account locked for review." });
             }
             if (aiDecision.includes("FLAG")) {
                 finalStatus = 'awaiting_manual_review';
@@ -70,33 +79,39 @@ export default async function handler(req, res) {
             }
         }
 
-        // --- STEP 4: DATABASE TRANSACTION ---
-        const result = await userRef.transaction((userData) => {
+        // --- STEP 4: DATABASE TRANSACTION (CRITICAL FIX) ---
+        const transactionResult = await userRef.transaction((userData) => {
             if (userData === null) return userData;
             if (userData.isBanned) return;
 
             const bal = Number(userData.tokens || 0);
-            const earned = Number(userData.totalEarned || 0);
             const reqAmt = Number(amount);
 
+            // Basic Balance Check
             if (bal < reqAmt) return; 
-            if (!isAuthorizedAdmin && earned < reqAmt) return; 
 
+            // Deduct tokens
             userData.tokens = bal - reqAmt;
-            if (!isAuthorizedAdmin) userData.totalEarned = Math.max(0, earned - reqAmt);
+
+            // Update totalEarned ONLY if it exists and user is not admin
+            if (!isAuthorizedAdmin && userData.totalEarned) {
+                userData.totalEarned = Math.max(0, Number(userData.totalEarned) - reqAmt);
+            }
+            
             return userData;
         });
 
-        if (!result.committed) return res.status(400).json({ error: "Insufficient or restricted funds." });
+        if (!transactionResult.committed) {
+            return res.status(400).json({ error: "Insufficient balance or transaction failed." });
+        }
 
-        // --- STEP 5: LOGGING & STATS UPDATE ---
+        // --- STEP 5: LOGGING & STATS ---
+        // 15% Fee applied here (0.85 multiplier)
         const netUSD = isAuthorizedAdmin ? (amount / 10) : (amount / 10) * 0.85;
         const payoutId = Date.now();
 
-        // Update the user's daily total in Firebase
         await dailyRef.set(newDailyTotal);
 
-        // Record the payout with the review status
         await db.ref(`payouts/${payoutId}_${uid}`).set({
             uid,
             paypal: email,
@@ -112,11 +127,11 @@ export default async function handler(req, res) {
             success: true, 
             netAmount: netUSD,
             review: reviewRequired,
-            message: reviewRequired ? "Large withdrawal flagged for admin review." : "Payout processing."
+            message: reviewRequired ? "Flagged for manual review." : "Payout submitted successfully."
         });
 
     } catch (e) {
         console.error("Critical Error:", e);
-        return res.status(500).json({ error: "Security Bridge Offline" });
+        return res.status(500).json({ error: "Server Error: Security Bridge Offline" });
     }
 }
