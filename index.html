@@ -6,135 +6,7 @@
     <title>Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
- <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap');
-    
-    body { font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.3s ease; overflow-x: hidden; }
-    
-    /* Variable Definitions */
-    :root {
-        --bg: #050505;
-        --card-bg: #121212;
-        --text-main: #ffffff;
-        --text-dim: #71717a;
-        --border: rgba(255, 255, 255, 0.1);
-        --input-bg: rgba(255, 255, 255, 0.05);
-    }
 
-    body.theme-light {
-        --bg: #f4f4f5;
-        --card-bg: #ffffff;
-        --text-main: #09090b; /* This is the Black for Light Mode */
-        --text-dim: #71717a;
-        --border: rgba(0, 0, 0, 0.1);
-        --input-bg: #ededf0;
-    }
-
-    body.theme-blue {
-        --bg: #020617;
-        --card-bg: #0f172a;
-        --text-main: #f8fafc;
-        --text-dim: #94a3b8;
-        --border: rgba(255, 255, 255, 0.08);
-        --input-bg: rgba(255, 255, 255, 0.03);
-    }
-
-    /* Global Apply */
-    body { background-color: var(--bg); color: var(--text-main); }
-    
-    .glass-header {
-        position: sticky; top: 0; z-index: 50;
-        backdrop-filter: blur(20px);
-        background: var(--input-bg);
-        border-bottom: 1px solid var(--border);
-        padding: 0.6rem 1.2rem;
-    }
-
-    /* Target all Modals and Containers */
-    #token-bar, #auth-modal > div, #profile-modal > div, #upgrade-modal > div, #token-modal > div, #withdraw-modal > div {
-        background-color: var(--card-bg) !important;
-        color: var(--text-main) !important;
-        border-color: var(--border) !important;
-    }
-
-    /* Specific ID Fixes (Ensures Token Count is visible) */
-    #token-count, 
-    #calc-gross, 
-    #pro-name-preview, 
-    #withdraw-modal h2, 
-    #token-modal h2,
-    .pack-option span:not(.text-amber-500) {
-        color: var(--text-main) !important;
-    }
-
-    /* Target Inputs and Items */
-    input, .pack-option, #payout-history-list > div {
-        background-color: var(--input-bg) !important;
-        color: var(--text-main) !important;
-        border-color: var(--border) !important;
-    }
-
-    /* Button Adaptations for Light Mode */
-    body.theme-light button.bg-zinc-800 {
-        background-color: #e4e4e7 !important;
-        color: #09090b !important;
-        border-color: rgba(0,0,0,0.1) !important;
-    }
-
-    .truncate-name { max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
-    .premium-tag { background: #F59E0B; color: black; font-size: 8px; font-weight: 900; padding: 2px 5px; border-radius: 4px; position: absolute; top: 4px; right: 4px; }
-    .theme-btn.active { outline: 2px solid #F59E0B; outline-offset: 2px; }
-
-    #notify-box { position: fixed; top: 80px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
-    .toast { background: #F59E0B; color: black; padding: 12px 20px; border-radius: 12px; font-weight: 800; transform: translateX(120%); transition: 0.4s; }
-    .toast.show { transform: translateX(0); }
-
-    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
-.stop-scrolling {
-    height: 100vh;
-    overflow: hidden;
-}
-/* Vault Access Master Overlay */
-#admin-verify-modal {
-    /* Use fixed to stay in place even if the page is scrolled */
-    position: fixed; 
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    
-    /* A very high z-index to overlap all other modals/navbars */
-    z-index: 9999; 
-    
-    /* Centering logic */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    
-    /* Darkening the background */
-    background-color: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(8px);
-    
-    /* Padding for mobile screens */
-    padding: 1rem;
-}
-
-/* Ensure it stays hidden when the class 'hidden' is present */
-#admin-verify-modal.hidden {
-    display: none !important;
-}
-
-/* Optional: Slight pop-in animation */
-#admin-verify-modal:not(.hidden) > div {
-    animation: modalPop 0.3s ease-out;
-}
-
-@keyframes modalPop {
-    from { transform: scale(0.9); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-}
-
-</style>
 </head>
 <body class="theme-dark">
 
@@ -829,117 +701,151 @@
  <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
 
 <script type="module">
-import { auth, db, PLAN_ID, AVATAR_PRESETS as presets } from './firebase-config.js';
-import { notify } from './ui-manager.js';
-import { 
-    onAuthStateChanged, 
-    signInWithPopup, 
-    GoogleAuthProvider, 
-    signOut, 
-    createUserWithEmailAndPassword, 
-    signInWithEmailAndPassword 
-} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
-import { 
-    ref, 
-    update, 
-    onValue, 
-    get, 
-    set, 
-    push 
-} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
+// ADD 'push' TO THE LINE BELOW:
+import { getDatabase, ref, update, onValue, get, set, push } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 
-// --- UI & THEME ---
-window.setTheme = (theme) => {
-    document.body.className = theme;
-    localStorage.setItem('user-theme', theme);
-    document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
-    const activeBtn = document.getElementById(`btn-${theme}`);
-    if(activeBtn) activeBtn.classList.add('active');
-};
-setTheme(localStorage.getItem('user-theme') || 'theme-dark');
+    const firebaseConfig = {
+        apiKey: "AIzaSyDFHskUWiyHhZke3KT9kkOtFI_gPsKfiGo",
+        authDomain: "itzhoyoo-f9f7e.firebaseapp.com",
+        databaseURL: "https://itzhoyoo-f9f7e-default-rtdb.firebaseio.com",
+        projectId: "itzhoyoo-f9f7e",
+        appId: "1:1094792075584:web:d49e9c3f899d3cd31082a5"
+    };
 
-// --- MODAL CONTROLS ---
-window.openAuthModal = () => document.getElementById('auth-modal').classList.remove('hidden');
-window.closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
-window.openProfile = () => {
-    document.getElementById('profile-modal').classList.remove('hidden');
-    document.body.classList.add('stop-scrolling');
-};
-window.closeProfile = () => {
-    document.getElementById('profile-modal').classList.add('hidden');
-    document.body.classList.remove('stop-scrolling');
-};
-window.openUpgradeModal = () => {
-    document.getElementById('upgrade-modal').classList.remove('hidden');
-    if (window.initPayPal) setTimeout(window.initPayPal, 100);
-};
-window.closeUpgradeModal = () => document.getElementById('upgrade-modal').classList.add('hidden');
-window.openTokenModal = () => {
-    document.getElementById('token-modal').classList.remove('hidden');
-    document.body.classList.add('stop-scrolling'); 
-};
-window.closeTokenModal = () => {
-    document.getElementById('token-modal').classList.add('hidden');
-    document.body.classList.remove('stop-scrolling'); 
-    document.getElementById('paypal-tokens-container').innerHTML = ''; 
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+    const PLAN_ID = 'P-47S21200XM2944742NFPLPEA';
+
+    const presets = [
+        "https://img.pikbest.com/origin/10/25/30/74apIkbEsT5qB.jpg!w700wp",
+        "https://thumbs.dreamstime.com/b/cool-neon-party-wolf-headphones-black-background-colorful-illustration-music-theme-modern-portrait-bright-vibrant-385601082.jpg",
+        "https://wallpapers.com/images/hd/gaming-profile-pictures-tt8bbzdcf6zibhoi.jpg"
+    ];
+// This version ONLY locks for Profile and Donation modals
+const syncScrollLock = () => {
+    const lockIds = ['profile-modal', 'modern-donate-modal', 'donation-success-modal'];
+    const shouldLock = lockIds.some(id => {
+        const el = document.getElementById(id);
+        return el && !el.classList.contains('hidden');
+    });
+    document.body.style.overflow = shouldLock ? 'hidden' : '';
 };
 
-window.selectPack = (btn, amount, tokens) => {
-    document.querySelectorAll('.pack-option').forEach(el => el.classList.remove('border-amber-500', 'bg-amber-500/10'));
-    btn.classList.add('border-amber-500', 'bg-amber-500/10');
-    if (window.buyPack) window.buyPack(amount, tokens);
-};
+    // --- UTILS & THEME ---
+    window.notify = (msg) => {
+        const t = document.createElement('div');
+        t.className = 'toast show'; t.innerText = msg;
+        const box = document.getElementById('notify-box');
+        if(box) box.appendChild(t);
+        setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000);
+    };
 
-// --- AUTH LOGIC ---
-window.authTab = 'login';
-window.setAuthTab = (tab) => {
-    window.authTab = tab;
-    document.getElementById('reg-name-field').classList.toggle('hidden', tab === 'login');
-    document.getElementById('tab-login').className = tab === 'login' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
-    document.getElementById('tab-register').className = tab === 'register' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
-};
+    window.setTheme = (theme) => {
+        document.body.className = theme;
+        localStorage.setItem('user-theme', theme);
+        document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+        const activeBtn = document.getElementById(`btn-${theme}`);
+        if(activeBtn) activeBtn.classList.add('active');
+    };
+    setTheme(localStorage.getItem('user-theme') || 'theme-dark');
 
-window.handleAuthSubmit = async () => {
-    const email = document.getElementById('auth-email').value;
-    const pass = document.getElementById('auth-pass').value;
-    try {
-        if (window.authTab === 'register') {
-            const handle = document.getElementById('auth-username').value.trim();
-            const res = await createUserWithEmailAndPassword(auth, email, pass);
-            await set(ref(db, `users/${res.user.uid}`), { username: handle, tokens: 0, isPremium: false });
-        } else { 
-            await signInWithEmailAndPassword(auth, email, pass); 
+    // --- MODAL CONTROLS ---
+    window.openAuthModal = () => document.getElementById('auth-modal').classList.remove('hidden');
+    window.closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
+    
+    window.openProfile = () => {
+        document.getElementById('profile-modal').classList.remove('hidden');
+        document.body.classList.add('stop-scrolling');
+    };
+
+    window.closeProfile = () => {
+        document.getElementById('profile-modal').classList.add('hidden');
+        document.body.classList.remove('stop-scrolling');
+    };
+
+    window.openUpgradeModal = () => {
+        document.getElementById('upgrade-modal').classList.remove('hidden');
+        setTimeout(initPayPal, 100);
+    };
+    
+    window.closeUpgradeModal = () => document.getElementById('upgrade-modal').classList.add('hidden');
+
+    // --- TOKEN MODAL LOGIC ---
+    window.openTokenModal = () => {
+        document.getElementById('token-modal').classList.remove('hidden');
+        // Using the same class for consistency
+        document.body.classList.add('stop-scrolling'); 
+    };
+
+    window.closeTokenModal = () => {
+        document.getElementById('token-modal').classList.add('hidden');
+        document.body.classList.remove('stop-scrolling'); 
+        document.getElementById('paypal-tokens-container').innerHTML = ''; 
+    };
+
+    window.selectPack = (btn, amount, tokens) => {
+        document.querySelectorAll('.pack-option').forEach(el => el.classList.remove('border-amber-500', 'bg-amber-500/10'));
+        btn.classList.add('border-amber-500', 'bg-amber-500/10');
+        window.buyPack(amount, tokens);
+    };
+
+
+    // --- AUTH LOGIC ---
+    window.authTab = 'login';
+    window.setAuthTab = (tab) => {
+        window.authTab = tab;
+        document.getElementById('reg-name-field').classList.toggle('hidden', tab === 'login');
+        document.getElementById('tab-login').className = tab === 'login' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
+        document.getElementById('tab-register').className = tab === 'register' ? 'pb-2 text-xs font-black uppercase border-b-2 border-amber-500' : 'pb-2 text-xs font-black uppercase text-zinc-500';
+    };
+
+    window.handleAuthSubmit = async () => {
+        const email = document.getElementById('auth-email').value;
+        const pass = document.getElementById('auth-pass').value;
+        try {
+            if (window.authTab === 'register') {
+                const handle = document.getElementById('auth-username').value.trim();
+                const res = await createUserWithEmailAndPassword(auth, email, pass);
+                await set(ref(db, `users/${res.user.uid}`), { username: handle, tokens: 0, isPremium: false });
+            } else { await signInWithEmailAndPassword(auth, email, pass); }
+            closeAuthModal();
+        } catch(e) { notify(e.message); }
+    };
+    window.triggerGoogle = () => signInWithPopup(auth, new GoogleAuthProvider()).then(closeAuthModal);
+    window.handleLogout = () => signOut(auth).then(() => location.reload());
+
+    // --- PROFILE & NAME CHANGE (WITH COOLDOWN) ---
+    window.saveProfileChanges = async () => {
+        const user = auth.currentUser;
+        if(!user) return;
+        const newName = document.getElementById('username-input').value.trim();
+        const snap = await get(ref(db, `users/${user.uid}`));
+        const data = snap.val() || {};
+        let updates = {};
+
+        if (window.tempAvatar) updates.avatar = window.tempAvatar;
+        
+        if (newName && newName !== data.username) {
+            const now = Date.now();
+            const oneWeek = 7 * 24 * 60 * 60 * 1000;
+            let history = (data.nameChanges || []).filter(timestamp => (now - timestamp) < oneWeek);
+
+            if (!data.isPremium && history.length >= 2) {
+                return notify("Free users: Only 2 name changes per week!");
+            }
+            
+            updates.username = newName;
+            history.push(now);
+            updates.nameChanges = history;
         }
-        closeAuthModal();
-    } catch(e) { notify(e.message); }
-};
 
-window.triggerGoogle = () => signInWithPopup(auth, new GoogleAuthProvider()).then(closeAuthModal);
-window.handleLogout = () => signOut(auth).then(() => location.reload());
-
-// --- PROFILE & NAME CHANGE ---
-window.saveProfileChanges = async () => {
-    const user = auth.currentUser;
-    if(!user) return;
-    const newName = document.getElementById('username-input').value.trim();
-    const snap = await get(ref(db, `users/${user.uid}`));
-    const data = snap.val() || {};
-    let updates = {};
-
-    if (window.tempAvatar) updates.avatar = window.tempAvatar;
-    if (newName && newName !== data.username) {
-        const now = Date.now();
-        const oneWeek = 7 * 24 * 60 * 60 * 1000;
-        let history = (data.nameChanges || []).filter(timestamp => (now - timestamp) < oneWeek);
-        if (!data.isPremium && history.length >= 2) return notify("Free users: Only 2 name changes per week!");
-        updates.username = newName;
-        history.push(now);
-        updates.nameChanges = history;
-    }
-    await update(ref(db, `users/${user.uid}`), updates);
-    notify("Profile Updated!"); 
-    closeProfile();
-};
+        await update(ref(db, `users/${user.uid}`), updates);
+        notify("Profile Updated!"); 
+        closeProfile();
+    };
 
     // --- PAYPAL ---
     function initPayPal() {
