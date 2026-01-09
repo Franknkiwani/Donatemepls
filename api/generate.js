@@ -1,41 +1,48 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export default async function handler(req, res) {
-  // Ensure it's a POST request
+  // 1. Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const API_KEY = process.env.GEMINI_API_KEY;
-  if (!API_KEY) {
-    return res.status(500).json({ error: "API Key missing in Vercel settings." });
+  // 2. Immediate Security Check
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({ error: "Server Configuration Error: API Key missing." });
   }
 
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    const prompt = body.prompt;
+    const body = JSON.parse(req.body);
+    const prompt = body.prompt?.trim();
 
-    const genAI = new GoogleGenerativeAI(API_KEY);
-    
-    // We are using 1.5-Flash because your logs show 2.0-Flash is completely out of quota
+    if (!prompt || prompt.length < 3) {
+      return res.status(400).json({ error: 'Campaign title is too short.' });
+    }
+
+    // 3. Initialize with latest 2026 model
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash" 
+        model: "gemini-2.0-flash", // Faster & smarter for 2026
+        systemInstruction: "You are a professional crowdfunding copywriter. Your goal is to write high-impact mission statements."
     });
 
-    const result = await model.generateContent(`Write a 3-sentence crowdfunding mission for: "${prompt}". No emojis.`);
+    // 4. Structured Prompt for exact output
+    const aiPrompt = `Write a powerful 3-sentence description for a campaign titled: "${prompt}". 
+    Focus on social impact and urgency. 
+    Output ONLY the description text. Do not use hashtags, emojis, or introductory phrases like 'Here is your description'.`;
+
+    // 5. Generate and clean response
+    const result = await model.generateContent(aiPrompt);
     const response = await result.response;
-    const text = response.text().trim();
+    let text = response.text().trim();
+
+    // Remove quotes if the AI adds them accidentally
+    text = text.replace(/^["']+|["']+$/g, '');
 
     return res.status(200).json({ text });
 
   } catch (error) {
-    console.error("AI Error:", error.message);
-    
-    // If we hit the 429 quota again, this sends a clear message to your UI
-    if (error.status === 429 || error.message.includes('429')) {
-        return res.status(429).json({ error: "AI is over-capacity. Wait 30 seconds." });
-    }
-
-    return res.status(500).json({ error: "AI Bridge Error" });
+    console.error("Gemini API Error:", error);
+    return res.status(500).json({ error: "The AI is currently refueling. Please try again in a moment." });
   }
 }
