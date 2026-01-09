@@ -1807,24 +1807,41 @@ window.updateReachMath = (val) => {
     document.getElementById('cost-display').innerHTML = `${tokens.toLocaleString()} <span class="text-xs text-zinc-500 font-black">Tokens</span>`;
 };
 
-// --- AI Auto-Write Logic ---
+// --- AI Auto-Write Logic (Optimized for Vercel/Gemini Bridge) ---
 window.generateAIContent = async () => {
     const title = document.getElementById('cp-title').value.trim();
     const descField = document.getElementById('cp-desc');
     const aiBtn = document.getElementById('ai-gen-btn');
+    
     if (!title || title.length < 5) return studioReport('error', "Enter a heading first!");
     
     aiBtn.innerText = "✨ Thinking...";
     aiBtn.disabled = true;
+
     try {
-        const response = await fetch('/api/generate', { method: 'POST', body: JSON.stringify({ prompt: title }) });
+        const response = await fetch('/api/generate', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, // Force JSON headers
+            body: JSON.stringify({ prompt: title }) 
+        });
+
+        if (!response.ok) throw new Error("Bridge connection failed");
+
         const data = await response.json();
+        
         if (data.text) {
             descField.value = data.text;
             studioReport('success', "AI Description Generated!", "AI Content Ready");
+        } else {
+            throw new Error("No response content");
         }
-    } catch (err) { studioReport('error', "AI Bridge connection failed."); }
-    finally { aiBtn.innerText = "✨ AI Auto-Write"; aiBtn.disabled = false; }
+    } catch (err) { 
+        console.error(err);
+        studioReport('error', "AI Bridge connection failed. Ensure your API Key is set in Vercel."); 
+    } finally { 
+        aiBtn.innerText = "✨ AI Auto-Write"; 
+        aiBtn.disabled = false; 
+    }
 };
 
 // --- Image Selection (Presets) ---
