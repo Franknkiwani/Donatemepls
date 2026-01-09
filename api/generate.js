@@ -12,33 +12,35 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = JSON.parse(req.body);
+    // Standard Vercel parsing for incoming body
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     const prompt = body.prompt?.trim();
 
     if (!prompt || prompt.length < 3) {
       return res.status(400).json({ error: 'Campaign title is too short.' });
     }
 
-    // 3. Initialize with latest 2026 model
+    // 3. Initialize with latest 2026 model (Gemini 2.0 Flash)
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.0-flash", // Faster & smarter for 2026
+        model: "gemini-2.0-flash", 
         systemInstruction: "You are a professional crowdfunding copywriter. Your goal is to write high-impact mission statements."
     });
 
     // 4. Structured Prompt for exact output
     const aiPrompt = `Write a powerful 3-sentence description for a campaign titled: "${prompt}". 
     Focus on social impact and urgency. 
-    Output ONLY the description text. Do not use hashtags, emojis, or introductory phrases like 'Here is your description'.`;
+    Output ONLY the description text. Do not use hashtags, emojis, or introductory phrases.`;
 
     // 5. Generate and clean response
     const result = await model.generateContent(aiPrompt);
     const response = await result.response;
     let text = response.text().trim();
 
-    // Remove quotes if the AI adds them accidentally
+    // Clean up unwanted quotes
     text = text.replace(/^["']+|["']+$/g, '');
 
+    // 6. Send the JSON response your frontend is waiting for
     return res.status(200).json({ text });
 
   } catch (error) {
