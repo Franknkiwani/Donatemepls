@@ -698,25 +698,24 @@
         </div>
     </div>
 </div>
- <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
+<script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
+<script type="module" src="./firebase-config.js"></script>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
-// ADD 'push' TO THE LINE BELOW:
-import { getDatabase, ref, update, onValue, get, set, push } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+    // 1. Importing tools from Google
+    import { 
+        onAuthStateChanged, signInWithPopup, GoogleAuthProvider, 
+        signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword 
+    } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
+    
+    import { 
+        ref, update, onValue, get, set, push 
+    } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyDFHskUWiyHhZke3KT9kkOtFI_gPsKfiGo",
-        authDomain: "itzhoyoo-f9f7e.firebaseapp.com",
-        databaseURL: "https://itzhoyoo-f9f7e-default-rtdb.firebaseio.com",
-        projectId: "itzhoyoo-f9f7e",
-        appId: "1:1094792075584:web:d49e9c3f899d3cd31082a5"
-    };
+    // 2. Importing the connection from your new file
+    import { auth, db } from './firebase-config.js';
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
+    // 3. YOUR IDS AND DATA KEPT EXACTLY AS THEY WERE:
     const PLAN_ID = 'P-47S21200XM2944742NFPLPEA';
 
     const presets = [
@@ -724,6 +723,8 @@ import { getDatabase, ref, update, onValue, get, set, push } from "https://www.g
         "https://thumbs.dreamstime.com/b/cool-neon-party-wolf-headphones-black-background-colorful-illustration-music-theme-modern-portrait-bright-vibrant-385601082.jpg",
         "https://wallpapers.com/images/hd/gaming-profile-pictures-tt8bbzdcf6zibhoi.jpg"
     ];
+
+    
 // This version ONLY locks for Profile and Donation modals
 const syncScrollLock = () => {
     const lockIds = ['profile-modal', 'modern-donate-modal', 'donation-success-modal'];
@@ -2070,5 +2071,5 @@ window.closeDeleteModal = () => document.getElementById('delete-modal').classLis
 window.closeBoostModal = () => document.getElementById('boost-modal').classList.add('hidden');
 
 </script>
-
+</body>
 </html>
