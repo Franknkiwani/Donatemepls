@@ -1,42 +1,62 @@
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  // 1. Only allow POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-  const API_KEY = process.env.GEMINI_API_KEY;
-  if (!API_KEY) return res.status(500).json({ error: "Key Missing" });
+  // 2. Grab the Groq Key from Vercel Environment Variables
+  const API_KEY = process.env.GROQ_API_KEY;
+  if (!API_KEY) {
+    return res.status(500).json({ error: "Missing GROQ_API_KEY in Vercel settings." });
+  }
 
   try {
-    // 1. Parse the incoming request correctly
+    // 3. Parse the title sent from your frontend
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    const prompt = body.prompt;
+    const prompt = body.prompt?.trim();
 
-    // 2. Direct HTTPS fetch to Google (Bypasses library bugs)
-    // We use gemini-1.5-flash because your logs proved 2.0-flash is over-quota
-    const googleResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    if (!prompt) {
+      return res.status(400).json({ error: "No title provided." });
+    }
+
+    // 4. The Direct Bridge to Groq (Llama 3.3 70B)
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${API_KEY}`,
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: `Write a 3-sentence crowdfunding description for: "${prompt}". No emojis.` }] }]
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { 
+            role: "system", 
+            content: "You are a professional crowdfunding expert. Write exactly 3 impactful sentences. No emojis or hashtags." 
+          },
+          { 
+            role: "user", 
+            content: `Write a mission statement for a campaign titled: "${prompt}"` 
+          }
+        ],
+        temperature: 0.6,
+        max_tokens: 150
       })
     });
 
-    const data = await googleResponse.json();
+    const data = await response.json();
 
-    // 3. Handle Google's internal errors
+    // 5. Error Handling
     if (data.error) {
-      console.error("Google Error:", data.error.message);
-      return res.status(data.error.code || 500).json({ error: data.error.message });
+      console.error("Groq Error:", data.error.message);
+      return res.status(500).json({ error: `AI Error: ${data.error.message}` });
     }
 
-    // 4. Extract text safely
-    if (data.candidates && data.candidates[0].content.parts[0].text) {
-      const aiText = data.candidates[0].content.parts[0].text.trim();
-      return res.status(200).json({ text: aiText });
-    } else {
-      throw new Error("Invalid AI response format");
-    }
+    // 6. Send the result back to your website
+    const aiText = data.choices[0].message.content.trim();
+    return res.status(200).json({ text: aiText });
 
   } catch (error) {
-    console.error("Bridge Error:", error.message);
-    return res.status(500).json({ error: "Connection to AI Bridge lost. Try again." });
+    console.error("Bridge Crash:", error.message);
+    return res.status(500).json({ error: "The AI bridge is resetting. Try again in 5 seconds." });
   }
 }
