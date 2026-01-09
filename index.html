@@ -692,29 +692,31 @@
                             <h4 class="text-[9px] font-black text-blue-500 uppercase tracking-widest mb-1">Target Goal</h4>
                             <input type="number" id="cp-goal" placeholder="0" class="bg-transparent w-full text-xl font-black text-white outline-none">
                         </div>
-                        <span class="text-zinc-600 font-black text-[10px] uppercase">Tokens</span>
+                        <span class="text-zinc-600 font-black text-[10px] uppercase">USD</span>
                     </div>
 
                     <div class="bg-zinc-900/50 p-6 rounded-[2rem] border border-white/5 flex items-center justify-between">
                         <div>
-                            <h4 class="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Visibility</h4>
-                            <select id="cp-location" class="bg-transparent text-white font-black text-sm outline-none cursor-pointer">
-                                <option value="Global" class="bg-zinc-900">Global Feed</option>
-                                <option value="Regional" class="bg-zinc-900">Regional Only</option>
+                            <h4 class="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Category</h4>
+                            <select id="cp-category" class="bg-transparent text-white font-black text-sm outline-none cursor-pointer">
+                                <option value="General" class="bg-zinc-900">General</option>
+                                <option value="Medical" class="bg-zinc-900">Medical</option>
+                                <option value="Creative" class="bg-zinc-900">Creative</option>
+                                <option value="Community" class="bg-zinc-900">Community</option>
                             </select>
                         </div>
-                        <div class="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                            <span class="text-blue-500 text-xs">🌐</span>
-                        </div>
+                        <div class="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center italic text-blue-500 text-[10px] font-black">PRO</div>
                     </div>
                 </div>
+                
+                <input type="hidden" id="cp-visibility" value="public">
+                <input type="hidden" id="cp-duration" value="7">
             </div>
 
             <div class="lg:col-span-5 space-y-8">
                 <div class="space-y-4">
                     <div class="relative aspect-video rounded-[2.5rem] bg-zinc-900 overflow-hidden border border-white/10 group shadow-2xl">
                         <img id="cp-preview-img" src="https://images.hive.blog/p/NTy4GV6ooFRmaCXZ8UYgPhoud1kjiNX8QokLEZtbBKLuLWQ9yt7K3o4MTgeicR2JF9fLXTD4sRt27d8vG5aiRCoDjrf24e3CMD5msbfdUbX1MzSVDjCMsn17K2A775iLEM4LvckBAcG8CU92RjLTtvsDiS6HzSxeXpvTZjux?format=match&mode=fit" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
-                        <div id="upload-loading" class="hidden absolute inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center text-white text-[10px] font-black uppercase tracking-widest">Processing...</div>
                     </div>
                     
                     <div class="flex items-center gap-3">
@@ -723,17 +725,21 @@
                             <img onclick="selectPreset(this.src, this)" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQWDeFb5ouSh5NFhM0VG-GzB0nZAXhAVxDejLgKwy5CMML6SZoCOKU0hks&s=10" class="preset-option w-10 h-10 rounded-lg border-2 border-transparent cursor-pointer object-cover hover:border-white/20">
                             <img onclick="selectPreset(this.src, this)" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTzsNFSDAXk3Gmeb061J6XvsLdVLVxqhtfzyKjRkcjoXQ&s=10" class="preset-option w-10 h-10 rounded-lg border-2 border-transparent cursor-pointer object-cover hover:border-white/20">
                         </div>
-                        <button onclick="triggerCampaignUpload()" class="flex-1 py-4 bg-white/5 text-white text-[9px] font-black uppercase rounded-2xl border border-white/5 hover:bg-white/10 transition-all tracking-widest">Custom Image (PRO)</button>
-                        <input type="file" id="cp-image-input" class="hidden" accept="image/*">
+                        <button onclick="checkPremiumAndUpload()" class="flex-1 py-4 bg-white/5 text-white text-[9px] font-black uppercase rounded-2xl border border-white/5 hover:bg-white/10 transition-all tracking-widest">Custom Image (PRO)</button>
+                        <input type="file" id="pfp-upload" class="hidden" accept="image/*">
                     </div>
                 </div>
 
                 <div class="p-8 bg-blue-600/5 rounded-[3rem] border border-blue-500/20 space-y-6">
                     <div class="flex justify-between items-center">
                         <label class="text-[10px] font-black text-blue-500 uppercase tracking-widest italic">Ad Budget Fuel (1:3)</label>
-                        <input type="number" id="reach-input-manual" placeholder="0" class="bg-blue-500/10 border border-blue-500/30 rounded-xl px-3 py-2 text-white text-lg w-28 text-center font-black outline-none focus:border-blue-500" oninput="updateReachMath(this.value)">
+                        <input type="number" id="reach-input-manual" placeholder="0" class="bg-blue-500/10 border border-blue-500/30 rounded-xl px-3 py-2 text-white text-lg w-28 text-center font-black outline-none focus:border-blue-500" 
+                               oninput="const tokens=parseInt(this.value)||0; document.getElementById('reach-slider').value=tokens; document.getElementById('reach-display').innerHTML = (tokens * 3).toLocaleString() + ' <span class=\'text-xs text-zinc-500\'>Views</span>'; document.getElementById('cost-display').innerHTML = tokens.toLocaleString() + ' <span class=\'text-xs text-zinc-400\'>Tokens</span>';">
                     </div>
-                    <input type="range" id="reach-slider" min="0" max="100000" value="0" class="w-full accent-blue-500 h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer" oninput="updateReachMath(this.value)">
+                    
+                    <input type="range" id="reach-slider" min="0" max="10000" value="0" class="w-full accent-blue-500 h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer" 
+                           oninput="const tokens=parseInt(this.value)||0; document.getElementById('reach-input-manual').value=tokens; document.getElementById('reach-display').innerHTML = (tokens * 3).toLocaleString() + ' <span class=\'text-xs text-zinc-500\'>Views</span>'; document.getElementById('cost-display').innerHTML = tokens.toLocaleString() + ' <span class=\'text-xs text-zinc-400\'>Tokens</span>';">
+                    
                     <div class="flex justify-between pt-2">
                         <div>
                             <p class="text-[8px] font-black text-zinc-600 uppercase mb-1">Max Potential Reach</p>
@@ -756,6 +762,7 @@
         </div>
     </div>
 </div>
+
 <div id="studio-success-modal" class="fixed inset-0 z-[300] hidden flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
     <div class="bg-zinc-900 border border-white/10 w-full max-w-sm rounded-[32px] p-8 text-center animate-in zoom-in-95 duration-300">
         <div class="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_40px_rgba(37,99,235,0.4)]">
@@ -1844,33 +1851,42 @@ const studioReport = (type, msg, customTitle = "Studio Success") => {
 
 window.closeStudioSuccess = () => document.getElementById('studio-success-modal').classList.add('hidden');
 
-// --- 3. UI Reset & Reach Math ---
+// --- 3. UI Reset & Reach Math (FIXED 1:3) ---
 window.resetStudioData = () => {
     ['cp-title', 'cp-desc', 'cp-goal', 'reach-input-manual', 'reach-slider'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = (id.includes('reach')) ? 0 : '';
     });
     selectedCampaignImg = "https://images.hive.blog/p/NTy4GV6ooFRmaCXZ8UYgPhoud1kjiNX8QokLEZtbBKLuLWQ9yt7K3o4MTgeicR2JF9fLXTD4sRt27d8vG5aiRCoDjrf24e3CMD5msbfdUbX1MzSVDjCMsn17K2A775iLEM4LvckBAcG8CU92RjLTtvsDiS6HzSxeXpvTZjux?format=match&mode=fit";
-    document.getElementById('cp-preview-img').src = selectedCampaignImg;
+    const preview = document.getElementById('cp-preview-img');
+    if(preview) preview.src = selectedCampaignImg;
     window.updateReachMath(0);
 };
 
 window.updateReachMath = (val) => {
     const tokens = parseInt(val) || 0;
-    const views = tokens; 
-    document.getElementById('reach-slider').value = tokens;
-    document.getElementById('reach-input-manual').value = tokens;
-    document.getElementById('reach-display').innerHTML = `${views.toLocaleString()} <span class="text-xs text-zinc-500 font-black">Reach</span>`;
-    document.getElementById('cost-display').innerHTML = `${tokens.toLocaleString()} <span class="text-xs text-zinc-500 font-black">Tokens</span>`;
+    const views = tokens * 3; // FIXED: 1:3 Ratio
+    
+    const slider = document.getElementById('reach-slider');
+    const input = document.getElementById('reach-input-manual');
+    const reachDisp = document.getElementById('reach-display');
+    const costDisp = document.getElementById('cost-display');
+
+    if (slider) slider.value = tokens;
+    if (input) input.value = tokens;
+    if (reachDisp) reachDisp.innerHTML = `${views.toLocaleString()} <span class="text-xs text-zinc-500 font-black">Reach</span>`;
+    if (costDisp) costDisp.innerHTML = `${tokens.toLocaleString()} <span class="text-xs text-zinc-500 font-black">Tokens</span>`;
 };
 
-// --- 4. AI & Image Handling ---
+// --- 4. AI & Anti-Freeze Image Handling ---
 window.generateAIContent = async () => {
     const title = document.getElementById('cp-title').value.trim();
     const descField = document.getElementById('cp-desc');
     const aiBtn = document.getElementById('ai-gen-btn');
     if (!title || title.length < 5) return studioReport('error', "Enter a heading first!");
-    aiBtn.innerText = "✨ Thinking..."; aiBtn.disabled = true;
+    
+    aiBtn.innerText = "✨ Thinking..."; 
+    aiBtn.disabled = true;
 
     try {
         const response = await fetch('/api/generate', { 
@@ -1883,14 +1899,68 @@ window.generateAIContent = async () => {
             studioReport('success', "AI Description Generated!", "AI Content Ready");
         }
     } catch (err) { studioReport('error', "AI Bridge failed."); }
-    finally { aiBtn.innerText = "✨ AI Auto-Write"; aiBtn.disabled = false; }
+    finally { 
+        aiBtn.innerText = "✨ AI Auto-Write"; 
+        aiBtn.disabled = false; 
+    }
 };
+
+// PREMIUM CHECK (NO FREEZE)
+window.checkPremiumAndUpload = async () => {
+    const user = auth.currentUser;
+    if (!user) return studioReport('error', "Login first");
+
+    try {
+        const userSnap = await get(ref(db, `users/${user.uid}`));
+        const userData = userSnap.val();
+        const isPremium = userData?.isPremium || (user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1");
+
+        if (isPremium) {
+            document.getElementById('pfp-upload').click();
+        } else {
+            if (window.openUpgradeModal) window.openUpgradeModal();
+            else studioReport('error', "Upgrade to Pro for custom images");
+        }
+    } catch (e) { studioReport('error', "Connection error"); }
+};
+
+// IMGUR UPLOAD (OPTIMIZED)
+document.getElementById('pfp-upload')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const previewImg = document.getElementById('cp-preview-img');
+    if(previewImg) previewImg.style.opacity = "0.5";
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+        const res = await fetch('https://api.imgur.com/3/image', {
+            method: 'POST',
+            headers: { Authorization: `Client-ID ${IMGUR_CLIENT_ID}` },
+            body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+            selectedCampaignImg = data.data.link;
+            if(previewImg) previewImg.src = selectedCampaignImg;
+            studioReport('success', "Image Uploaded!", "Pro Active");
+        }
+    } catch (err) { studioReport('error', "Upload failed."); }
+    finally { 
+        if(previewImg) previewImg.style.opacity = "1";
+        e.target.value = ""; // Clear input to allow re-upload of same file
+    }
+});
 
 window.selectPreset = (url, el) => {
     selectedCampaignImg = url;
     document.getElementById('cp-preview-img').src = url;
-    document.querySelectorAll('.preset-option').forEach(img => img.classList.replace('border-blue-500', 'border-transparent'));
-    el.classList.replace('border-transparent', 'border-blue-500');
+    document.querySelectorAll('.preset-option').forEach(img => {
+        img.style.borderColor = "transparent";
+    });
+    el.style.borderColor = "#3b82f6"; // Blue-500
 };
 
 // --- 5. Tab & Lifecycle ---
@@ -1911,20 +1981,25 @@ window.switchStudioTab = (tab) => {
     const manageView = document.getElementById('studio-manage-view');
     const createBtn = document.getElementById('tab-btn-create');
     const manageBtn = document.getElementById('tab-btn-manage');
-    const activeClass = "px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest bg-blue-600 text-white transition-all";
+    
+    const activeClass = "px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest bg-blue-600 text-white transition-all shadow-lg";
     const idleClass = "px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest text-zinc-500 transition-all";
 
     if(tab === 'create') {
-        createView.classList.remove('hidden'); manageView.classList.add('hidden');
-        createBtn.className = activeClass; manageBtn.className = idleClass;
+        createView.classList.remove('hidden'); 
+        manageView.classList.add('hidden');
+        createBtn.className = activeClass; 
+        manageBtn.className = idleClass;
     } else {
-        createView.classList.add('hidden'); manageView.classList.remove('hidden');
-        manageBtn.className = activeClass; createBtn.className = idleClass;
+        createView.classList.add('hidden'); 
+        manageView.classList.remove('hidden');
+        manageBtn.className = activeClass; 
+        createBtn.className = idleClass;
         window.loadMyCampaigns(); 
     }
 };
 
-// --- 6. The "Fix" - Modern Create & Save ---
+// --- 6. Create & Save (SYNCED WITH HTML) ---
 window.createNewCampaign = async () => {
     const user = auth.currentUser;
     if (!user) return studioReport('error', "Login first");
@@ -1934,10 +2009,9 @@ window.createNewCampaign = async () => {
     const goal = parseInt(document.getElementById('cp-goal').value);
     const boostBudget = parseInt(document.getElementById('reach-slider').value) || 0;
     
-    // Metadata for Feed logic
-    const isAi = document.getElementById('cp-ai-flag')?.checked || false;
     const visibility = document.getElementById('cp-visibility')?.value || 'public';
     const durationDays = parseInt(document.getElementById('cp-duration')?.value) || 7; 
+    const category = document.getElementById('cp-category')?.value || 'General';
 
     if (!title || !desc || isNaN(goal)) return studioReport('error', "Fill all fields");
 
@@ -1959,14 +2033,13 @@ window.createNewCampaign = async () => {
             creatorAvatar: userData?.avatar || "", 
             creatorIsPremium: userData?.isPremium || (user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1"),
             title, description: desc, goal, raised: 0,
-            imageUrl: selectedCampaignImg, // FIXED KEY
+            imageUrl: selectedCampaignImg,
             tokensBudget: boostBudget,
             viewsActive: 0,
-            category: document.getElementById('cp-category')?.value || 'General',
+            category: category,
             deadline: deadline,
             timestamp: now,
-            visibility: visibility, // FOR PUBLIC ONLY FILTER
-            isAiGenerated: isAi,
+            visibility: visibility,
             status: 'active'
         });
 
@@ -1980,20 +2053,24 @@ window.createNewCampaign = async () => {
     } catch (e) { studioReport('error', e.message); }
 };
 
-// --- 7. The "Fix" - Modern Management (Restored Modals) ---
+// --- 7. Modern Management ---
 window.loadMyCampaigns = () => {
     const user = auth.currentUser;
     if(!user) return;
     const container = document.getElementById('my-campaigns-list');
+    
     onValue(ref(db, 'campaigns'), (snap) => {
         if(!container) return;
         container.innerHTML = '';
         const data = snap.val();
         if(!data) return;
+        
         Object.values(data).filter(c => c.creator === user.uid).forEach(c => {
-            const tokensLeft = Math.max(0, (c.tokensBudget || 0) - (c.viewsActive || 0));
+            const tokensSpent = Math.floor((c.viewsActive || 0) / 3);
+            const tokensLeft = Math.max(0, (c.tokensBudget || 0) - tokensSpent);
+            
             const div = document.createElement('div');
-            div.className = "bg-white/5 border border-white/10 p-6 rounded-[32px] mb-4 space-y-4";
+            div.className = "bg-white/5 border border-white/10 p-6 rounded-[32px] mb-4 animate-in fade-in zoom-in duration-300";
             div.innerHTML = `
                 <div class="flex justify-between items-start">
                     <div class="flex items-center gap-3">
@@ -2009,7 +2086,7 @@ window.loadMyCampaigns = () => {
                 </div>
                 <div class="bg-black/30 p-4 rounded-2xl">
                     <div class="flex justify-between text-[10px] font-black uppercase mb-2">
-                        <span class="text-zinc-500">Reach Used: ${c.viewsActive || 0}</span>
+                        <span class="text-zinc-500">Reach: ${c.viewsActive || 0}</span>
                         <span class="text-blue-500">${tokensLeft.toLocaleString()} Tokens Left</span>
                     </div>
                     <div class="w-full h-1 bg-white/5 rounded-full overflow-hidden">
@@ -2023,7 +2100,6 @@ window.loadMyCampaigns = () => {
     });
 };
 
-// RESTORED: Custom Modal Logic
 window.handleDeleteRequest = (id) => {
     const modal = document.getElementById('delete-modal');
     if(!modal) return;
@@ -2045,11 +2121,15 @@ window.handleBoostRequest = (id) => {
         try {
             const userRef = ref(db, `users/${auth.currentUser.uid}`);
             const userSnap = await get(userRef);
-            if(userSnap.val().tokens < amount) return studioReport('error', "Insufficient Tokens");
+            const userData = userSnap.val();
+            if(userData.tokens < amount) return studioReport('error', "Insufficient Tokens");
+            
             const campRef = ref(db, `campaigns/${id}`);
             const cSnap = await get(campRef);
-            await update(userRef, { tokens: userSnap.val().tokens - amount });
+            
+            await update(userRef, { tokens: userData.tokens - amount });
             await update(campRef, { tokensBudget: (cSnap.val().tokensBudget || 0) + amount });
+            
             modal.classList.add('hidden');
             studioReport('success', "Reach Refueled!", "Boost Active");
         } catch(e) { studioReport('error', "Boost failed"); }
