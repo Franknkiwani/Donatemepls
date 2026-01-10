@@ -2323,10 +2323,8 @@ window.sendChatMessage = async () => {
 
 document.addEventListener('DOMContentLoaded', loadChatHistory);
 
-
 // --- MODAL SYSTEM CONTROLS ---
 
-// Helper to handle body scroll locking
 const toggleScrollLock = (isLocked) => {
     if (isLocked) {
         document.body.classList.add('stop-scrolling');
@@ -2354,7 +2352,6 @@ window.openExploreModal = () => {
     if(el) {
         el.classList.remove('hidden');
         toggleScrollLock(true);
-        // Auto-load Hub on Top Donors
         window.switchHubView('top-donors');
     }
 };
@@ -2444,14 +2441,22 @@ window.switchHubView = async (view) => {
 
             container.innerHTML = '';
             sortedLogs.forEach(([id, tx]) => {
+                // Check if donor is premium from the log (populated by UID lookup in API)
+                const isPremium = tx.fromIsPremium || false;
+                
                 container.insertAdjacentHTML('beforeend', `
                 <div class="flex items-center gap-4 p-4 bg-white/5 border border-white/5 rounded-[28px] animate-in slide-in-from-bottom-2">
                     <div class="flex -space-x-3 flex-shrink-0">
-                        <img src="${tx.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
-                        <img src="${tx.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
+                        <img src="${tx.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover shadow-lg">
+                        <img src="${tx.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover shadow-lg">
                     </div>
                     <div class="flex-1 min-w-0">
-                        <h4 class="text-[10px] font-black text-white uppercase truncate">${tx.fromName || 'User'} <span class="text-blue-500 mx-1">→</span> ${tx.toName || 'Mission'}</h4>
+                        <h4 class="text-[10px] font-black text-white uppercase truncate flex items-center gap-1">
+                            @${tx.fromName || 'User'} 
+                            ${isPremium ? `<svg class="w-2.5 h-2.5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"></path></svg>` : ''}
+                            <span class="text-blue-500 mx-1">→</span> 
+                            ${tx.toName || 'Mission'}
+                        </h4>
                         <p class="text-[7px] text-zinc-500 font-bold uppercase tracking-widest mt-1">${getRelativeTime(tx.timestamp)} • ${tx.type || 'Signal'}</p>
                     </div>
                     <div class="text-right flex flex-col items-end">
@@ -2480,12 +2485,17 @@ window.switchHubView = async (view) => {
                 container.innerHTML = '';
                 sorted.forEach(([id, item], index) => {
                     const rank = index + 1;
+                    const isPremium = item.isPremium || item.premium || false;
+
                     container.insertAdjacentHTML('beforeend', `
                     <div class="group flex items-center gap-4 p-4 rounded-[32px] bg-white/5 border border-white/5 transition-all">
                         <div class="w-8 text-center font-black italic ${rank <= 3 ? 'text-blue-500' : 'text-zinc-800'}">${rank.toString().padStart(2, '0')}</div>
-                        <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover border-2 border-white/5 shadow-xl">
+                        <div class="relative">
+                            <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover border-2 border-white/5 shadow-xl">
+                            ${isPremium ? `<div class="absolute -right-1 -bottom-1 bg-blue-500 rounded-full p-0.5 border border-black shadow-lg"><svg class="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"></path></svg></div>` : ''}
+                        </div>
                         <div class="flex-1 min-w-0">
-                            <h4 class="text-[11px] font-black text-white uppercase truncate">${item.username || 'Ghost_Signal'}</h4>
+                            <h4 class="text-[11px] font-black text-white uppercase truncate">@${item.username || 'Ghost_Signal'}</h4>
                             <p class="text-[7px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">${view === 'top-donors' ? 'Donor Level Verified' : 'Verified Recipient'}</p>
                         </div>
                         <div class="text-right">
@@ -2496,9 +2506,10 @@ window.switchHubView = async (view) => {
                 });
             }
 
-            const user = auth.currentUser;
-            if (user && allData[user.uid]) {
-                renderStickyUserStats(allData[user.uid], sortKey);
+            // Fetch the logged-in user's profile dynamically via current UID
+            const currentUser = auth.currentUser;
+            if (currentUser && allData[currentUser.uid]) {
+                renderStickyUserStats(allData[currentUser.uid], sortKey);
             }
         }
     } catch (e) { 
@@ -2511,8 +2522,9 @@ function renderStickyUserStats(data, sortKey) {
     let bar = document.getElementById('user-hub-status');
     if (!bar) return;
     const label = sortKey === 'totalDonated' ? 'Donation Volume' : 'Total Earnings';
+    const isPremium = data.isPremium || data.premium || false;
 
-    bar.className = "sticky bottom-0 p-5 bg-black/90 border-t border-blue-500/20 mt-4 backdrop-blur-2xl animate-in slide-in-from-bottom-full";
+    bar.className = "sticky bottom-0 p-5 bg-black/95 border-t border-blue-500/20 mt-4 backdrop-blur-2xl animate-in slide-in-from-bottom-full";
     bar.innerHTML = `
         <div class="flex justify-between items-center max-w-2xl mx-auto">
             <div class="flex items-center gap-3">
@@ -2521,7 +2533,10 @@ function renderStickyUserStats(data, sortKey) {
                     <div class="absolute inset-0 rounded-full animate-pulse border border-blue-400"></div>
                 </div>
                 <div>
-                    <p class="text-[10px] font-black text-white uppercase tracking-tight">@${data.username}</p>
+                    <p class="text-[10px] font-black text-white uppercase tracking-tight flex items-center gap-1">
+                        @${data.username}
+                        ${isPremium ? `<svg class="w-2.5 h-2.5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"></path></svg>` : ''}
+                    </p>
                     <p class="text-[7px] text-blue-500 font-black uppercase tracking-[0.2em]">${label}</p>
                 </div>
             </div>
