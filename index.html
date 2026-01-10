@@ -565,9 +565,9 @@
             <i data-lucide="user" class="w-5 h-5"></i>
             <span class="text-[9px] font-bold uppercase tracking-widest">Account</span>
         </button>
-
     </div>
 </nav>
+
 
 
 <div id="campaign-studio-modal" class="fixed inset-0 z-[200] hidden bg-black/98 backdrop-blur-3xl overflow-y-auto selection:bg-blue-500/30">
@@ -2215,6 +2215,65 @@ function appendMessage(role, text) {
     container.insertAdjacentHTML('beforeend', html);
     container.scrollTop = container.scrollHeight;
 }
+// --- ATTACHING TO WINDOW FOR ONCLICK ACCESS ---
+window.openSupportChat = () => {
+    const el = document.getElementById('support-modal');
+    if(el) {
+        el.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        if(window.lucide) lucide.createIcons();
+    }
+};
+
+window.closeSupportChat = () => {
+    document.getElementById('support-modal').classList.add('hidden');
+    document.body.style.overflow = '';
+};
+
+window.openExploreModal = () => {
+    const el = document.getElementById('explore-modal');
+    if(el) {
+        el.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+};
+
+window.openWalletModal = () => {
+    const el = document.getElementById('wallet-modal');
+    if(el) {
+        el.classList.remove('hidden');
+        // Sync balance from your header/main state
+        const bal = document.getElementById('token-count')?.innerText || "0";
+        const walletDisplay = document.getElementById('wallet-token-count');
+        if(walletDisplay) walletDisplay.innerText = bal;
+        
+        document.body.style.overflow = 'hidden';
+    }
+};
+
+window.openAccountModal = () => {
+    const el = document.getElementById('account-modal');
+    if(el) {
+        el.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+};
+
+// Standard close functions for the new modals
+window.closeWalletModal = () => {
+    document.getElementById('wallet-modal').classList.add('hidden');
+    document.body.style.overflow = '';
+};
+
+window.closeAccountModal = () => {
+    document.getElementById('account-modal').classList.add('hidden');
+    document.body.style.overflow = '';
+};
+
+window.closeExploreModal = () => {
+    document.getElementById('explore-modal').classList.add('hidden');
+    document.body.style.overflow = '';
+};
 
 </script>
 </body>
