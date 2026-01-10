@@ -3,158 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Support Dashboard</title>
+    <title>Security Terminal | Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
-    <style>body { font-family: 'Plus Jakarta Sans', sans-serif; }</style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #000; color: white; overflow: hidden; }
+        .glow-border { box-shadow: 0 0 20px rgba(59, 130, 246, 0.1); }
+        .status-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    </style>
 </head>
-<body class="bg-black text-white p-4 md:p-8">
+<body class="min-h-screen flex items-center justify-center p-4">
 
-    <div class="max-w-6xl mx-auto">
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
-            <div>
-                <h1 class="text-3xl font-extrabold tracking-tighter italic uppercase text-blue-500">Support Command</h1>
-                <p class="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em]">Real-time Handoff Terminal</p>
+    <div class="w-full max-w-md bg-zinc-900 border border-white/10 rounded-[40px] p-8 glow-border relative overflow-hidden">
+        
+        <div class="flex items-center gap-4 mb-8">
+            <div class="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center border border-blue-500/20">
+                <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                </svg>
             </div>
-            <div class="bg-zinc-900 border border-white/5 px-6 py-3 rounded-2xl flex items-center gap-3">
-                <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_#10b981]"></div>
-                <span class="text-[10px] font-black uppercase tracking-widest">Operator Active</span>
+            <div>
+                <h1 class="text-xl font-black uppercase italic tracking-tighter">Admin Terminal</h1>
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 bg-emerald-500 rounded-full status-pulse"></span>
+                    <p class="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.3em]">System Online</p>
+                </div>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div class="lg:col-span-4 space-y-4">
-                <h2 class="text-[10px] font-black uppercase text-zinc-500 px-2 tracking-widest">Active Requests</h2>
-                <div id="ticket-list" class="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
-                    <div class="py-10 text-center opacity-20 text-[10px] font-black uppercase tracking-widest">Scanning for signals...</div>
+        <div class="space-y-6">
+            <div>
+                <label class="text-[10px] font-black text-zinc-500 uppercase mb-2 block px-1">Target User UID</label>
+                <div class="relative group">
+                    <input id="targetUid" type="text" placeholder="Paste UID here..." 
+                        class="w-full bg-black border border-white/5 rounded-2xl px-5 py-4 text-sm font-mono text-blue-400 outline-none focus:border-blue-500/50 transition-all">
+                    <button onclick="checkUserStatus()" class="absolute right-2 top-2 bottom-2 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase px-4 rounded-xl transition-all">
+                        Fetch
+                    </button>
                 </div>
             </div>
 
-            <div class="lg:col-span-8 bg-zinc-900/40 border border-white/5 rounded-[40px] h-[75vh] flex flex-col overflow-hidden backdrop-blur-xl">
-                <div class="p-6 border-b border-white/5 bg-zinc-900/50 flex justify-between items-center">
+            <div id="statusResult" class="hidden p-5 bg-black/40 border border-white/5 rounded-3xl animate-in fade-in zoom-in duration-300">
+                <div class="flex justify-between items-start mb-4">
                     <div>
-                        <span id="chat-target-name" class="text-xs font-black uppercase italic text-zinc-400">No Active Session</span>
-                        <p id="chat-target-id" class="text-[8px] font-bold text-zinc-600 uppercase tracking-widest mt-1"></p>
+                        <p id="userName" class="text-xs font-black text-white uppercase">@username</p>
+                        <p class="text-[8px] text-zinc-600 font-bold uppercase tracking-widest mt-1">Status Report</p>
                     </div>
-                    <button onclick="resolveTicket()" class="px-4 py-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white text-[9px] font-black uppercase rounded-lg transition-all">Close Ticket</button>
-                </div>
-
-                <div id="chat-box" class="flex-1 p-6 overflow-y-auto space-y-4"></div>
-
-                <div class="p-6 bg-zinc-900/80 border-t border-white/5">
-                    <div class="relative flex items-center">
-                        <input id="reply-input" type="text" placeholder="Type your response..." 
-                               class="w-full bg-black border border-white/10 rounded-2xl px-6 py-4 text-xs outline-none focus:border-blue-500 transition-all">
-                        <button onclick="sendReply()" class="absolute right-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase rounded-xl transition-all active:scale-95">Send</button>
-                    </div>
+                    <div id="statusBadges" class="flex flex-col gap-1 items-end"></div>
                 </div>
             </div>
+
+            <div class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="updateStatus('banned', true)" class="bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase py-4 rounded-2xl hover:bg-red-600 hover:text-white transition-all">Ban User</button>
+                    <button onclick="updateStatus('banned', false)" class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[10px] font-black uppercase py-4 rounded-2xl hover:bg-emerald-600 hover:text-white transition-all">Unban User</button>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="updateStatus('blacklisted', true)" class="bg-zinc-800 border border-white/5 text-zinc-400 text-[10px] font-black uppercase py-4 rounded-2xl hover:bg-white hover:text-black transition-all">Blacklist</button>
+                    <button onclick="updateStatus('blacklisted', false)" class="bg-zinc-800 border border-white/5 text-zinc-400 text-[10px] font-black uppercase py-4 rounded-2xl hover:bg-white hover:text-black transition-all">Whitelist</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 pt-6 border-t border-white/5 text-center">
+            <p class="text-[8px] text-zinc-700 font-bold uppercase tracking-[0.4em]">Encrypted Session • v1.0.4</p>
         </div>
     </div>
 
-    <audio id="ping-sound" src="https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3"></audio>
-
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
-        import { getDatabase, ref, onValue, push, set, remove } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+        // Importing from your specific file as per the screenshot
+        import { db } from "./firebase-config.js";
+        import { ref, get, update } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 
-        // Your specific config
-        const firebaseConfig = {
-            apiKey: "AIzaSyDFHskUWiyHhZke3KT9kkOtFI_gPsKfiGo",
-            authDomain: "itzhoyoo-f9f7e.firebaseapp.com",
-            databaseURL: "https://itzhoyoo-f9f7e-default-rtdb.firebaseio.com",
-            projectId: "itzhoyoo-f9f7e",
-            storageBucket: "itzhoyoo-f9f7e.filestorage.app",
-            messagingSenderId: "1094792075584",
-            appId: "1:1094792075584:web:d49e9c3f899d3cd31082a5"
-        };
+        window.checkUserStatus = async () => {
+            const uid = document.getElementById('targetUid').value.trim();
+            const resultBox = document.getElementById('statusResult');
+            const badgeBox = document.getElementById('statusBadges');
+            const nameLabel = document.getElementById('userName');
 
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
+            if(!uid) return;
 
-        let currentUid = null;
-
-        onValue(ref(db, 'support_tickets'), (snapshot) => {
-            const list = document.getElementById('ticket-list');
-            const data = snapshot.val();
-            list.innerHTML = '';
-
-            if (!data) {
-                list.innerHTML = '<div class="py-10 text-center opacity-20 text-[10px] font-black uppercase tracking-widest">No Waiting Users</div>';
-                return;
-            }
-
-            Object.keys(data).forEach(uid => {
-                const ticket = data[uid];
-                const div = document.createElement('div');
-                div.className = `p-5 rounded-3xl border transition-all cursor-pointer ${currentUid === uid ? 'border-blue-500 bg-blue-500/10' : 'border-white/5 bg-zinc-900/50 hover:bg-zinc-900'}`;
-                div.innerHTML = `
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-[11px] font-black uppercase text-white tracking-tight">@${ticket.username}</span>
-                        <div class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse shadow-[0_0_5px_#f59e0b]"></div>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-[8px] text-zinc-500 font-bold uppercase">${new Date(ticket.timestamp).toLocaleTimeString()}</span>
-                        <span class="text-[8px] font-black text-blue-400 uppercase">Click to Accept</span>
-                    </div>
-                `;
-                div.onclick = () => acceptTicket(uid, ticket.username);
-                list.appendChild(div);
-                document.getElementById('ping-sound').play().catch(()=>{});
-            });
-        });
-
-        window.acceptTicket = (uid, username) => {
-            currentUid = uid;
-            document.getElementById('chat-target-name').innerText = `Chatting with ${username}`;
-            document.getElementById('chat-target-id').innerText = `ID: ${uid}`;
-            
-            onValue(ref(db, `support_chats/${uid}`), (snap) => {
-                const chatBox = document.getElementById('chat-box');
-                chatBox.innerHTML = '';
-                const msgs = snap.val();
-                if(!msgs) return;
-
-                Object.values(msgs).forEach(m => {
-                    const isAdmin = m.role === 'admin';
-                    const html = `
-                        <div class="flex ${isAdmin ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-1">
-                            <div class="${isAdmin ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-300'} px-4 py-3 rounded-2xl max-w-[80%]">
-                                <p class="text-[11px] font-medium leading-relaxed">${m.text}</p>
-                            </div>
-                        </div>`;
-                    chatBox.insertAdjacentHTML('beforeend', html);
-                });
-                chatBox.scrollTop = chatBox.scrollHeight;
-            });
-        };
-
-        window.sendReply = async () => {
-            const input = document.getElementById('reply-input');
-            const text = input.value.trim();
-            if (!text || !currentUid) return;
-
-            await push(ref(db, `support_chats/${currentUid}`), {
-                role: 'admin',
-                text: text,
-                timestamp: Date.now()
-            });
-
-            input.value = '';
-        };
-
-        window.resolveTicket = async () => {
-            if(!currentUid) return;
-            if(confirm("End session? This deletes the live chat data.")) {
-                await remove(ref(db, `support_tickets/${currentUid}`));
-                await remove(ref(db, `support_chats/${currentUid}`));
-                location.reload();
+            try {
+                const snap = await get(ref(db, `users/${uid}`));
+                if(snap.exists()) {
+                    const data = snap.val();
+                    resultBox.classList.remove('hidden');
+                    nameLabel.innerText = `@${data.username || 'unknown_user'}`;
+                    
+                    badgeBox.innerHTML = `
+                        <span class="px-2 py-0.5 rounded flex items-center gap-1 text-[8px] font-black uppercase ${data.banned ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                            ${data.banned ? '● Banned' : '● Active'}
+                        </span>
+                        <span class="px-2 py-0.5 rounded flex items-center gap-1 text-[8px] font-black uppercase ${data.blacklisted ? 'bg-orange-500/20 text-orange-500' : 'bg-zinc-800 text-zinc-600'}">
+                            ${data.blacklisted ? '● Blacklisted' : '● Whitelisted'}
+                        </span>
+                    `;
+                } else {
+                    alert("No record found for this UID.");
+                    resultBox.classList.add('hidden');
+                }
+            } catch(e) {
+                console.error(e);
+                alert("Connection error. Check console.");
             }
         };
 
-        document.getElementById('reply-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendReply();
-        });
+        window.updateStatus = async (field, value) => {
+            const uid = document.getElementById('targetUid').value.trim();
+            if(!uid) return alert("Please fetch a UID first.");
+
+            const confirmMsg = `Are you sure you want to ${value ? 'ACTIVATE' : 'REMOVE'} the ${field} flag for this user?`;
+            if(!confirm(confirmMsg)) return;
+
+            try {
+                await update(ref(db, `users/${uid}`), { [field]: value });
+                alert("Database synchronized.");
+                checkUserStatus(); // Refresh the display
+            } catch(e) {
+                alert("Security Error: " + e.message);
+            }
+        };
     </script>
 </body>
 </html>
