@@ -2770,7 +2770,6 @@ window.openWalletModal = async () => {
     if(!el || !user) return;
 
     el.classList.remove('hidden');
-    // Ensure scroll lock is active while wallet is open
     if(window.toggleScrollLock) toggleScrollLock(true);
 
     try {
@@ -2778,13 +2777,17 @@ window.openWalletModal = async () => {
         const snap = await get(ref(db, `users/${user.uid}`));
         const data = snap.val() || {};
 
-        // 2. Update Dual Balances
-        // 'tokens' are purchased, 'withdrawable' are earned from donations
+        // 2. Update Dual Balances based on your API fields
+        const totalTokens = Number(data.tokens || 0);
+        const earned = Number(data.totalEarned || 0);
+        // Purchased is whatever is left over
+        const purchased = Math.max(0, totalTokens - earned);
+        
         const purchasedBal = document.getElementById('wallet-purchased-bal');
         const earnedBal = document.getElementById('wallet-earned-bal');
         
-        if(purchasedBal) purchasedBal.innerText = data.tokens || 0;
-        if(earnedBal) earnedBal.innerText = data.withdrawable || 0;
+        if(purchasedBal) purchasedBal.innerText = purchased;
+        if(earnedBal) earnedBal.innerText = earned;
 
         // 3. Initialize the default view
         window.switchWalletTab('received');
@@ -2801,22 +2804,57 @@ window.closeWalletModal = () => {
     }
 };
 
+// --- WITHDRAW LOGIC (Connects to your Vercel API) ---
+
+window.triggerWithdraw = async () => {
+    const user = auth.currentUser;
+    const earnedVal = parseInt(document.getElementById('wallet-earned-bal').innerText);
+    
+    if(earnedVal < 100) {
+        alert("Minimum withdrawal is 100 tokens.");
+        return;
+    }
+
+    const email = prompt("Enter your PayPal email for payout:");
+    if(!email) return;
+
+    try {
+        const idToken = await user.getIdToken();
+        const res = await fetch('/api/withdraw', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                idToken,
+                email,
+                amount: earnedVal
+            })
+        });
+
+        const result = await res.json();
+        if(result.success) {
+            alert(`Payout Submitted! Net: $${result.netAmount.toFixed(2)}`);
+            window.openWalletModal(); // Refresh balances
+        } else {
+            alert(result.error || "Withdrawal failed.");
+        }
+    } catch (err) {
+        console.error("Withdraw Error:", err);
+    }
+};
+
 window.switchWalletTab = async (tab) => {
     const container = document.getElementById('wallet-history-content');
     const user = auth.currentUser;
     if(!container || !user) return;
     
-    // Toggle Tab Button Visuals
     const tabReceived = document.getElementById('tab-btn-received');
     const tabPurchased = document.getElementById('tab-btn-purchased');
-
     const activeStyle = 'text-blue-500 border-b-2 border-blue-500 pb-2 text-[10px] font-black uppercase';
     const inactiveStyle = 'text-zinc-500 pb-2 text-[10px] font-black uppercase';
 
     if(tabReceived) tabReceived.className = tab === 'received' ? activeStyle : inactiveStyle;
     if(tabPurchased) tabPurchased.className = tab === 'purchased' ? activeStyle : inactiveStyle;
 
-    // Loading State
     container.innerHTML = `<div class="p-10 flex justify-center"><div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>`;
 
     if (tab === 'received') {
@@ -2824,18 +2862,22 @@ window.switchWalletTab = async (tab) => {
             const snap = await get(ref(db, `donations`));
             const allTx = snap.val() || {};
             
-            // Filter transactions where current user is the recipient
+            // Note: Since your API currently lacks 'toUid' in the donation log, 
+            // we filter by 'toName' matching current username as a temporary fallback.
+            // RECOMMENDED: Update Donate API to include 'toUid'
+            const userSnap = await get(ref(db, `users/${user.uid}`));
+            const myName = userSnap.val()?.username;
+
             const received = Object.values(allTx)
-                .filter(tx => tx.toUid === user.uid)
+                .filter(tx => tx.toUid === user.uid || tx.toName === myName)
                 .sort((a, b) => b.timestamp - a.timestamp);
 
             if (received.length === 0) {
-                container.innerHTML = `<p class="text-center py-10 text-[9px] text-zinc-600 font-black uppercase tracking-widest">No donations received yet</p>`;
+                container.innerHTML = `<p class="text-center py-10 text-[9px] text-zinc-600 font-black uppercase tracking-widest">No signals received</p>`;
                 return;
             }
 
             container.innerHTML = '';
-            // Use for...of loop to handle async rendering correctly
             for (const tx of received) {
                 await renderWalletHistoryItem(tx, container);
             }
@@ -2843,19 +2885,16 @@ window.switchWalletTab = async (tab) => {
             container.innerHTML = `<p class="text-center py-10 text-[9px] text-red-500 font-black uppercase tracking-widest">Error loading history</p>`;
         }
     } else {
-        // Tab for "Purchased" History
         container.innerHTML = `<p class="text-center py-10 text-[9px] text-zinc-600 font-black uppercase tracking-widest">Purchase history coming soon</p>`;
     }
 };
 
-// --- ITEM RENDERER ---
-
 const renderWalletHistoryItem = async (tx, container) => {
-    // Fetch profile of the person who sent the money
+    // If your API doesn't save fromUid yet, we try to find it via fromName or skip
+    if(!tx.fromUid) return; 
+
     const senderSnap = await get(ref(db, `users/${tx.fromUid}`));
     const s = senderSnap.val() || {};
-    
-    // Check both potential premium keys
     const isPrem = s.isPremium === true || s.premium === true;
 
     const item = document.createElement('div');
