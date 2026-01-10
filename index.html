@@ -544,7 +544,7 @@
             <span class="text-[9px] font-bold uppercase tracking-widest">Support</span>
         </button>
 
-        <button onclick="showSection('explore')" class="nav-item flex flex-col items-center gap-1 p-2 text-gray-400 hover:text-white transition-all">
+        <button onclick="openExploreModal()" class="nav-item flex flex-col items-center gap-1 p-2 text-gray-400 hover:text-white transition-all">
             <i data-lucide="search" class="w-5 h-5"></i>
             <span class="text-[9px] font-bold uppercase tracking-widest">Explore</span>
         </button>
@@ -561,13 +561,14 @@
             <span class="text-[9px] font-bold uppercase tracking-widest">Wallet</span>
         </button>
 
-        <button id="nav-profile-btn" onclick="openAccountModal()" class="nav-item flex flex-col items-center gap-1 p-2 text-gray-400 hover:text-white transition-all">
+        <button onclick="openAccountModal()" class="nav-item flex flex-col items-center gap-1 p-2 text-gray-400 hover:text-white transition-all">
             <i data-lucide="user" class="w-5 h-5"></i>
             <span class="text-[9px] font-bold uppercase tracking-widest">Account</span>
         </button>
 
     </div>
 </nav>
+
 
 <div id="campaign-studio-modal" class="fixed inset-0 z-[200] hidden bg-black/98 backdrop-blur-3xl overflow-y-auto selection:bg-blue-500/30">
     <div class="max-w-5xl mx-auto p-6 md:p-12 text-white">
