@@ -145,15 +145,22 @@
     </div>
 </div>
 
+
 <div id="explore-modal" class="hidden fixed inset-0 z-[100] bg-[#050505] backdrop-blur-3xl font-sans overflow-hidden">
     <div class="max-w-2xl mx-auto h-full flex flex-col">
         
         <div class="p-6 border-b border-white/5 flex justify-between items-center bg-black/50">
             <div>
                 <h2 class="text-xl font-black italic tracking-tighter text-white uppercase">Network <span class="text-blue-500">Activity</span></h2>
-                <div class="flex gap-4 mt-2">
-                    <button onclick="switchHubView('live')" id="btn-live" class="text-[9px] font-black uppercase tracking-widest text-blue-500 border-b-2 border-blue-500 pb-1">Live Feed</button>
-                    <button onclick="switchHubView('top-donors')" id="btn-donors" class="text-[9px] font-black uppercase tracking-widest text-zinc-500 pb-1">Top Donors</button>
+                <div class="flex gap-4 mt-3">
+                    <button onclick="switchHubView('live')" id="btn-live" class="hub-nav-btn active text-blue-500">
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping"></span>
+                            LIVE FEED
+                        </span>
+                    </button>
+                    <button onclick="switchHubView('top-donors')" id="btn-donors" class="hub-nav-btn text-zinc-500">TOP DONORS</button>
+                    <button onclick="switchHubView('top-earners')" id="btn-earners" class="hub-nav-btn text-zinc-500">TOP EARNERS</button>
                 </div>
             </div>
             <button onclick="closeExploreModal()" class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 hover:bg-red-500/20 transition-all">
@@ -164,12 +171,24 @@
         <div id="hub-content" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             </div>
 
-        <div id="user-hub-status" class="bg-zinc-900/90 border-t border-white/5 p-4 backdrop-blur-md"></div>
+        <div id="user-hub-status"></div>
     </div>
 </div>
 
 <style>
-    /* Clean scrollbar for the hub */
+    .hub-nav-btn {
+        font-size: 9px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        padding-bottom: 4px;
+        border-bottom: 2px solid transparent;
+        transition: all 0.3s ease;
+    }
+    .hub-nav-btn.active {
+        border-bottom-color: #3b82f6;
+        color: #3b82f6 !important;
+    }
     .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
@@ -2391,16 +2410,15 @@ window.switchHubView = async (view) => {
 
     try {
         if (view === 'live') {
-            // --- LIVE FEED (Who -> To Whom) ---
+            // --- LIVE FEED ---
             const snap = await get(ref(db, 'donations')); 
             const logs = snap.val();
             
-            // Safety: Check if donations exist
             if (!logs) {
                 container.innerHTML = `
                     <div class="py-20 text-center opacity-30">
-                        <p class="text-[10px] font-black uppercase">Waiting for Signal...</p>
-                        <p class="text-[7px] mt-2 uppercase tracking-widest">No transactions detected in current cycle</p>
+                        <p class="text-[10px] font-black uppercase tracking-widest">Waiting for Signal...</p>
+                        <p class="text-[7px] mt-2 uppercase">No live transactions detected yet</p>
                     </div>`;
                 return;
             }
@@ -2414,8 +2432,8 @@ window.switchHubView = async (view) => {
                 container.insertAdjacentHTML('beforeend', `
                 <div class="flex items-center gap-4 p-4 bg-white/5 border border-white/5 rounded-[28px] animate-in slide-in-from-bottom-2">
                     <div class="flex -space-x-3 flex-shrink-0">
-                        <img src="${tx.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover shadow-lg">
-                        <img src="${tx.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover shadow-lg">
+                        <img src="${tx.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
+                        <img src="${tx.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
                     </div>
                     <div class="flex-1 min-w-0">
                         <h4 class="text-[10px] font-black text-white uppercase truncate">
@@ -2433,15 +2451,21 @@ window.switchHubView = async (view) => {
 
         } else {
             // --- LEADERBOARD (Top 25) ---
+            // 'totalDonated' tracks what people spent, 'totalRaised' tracks what they got
             const sortKey = view === 'top-donors' ? 'totalDonated' : 'totalRaised';
             const snapshot = await get(ref(db, 'users'));
-            const allData = snapshot.val();
+            const allData = snapshot.val() || {};
 
-            if (!allData) throw new Error("Database Offline");
-
+            // Filter out users with 0 to keep the list clean
             const sorted = Object.entries(allData)
+                .filter(([id, u]) => (u[sortKey] || 0) > 0)
                 .sort((a, b) => (b[1][sortKey] || 0) - (a[1][sortKey] || 0))
                 .slice(0, 25);
+
+            if (sorted.length === 0) {
+                container.innerHTML = `<p class="text-center py-20 text-[8px] text-zinc-500 font-black uppercase">No Data Recorded Yet</p>`;
+                return;
+            }
 
             container.innerHTML = '';
             sorted.forEach(([id, item], index) => {
@@ -2449,34 +2473,23 @@ window.switchHubView = async (view) => {
                 const isFirst = rank === 1;
                 
                 container.insertAdjacentHTML('beforeend', `
-                <div class="group flex items-center gap-4 p-4 rounded-[32px] transition-all duration-500 
-                    ${isFirst ? 'bg-blue-600/10 border-2 border-blue-500' : 'bg-white/5 border border-white/5'}">
-                    
+                <div class="group flex items-center gap-4 p-4 rounded-[32px] bg-white/5 border border-white/5">
                     <div class="w-8 text-center font-black italic ${rank <= 3 ? 'text-blue-500' : 'text-zinc-800'}">
                         ${rank.toString().padStart(2, '0')}
                     </div>
-
-                    <div class="relative">
-                        <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover border-2 border-white/10 shadow-2xl">
-                        ${isFirst ? '<div class="absolute -top-2 -right-1 text-xs animate-bounce">👑</div>' : ''}
-                    </div>
-
+                    <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover border-2 border-white/10">
                     <div class="flex-1 min-w-0">
                         <h4 class="text-[11px] font-black text-white uppercase truncate">${item.username || 'Ghost_Signal'}</h4>
-                        <p class="text-[7px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">Verified Node</p>
+                        <p class="text-[7px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">Verified Network Node</p>
                     </div>
-
                     <div class="text-right">
                         <span class="text-sm font-black text-white italic">${item[sortKey] || 0}</span>
-                        <div class="flex items-center justify-end gap-1 mt-0.5">
-                            <p class="text-[7px] text-zinc-600 font-black uppercase tracking-tighter">Tokens</p>
-                            <div class="w-1 h-1 rounded-full bg-blue-500 ${isFirst ? 'animate-ping' : ''}"></div>
-                        </div>
+                        <p class="text-[7px] text-zinc-700 font-black uppercase">Tokens</p>
                     </div>
                 </div>`);
             });
 
-            // Sticky Bar Logic
+            // Sticky Bar Logic (Now available to everyone)
             const user = auth.currentUser;
             if (user && allData[user.uid]) {
                 renderStickyUserStats(allData[user.uid], sortKey);
@@ -2484,15 +2497,11 @@ window.switchHubView = async (view) => {
         }
     } catch (e) { 
         console.error("Hub Error:", e);
-        container.innerHTML = `
-            <div class="py-20 text-center">
-                <p class="text-red-500 text-[10px] font-black uppercase">Network Sync Error</p>
-                <p class="text-zinc-600 text-[8px] uppercase mt-2">Check Firebase Permissions or Connection</p>
-            </div>`;
+        container.innerHTML = `<p class="text-center text-red-500 text-[8px] uppercase font-black py-20">Network Sync Error</p>`;
     }
 };
 
-// --- 3. STICKY STATS WITH PREMIUM GUARD ---
+// --- 3. STICKY STATS (OPEN TO ALL) ---
 function renderStickyUserStats(data, sortKey) {
     let bar = document.getElementById('user-hub-status');
     if (!bar) {
@@ -2501,21 +2510,6 @@ function renderStickyUserStats(data, sortKey) {
         document.getElementById('explore-modal').appendChild(bar);
     }
 
-    // BLOCKER: If not premium, hide stats behind lock
-    if (!data.isPremium) {
-        bar.className = "sticky bottom-0 p-5 bg-black/90 border-t border-zinc-800 mt-4 backdrop-blur-2xl";
-        bar.innerHTML = `
-            <div class="flex justify-between items-center max-w-2xl mx-auto opacity-50">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-zinc-900 flex items-center justify-center text-xs">🔒</div>
-                    <p class="text-[10px] font-black text-white uppercase">Personal Data Locked</p>
-                </div>
-                <button onclick="openPremiumModal()" class="text-[8px] font-black text-blue-500 border border-blue-500/30 px-3 py-1 rounded-full uppercase">Upgrade</button>
-            </div>`;
-        return;
-    }
-
-    // PREMIUM VIEW
     bar.className = "sticky bottom-0 p-5 bg-black/90 border-t border-blue-500/20 mt-4 backdrop-blur-2xl animate-in slide-in-from-bottom-full";
     bar.innerHTML = `
         <div class="flex justify-between items-center max-w-2xl mx-auto">
@@ -2531,7 +2525,7 @@ function renderStickyUserStats(data, sortKey) {
             </div>
             <div class="text-right">
                 <span class="text-xl font-black text-white italic">${data[sortKey] || 0}</span>
-                <p class="text-[8px] text-zinc-600 font-black uppercase">My Volume</p>
+                <p class="text-[8px] text-zinc-600 font-black uppercase">My Total</p>
             </div>
         </div>`;
 }
