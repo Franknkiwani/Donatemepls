@@ -1,8 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap');
 
-body { font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.3s ease; overflow-x: hidden; }
-
-/* Variable Definitions */
+/* --- 1. CORE & THEMES --- */
 :root {
     --bg: #050505;
     --card-bg: #121212;
@@ -30,9 +28,15 @@ body.theme-blue {
     --input-bg: rgba(255, 255, 255, 0.03);
 }
 
-/* Global Apply */
-body { background-color: var(--bg); color: var(--text-main); }
+body { 
+    font-family: 'Plus Jakarta Sans', sans-serif; 
+    background-color: var(--bg); 
+    color: var(--text-main);
+    transition: background 0.3s ease, color 0.3s ease; 
+    overflow-x: hidden; 
+}
 
+/* --- 2. HEADER & UI COMPONENTS --- */
 .glass-header {
     position: sticky; top: 0; z-index: 50;
     backdrop-filter: blur(20px);
@@ -41,110 +45,70 @@ body { background-color: var(--bg); color: var(--text-main); }
     padding: 0.6rem 1.2rem;
 }
 
-/* Target all Modals and Containers */
-#token-bar, #auth-modal > div, #profile-modal > div, #upgrade-modal > div, #token-modal > div, #withdraw-modal > div {
+/* Modal & Container Adaptive Coloring */
+#token-bar, #auth-modal > div, #profile-modal > div, #upgrade-modal > div, 
+#token-modal > div, #withdraw-modal > div {
     background-color: var(--card-bg) !important;
     color: var(--text-main) !important;
     border-color: var(--border) !important;
 }
 
-/* Specific ID Fixes */
-#token-count, 
-#calc-gross, 
-#pro-name-preview, 
-#withdraw-modal h2, 
-#token-modal h2,
+#token-count, #calc-gross, #pro-name-preview, #withdraw-modal h2, #token-modal h2,
 .pack-option span:not(.text-amber-500) {
     color: var(--text-main) !important;
 }
 
-/* Target Inputs and Items */
 input, .pack-option, #payout-history-list > div {
     background-color: var(--input-bg) !important;
     color: var(--text-main) !important;
     border-color: var(--border) !important;
 }
 
-/* Button Adaptations for Light Mode */
 body.theme-light button.bg-zinc-800 {
     background-color: #e4e4e7 !important;
     color: #09090b !important;
     border-color: rgba(0,0,0,0.1) !important;
 }
 
-.truncate-name { max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
-.premium-tag { background: #F59E0B; color: black; font-size: 8px; font-weight: 900; padding: 2px 5px; border-radius: 4px; position: absolute; top: 4px; right: 4px; }
-.theme-btn.active { outline: 2px solid #F59E0B; outline-offset: 2px; }
-
-#notify-box { position: fixed; top: 80px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
-.toast { background: #F59E0B; color: black; padding: 12px 20px; border-radius: 12px; font-weight: 800; transform: translateX(120%); transition: 0.4s; }
-.toast.show { transform: translateX(0); }
-
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
-
-.stop-scrolling {
-    height: 100vh;
-    overflow: hidden;
-}
-
-/* Vault Access Master Overlay */
-#admin-verify-modal {
-    position: fixed; 
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 9999; 
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(8px);
-    padding: 1rem;
-}
-
-#admin-verify-modal.hidden {
-    display: none !important;
-}
-
-#admin-verify-modal:not(.hidden) > div {
-    animation: modalPop 0.3s ease-out;
-}
-
+/* --- 3. ANIMATIONS & UTILITIES --- */
 @keyframes modalPop {
     from { transform: scale(0.9); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
 }
 
-/* The Shimmer Effect */
 @keyframes shimmer {
     0% { background-position: -200% 0; }
     100% { background-position: 200% 0; }
 }
 
+.truncate-name { max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
+.premium-tag { background: #F59E0B; color: black; font-size: 8px; font-weight: 900; padding: 2px 5px; border-radius: 4px; position: absolute; top: 4px; right: 4px; }
+.theme-btn.active { outline: 2px solid #F59E0B; outline-offset: 2px; }
+
+/* Notifications */
+#notify-box { position: fixed; top: 80px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+.toast { background: #F59E0B; color: black; padding: 12px 20px; border-radius: 12px; font-weight: 800; transform: translateX(120%); transition: 0.4s; }
+.toast.show { transform: translateX(0); }
+
+/* --- 4. SYSTEM OVERLAYS (Admin & Skeleton) --- */
+#admin-verify-modal {
+    position: fixed; inset: 0; z-index: 9999; 
+    display: flex; align-items: center; justify-content: center;
+    background-color: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px);
+}
+
 .global-skeleton-container {
-    position: fixed;
-    top: 80px; /* Adjust based on your header height */
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: #050505;
-    z-index: 40;
-    padding: 2rem;
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
+    position: fixed; top: 70px; left: 0; right: 0; bottom: 0;
+    background: var(--bg); z-index: 40; padding: 2rem;
+    display: flex; flex-direction: column; gap: 2rem;
 }
 
 .skeleton-box {
-    background: linear-gradient(90deg, #121212 25%, #1d1d1d 50%, #121212 75%);
+    background: linear-gradient(90deg, var(--card-bg) 25%, var(--input-bg) 50%, var(--card-bg) 75%);
     background-size: 200% 100%;
     animation: shimmer 2s infinite linear;
     border-radius: 24px;
 }
 
-.hide-loader {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.5s ease;
-}
+.hide-loader { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+.stop-scrolling { height: 100vh; overflow: hidden; }
