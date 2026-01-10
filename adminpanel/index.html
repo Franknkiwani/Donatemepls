@@ -3,127 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Security Terminal | Admin</title>
+    <title>Security Hub | Global Access</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;900&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #000; color: white; overflow: hidden; }
-        .glow-border { box-shadow: 0 0 20px rgba(59, 130, 246, 0.1); }
-        .status-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        body { font-family: 'Inter', sans-serif; background-color: #050505; color: white; }
+        .terminal-card { background: linear-gradient(145deg, #111, #0a0a0a); border: 1px solid rgba(255,255,255,0.05); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body class="min-h-screen p-6 flex flex-col items-center">
 
-    <div class="w-full max-w-md bg-zinc-900 border border-white/10 rounded-[40px] p-8 glow-border relative overflow-hidden">
-        
-        <div class="flex items-center gap-4 mb-8">
-            <div class="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center border border-blue-500/20">
-                <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                </svg>
-            </div>
+    <div class="w-full max-w-2xl">
+        <div class="flex justify-between items-end mb-8 px-2">
             <div>
-                <h1 class="text-xl font-black uppercase italic tracking-tighter">Admin Terminal</h1>
-                <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 bg-emerald-500 rounded-full status-pulse"></span>
-                    <p class="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.3em]">System Online</p>
-                </div>
+                <h1 class="text-2xl font-black uppercase italic tracking-tighter">Security Hub</h1>
+                <p class="text-[9px] font-bold text-red-500 uppercase tracking-[0.3em]">Restricted Management Area</p>
             </div>
+            <button onclick="loadFlaggedUsers()" class="bg-white text-black text-[10px] font-black uppercase px-6 py-2 rounded-full hover:bg-emerald-400 transition-all">
+                Scan Database
+            </button>
         </div>
 
-        <div class="space-y-6">
-            <div>
-                <label class="text-[10px] font-black text-zinc-500 uppercase mb-2 block px-1">Target User UID</label>
-                <div class="relative group">
-                    <input id="targetUid" type="text" placeholder="Paste UID here..." 
-                        class="w-full bg-black border border-white/5 rounded-2xl px-5 py-4 text-sm font-mono text-blue-400 outline-none focus:border-blue-500/50 transition-all">
-                    <button onclick="checkUserStatus()" class="absolute right-2 top-2 bottom-2 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase px-4 rounded-xl transition-all">
-                        Fetch
-                    </button>
-                </div>
-            </div>
-
-            <div id="statusResult" class="hidden p-5 bg-black/40 border border-white/5 rounded-3xl animate-in fade-in zoom-in duration-300">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <p id="userName" class="text-xs font-black text-white uppercase">@username</p>
-                        <p class="text-[8px] text-zinc-600 font-bold uppercase tracking-widest mt-1">Status Report</p>
-                    </div>
-                    <div id="statusBadges" class="flex flex-col gap-1 items-end"></div>
-                </div>
-            </div>
-
-            <div class="space-y-3">
-                <div class="grid grid-cols-2 gap-3">
-                    <button onclick="updateStatus('banned', true)" class="bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase py-4 rounded-2xl hover:bg-red-600 hover:text-white transition-all">Ban User</button>
-                    <button onclick="updateStatus('banned', false)" class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[10px] font-black uppercase py-4 rounded-2xl hover:bg-emerald-600 hover:text-white transition-all">Unban User</button>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <button onclick="updateStatus('blacklisted', true)" class="bg-zinc-800 border border-white/5 text-zinc-400 text-[10px] font-black uppercase py-4 rounded-2xl hover:bg-white hover:text-black transition-all">Blacklist</button>
-                    <button onclick="updateStatus('blacklisted', false)" class="bg-zinc-800 border border-white/5 text-zinc-400 text-[10px] font-black uppercase py-4 rounded-2xl hover:bg-white hover:text-black transition-all">Whitelist</button>
-                </div>
-            </div>
+        <div class="mb-6">
+            <input id="searchUsername" type="text" placeholder="Search by @username..." 
+                class="w-full bg-zinc-900 border border-white/5 rounded-2xl px-6 py-4 text-sm outline-none focus:border-blue-500/50 transition-all">
         </div>
 
-        <div class="mt-8 pt-6 border-t border-white/5 text-center">
-            <p class="text-[8px] text-zinc-700 font-bold uppercase tracking-[0.4em]">Encrypted Session • v1.0.4</p>
+        <div class="terminal-card rounded-[40px] p-6">
+            <h2 class="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-6 px-2">Flagged Entities</h2>
+            
+            <div id="userList" class="space-y-3 max-h-[60vh] overflow-y-auto no-scrollbar">
+                <div class="py-10 text-center opacity-20 text-[10px] font-black uppercase">Click Scan to load users</div>
+            </div>
         </div>
     </div>
 
     <script type="module">
-        // Importing from your specific file as per the screenshot
         import { db } from "./firebase-config.js";
-        import { ref, get, update } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+        import { ref, get, update, query, orderByChild } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 
-        window.checkUserStatus = async () => {
-            const uid = document.getElementById('targetUid').value.trim();
-            const resultBox = document.getElementById('statusResult');
-            const badgeBox = document.getElementById('statusBadges');
-            const nameLabel = document.getElementById('userName');
-
-            if(!uid) return;
+        // Function to scan for all banned or blacklisted users
+        window.loadFlaggedUsers = async () => {
+            const container = document.getElementById('userList');
+            container.innerHTML = `<div class="py-10 text-center animate-pulse text-zinc-500 text-[10px] font-black uppercase">Decrypting Records...</div>`;
 
             try {
-                const snap = await get(ref(db, `users/${uid}`));
-                if(snap.exists()) {
-                    const data = snap.val();
-                    resultBox.classList.remove('hidden');
-                    nameLabel.innerText = `@${data.username || 'unknown_user'}`;
-                    
-                    badgeBox.innerHTML = `
-                        <span class="px-2 py-0.5 rounded flex items-center gap-1 text-[8px] font-black uppercase ${data.banned ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}">
-                            ${data.banned ? '● Banned' : '● Active'}
-                        </span>
-                        <span class="px-2 py-0.5 rounded flex items-center gap-1 text-[8px] font-black uppercase ${data.blacklisted ? 'bg-orange-500/20 text-orange-500' : 'bg-zinc-800 text-zinc-600'}">
-                            ${data.blacklisted ? '● Blacklisted' : '● Whitelisted'}
-                        </span>
-                    `;
-                } else {
-                    alert("No record found for this UID.");
-                    resultBox.classList.add('hidden');
+                const snap = await get(ref(db, 'users'));
+                if (!snap.exists()) return container.innerHTML = "No users found.";
+
+                container.innerHTML = '';
+                let found = 0;
+
+                snap.forEach((child) => {
+                    const user = child.val();
+                    const uid = child.key;
+
+                    // Only show if Banned or Blacklisted
+                    if (user.banned || user.blacklisted) {
+                        found++;
+                        renderUserRow(uid, user);
+                    }
+                });
+
+                if (found === 0) {
+                    container.innerHTML = `<div class="py-10 text-center text-emerald-500 text-[10px] font-black uppercase tracking-widest">System Clear: 0 Flagged Users</div>`;
                 }
-            } catch(e) {
+            } catch (e) {
                 console.error(e);
-                alert("Connection error. Check console.");
+                alert("Database Sync Failed.");
             }
         };
 
-        window.updateStatus = async (field, value) => {
-            const uid = document.getElementById('targetUid').value.trim();
-            if(!uid) return alert("Please fetch a UID first.");
+        function renderUserRow(uid, data) {
+            const container = document.getElementById('userList');
+            const html = `
+                <div class="flex items-center justify-between p-5 bg-white/5 border border-white/5 rounded-[28px] hover:border-white/10 transition-all">
+                    <div class="flex items-center gap-4">
+                        <img src="${data.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=1'}" class="w-10 h-10 rounded-full bg-black border border-white/10">
+                        <div>
+                            <p class="text-xs font-black text-white uppercase">@${data.username || 'unknown'}</p>
+                            <p class="text-[8px] text-zinc-600 font-mono mt-0.5">${uid}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        ${data.banned ? 
+                            `<button onclick="quickAction('${uid}', 'banned', false)" class="bg-red-500/10 text-red-500 text-[9px] font-black uppercase px-4 py-2 rounded-xl border border-red-500/20 hover:bg-red-500 hover:text-white transition-all">Unban</button>` : ''}
+                        ${data.blacklisted ? 
+                            `<button onclick="quickAction('${uid}', 'blacklisted', false)" class="bg-orange-500/10 text-orange-500 text-[9px] font-black uppercase px-4 py-2 rounded-xl border border-orange-500/20 hover:bg-orange-500 hover:text-white transition-all">Whitelist</button>` : ''}
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', html);
+        }
 
-            const confirmMsg = `Are you sure you want to ${value ? 'ACTIVATE' : 'REMOVE'} the ${field} flag for this user?`;
-            if(!confirm(confirmMsg)) return;
-
+        window.quickAction = async (uid, field, value) => {
+            if(!confirm(`Confirm restoration for this user?`)) return;
             try {
                 await update(ref(db, `users/${uid}`), { [field]: value });
-                alert("Database synchronized.");
-                checkUserStatus(); // Refresh the display
-            } catch(e) {
-                alert("Security Error: " + e.message);
-            }
+                loadFlaggedUsers(); // Refresh list
+            } catch(e) { alert("Error: " + e.message); }
         };
+
+        // Initial Load
+        window.onload = loadFlaggedUsers;
     </script>
 </body>
 </html>
