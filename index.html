@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head> 
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
@@ -846,6 +845,25 @@
         </p>
     </div>
 </div>
+<div class="flex justify-around py-6 bg-black/40 rounded-3xl mb-4 border border-white/5">
+    <div class="text-center">
+        <p class="text-[8px] text-zinc-500 font-black uppercase">Tokens (Purchased)</p>
+        <p id="wallet-purchased-bal" class="text-xl font-black text-white italic">0</p>
+    </div>
+    <div class="w-[1px] bg-white/10 h-10 my-auto"></div>
+    <div class="text-center">
+        <p class="text-[8px] text-zinc-500 font-black uppercase text-emerald-500">Withdrawable (Earned)</p>
+        <p id="wallet-earned-bal" class="text-xl font-black text-emerald-400 italic">0</p>
+    </div>
+</div>
+
+<div class="flex gap-4 mb-4 border-b border-white/5">
+    <button id="tab-btn-received" onclick="switchWalletTab('received')">Received</button>
+    <button id="tab-btn-purchased" onclick="switchWalletTab('purchased')">History</button>
+</div>
+
+<div id="wallet-history-content" class="max-h-[300px] overflow-y-auto">
+    </div>
 
 <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
 <script type="module" src="./firebase-config.js"></script>
@@ -2727,6 +2745,89 @@ function renderStickyUserStats(data, sortKey) {
             </div>
         </div>`;
 }
+window.openWalletModal = async () => {
+    const el = document.getElementById('wallet-modal');
+    const user = auth.currentUser;
+    if(!el || !user) return;
+
+    el.classList.remove('hidden');
+    toggleScrollLock(true);
+
+    // 1. Fetch Fresh Data
+    const snap = await get(ref(db, `users/${user.uid}`));
+    const data = snap.val() || {};
+
+    // 2. Update Dual Balances
+    // 'tokens' = Purchased/Promo | 'withdrawable' = Earned from others
+    document.getElementById('wallet-purchased-bal').innerText = data.tokens || 0;
+    document.getElementById('wallet-earned-bal').innerText = data.withdrawable || 0;
+
+    // 3. Default to 'Received' View
+    window.switchWalletTab('received');
+};
+
+window.switchWalletTab = async (tab) => {
+    const container = document.getElementById('wallet-history-content');
+    const user = auth.currentUser;
+    
+    // Toggle Button Styles
+    document.getElementById('tab-btn-received').className = tab === 'received' ? 'text-blue-500 border-b-2 border-blue-500 pb-2 text-[10px] font-black uppercase' : 'text-zinc-500 pb-2 text-[10px] font-black uppercase';
+    document.getElementById('tab-btn-purchased').className = tab === 'purchased' ? 'text-blue-500 border-b-2 border-blue-500 pb-2 text-[10px] font-black uppercase' : 'text-zinc-500 pb-2 text-[10px] font-black uppercase';
+
+    container.innerHTML = `<div class="p-10 flex justify-center"><div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>`;
+
+    if (tab === 'received') {
+        // Fetch donations sent TO this user
+        const snap = await get(ref(db, `donations`));
+        const allTx = snap.val() || {};
+        const received = Object.values(allTx)
+            .filter(tx => tx.toUid === user.uid)
+            .sort((a, b) => b.timestamp - a.timestamp);
+
+        if (received.length === 0) {
+            container.innerHTML = `<p class="text-center py-10 text-[9px] text-zinc-600 font-black uppercase">No donations received yet</p>`;
+            return;
+        }
+
+        container.innerHTML = '';
+        received.forEach(tx => {
+            renderWalletHistoryItem(tx, container);
+        });
+    } else {
+        container.innerHTML = `<p class="text-center py-10 text-[9px] text-zinc-600 font-black uppercase">Purchase history coming soon</p>`;
+    }
+};
+
+// 2. The History Item Renderer (Handles Profiles & Donate Back)
+const renderWalletHistoryItem = async (tx, container) => {
+    // tx contains: fromUid, amount, timestamp
+    const senderSnap = await get(ref(db, `users/${tx.fromUid}`));
+    const s = senderSnap.val() || {};
+    const isPrem = s.isPremium === true;
+
+    const item = document.createElement('div');
+    item.className = "flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl mb-2 animate-in fade-in";
+    item.innerHTML = `
+        <div class="flex items-center gap-3">
+            <div class="relative">
+                <img src="${s.avatar || presets[0]}" class="w-10 h-10 rounded-full object-cover border border-white/10">
+                ${isPrem ? `<div class="absolute -right-1 -bottom-1 bg-blue-500 rounded-full p-0.5 border border-black">${getVerifiedBadge()}</div>` : ''}
+            </div>
+            <div>
+                <p class="text-[10px] font-black text-white uppercase">@${s.username || 'User'}</p>
+                <p class="text-[8px] text-zinc-500 font-bold">${getRelativeTime(tx.timestamp)}</p>
+            </div>
+        </div>
+        <div class="flex flex-col items-end gap-2">
+            <span class="text-xs font-black text-emerald-400">+$${tx.amount}</span>
+            <button onclick="closeWalletModal(); handleTip('${tx.fromUid}', '${s.username}', '${s.avatar}')" 
+                    class="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white text-[8px] font-black uppercase rounded-lg transition-all">
+                Donate Back
+            </button>
+        </div>
+    `;
+    container.appendChild(item);
+};
 
 </script>
 </body>
