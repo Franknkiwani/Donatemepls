@@ -1,6 +1,5 @@
 import admin from 'firebase-admin';
 
-// Initialize Admin SDK using the Secret Key from Vercel
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
@@ -15,8 +14,22 @@ export default async function handler(req, res) {
 
   const { prompt, userId, username } = req.body;
 
+  // SYSTEM PROMPT: This makes the AI "Smart"
+  const systemInstructions = `
+    You are Grok Core, the high-speed assistant for this platform.
+    KNOWLEDGE BASE:
+    - 1 Token = $0.10.
+    - Donation Fee: 30%.
+    - Withdrawal Fee: 15%.
+    - Platform: Focused on crowdfunding and reaching high-value goals.
+    
+    RULES:
+    1. Be concise, bold, and efficient.
+    2. If the user is frustrated, asks for a human, asks for "live support," or asks a complex technical question you can't answer, reply ONLY with the word: HANDOFF_REQUEST.
+    3. Never make up new fees.
+  `;
+
   try {
-    // 1. Send user message to Groq
     const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -25,28 +38,41 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
+        temperature: 0.5, // Keeps it focused
         messages: [
-          { role: "system", content: "If the user asks for a human/person/support, reply: HANDOFF_REQUEST. Otherwise, answer concise." },
+          { role: "system", content: systemInstructions },
           { role: "user", content: prompt }
         ]
       })
     });
 
     const data = await groqResponse.json();
-    const aiText = data.choices[0].message.content.trim();
+    
+    // Safety check for AI response
+    if (!data.choices || data.choices.length === 0) {
+        throw new Error("AI Empty Response");
+    }
 
-    // 2. IF AI triggers Handoff, update Firebase using the SECRET KEY
-    if (aiText === "HANDOFF_REQUEST" && userId) {
+    let aiText = data.choices[0].message.content.trim();
+
+    // 2. TRIGGER HUMAN NOTIFICATION
+    // We check if the AI sent the secret word
+    if (aiText.includes("HANDOFF_REQUEST") && userId) {
       await db.ref(`support_tickets/${userId}`).set({
         username: username || "User",
         timestamp: Date.now(),
-        status: 'pending'
+        status: 'pending',
+        lastMessage: prompt // Gives you a preview in your admin panel
       });
+      
+      // Clean up the text so the user doesn't see the "code" word
+      aiText = "HANDOFF_REQUEST"; 
     }
 
     return res.status(200).json({ text: aiText });
 
   } catch (error) {
-    return res.status(500).json({ text: "Grok Connection Error" });
+    console.error("API Error:", error);
+    return res.status(500).json({ text: "Grok is recalibrating. Please try again or request a human." });
   }
 }
