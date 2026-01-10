@@ -12,24 +12,40 @@ const db = admin.database();
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { prompt, userId, username } = req.body;
-
-  // SYSTEM PROMPT: This makes the AI "Smart"
-  const systemInstructions = `
-    You are Grok Core, the high-speed assistant for this platform.
-    KNOWLEDGE BASE:
-    - 1 Token = $0.10.
-    - Donation Fee: 30%.
-    - Withdrawal Fee: 15%.
-    - Platform: Focused on crowdfunding and reaching high-value goals.
-    
-    RULES:
-    1. Be concise, bold, and efficient.
-    2. If the user is frustrated, asks for a human, asks for "live support," or asks a complex technical question you can't answer, reply ONLY with the word: HANDOFF_REQUEST.
-    3. Never make up new fees.
-  `;
+  const { prompt, userId, username, action } = req.body;
 
   try {
+    // 1. HANDLE DIRECT BUTTON REDIRECTS
+    if (action === "INITIATE_HANDOFF" && userId) {
+      await db.ref(`support_tickets/${userId}`).set({
+        username: username || "User",
+        timestamp: Date.now(),
+        status: 'pending',
+        lastMessage: "User clicked 'Human Agent' selector."
+      });
+      return res.status(200).json({ redirect: '/support' });
+    }
+
+    // 2. THE EXPANDED BRAIN (System Instructions)
+    const systemInstructions = `
+      You are Grok Core, the official AI for this Crowdfunding Platform.
+      Your goal: Resolve 99% of issues without needing a human.
+
+      APP KNOWLEDGE:
+      - TOKENS: 1 Token = $0.10. Used for donations and boosts.
+      - DONATION FEE: 30% (goes toward platform maintenance and reach).
+      - WITHDRAWAL FEE: 15% (processed within 24-48 hours).
+      - CROWDFUNDING: Users create goals. Once hit, funds are locked for 7 days for verification before withdrawal.
+      - SECURITY: Use 2FA in settings. We never ask for passwords.
+      - REACH: Donating tokens increases a goal's visibility in the global feed.
+
+      TONE: Professional, robotic but helpful, extremely concise.
+
+      HANDOFF RULE:
+      If the user says things like "I lost money", "I want to sue", "Talk to a real person", or asks a question about a specific transaction ID you cannot see, reply ONLY with: HANDOFF_REQUEST.
+    `;
+
+    // 3. GROQ AI CALL
     const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -38,7 +54,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
-        temperature: 0.5, // Keeps it focused
+        temperature: 0.4, // Lower temperature = more factual
         messages: [
           { role: "system", content: systemInstructions },
           { role: "user", content: prompt }
@@ -47,32 +63,23 @@ export default async function handler(req, res) {
     });
 
     const data = await groqResponse.json();
-    
-    // Safety check for AI response
-    if (!data.choices || data.choices.length === 0) {
-        throw new Error("AI Empty Response");
-    }
-
     let aiText = data.choices[0].message.content.trim();
 
-    // 2. TRIGGER HUMAN NOTIFICATION
-    // We check if the AI sent the secret word
+    // 4. SMART HANDOFF DETECTION
     if (aiText.includes("HANDOFF_REQUEST") && userId) {
       await db.ref(`support_tickets/${userId}`).set({
         username: username || "User",
         timestamp: Date.now(),
         status: 'pending',
-        lastMessage: prompt // Gives you a preview in your admin panel
+        lastMessage: prompt
       });
-      
-      // Clean up the text so the user doesn't see the "code" word
-      aiText = "HANDOFF_REQUEST"; 
+      return res.status(200).json({ text: "HANDOFF_REQUEST", redirect: '/support' });
     }
 
     return res.status(200).json({ text: aiText });
 
   } catch (error) {
-    console.error("API Error:", error);
-    return res.status(500).json({ text: "Grok is recalibrating. Please try again or request a human." });
+    console.error("API Crash:", error);
+    return res.status(500).json({ text: "Grok Core is offline. Please use the /support page." });
   }
 }
