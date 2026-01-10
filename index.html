@@ -2322,7 +2322,9 @@ window.sendChatMessage = async () => {
 };
 
 document.addEventListener('DOMContentLoaded', loadChatHistory);
-// --- MODAL SYSTEM CONTROLS ---
+// ==========================================
+// 1. MODAL SYSTEM CONTROLS
+// ==========================================
 
 const toggleScrollLock = (isLocked) => {
     if (isLocked) {
@@ -2389,11 +2391,14 @@ window.closeAccountModal = () => {
     toggleScrollLock(false);
 };
 
-// --- HUB ENGINE (Vercel Powered + Scalable) ---
+// ==========================================
+// 2. HUB ENGINE (DIRECT FIREBASE + STAGGERED LOAD)
+// ==========================================
 
-let currentLastValue = null;
-let isFetchingHub = false;
-let currentActiveView = 'top-donors';
+let allTopItems = [];    // Stores the full Top 25 snapshot
+let displayedCount = 0;  // How many are currently rendered
+let currentViewMode = '';
+let currentSortKey = '';
 
 const getRelativeTime = (ts) => {
     if (!ts) return "Recently";
@@ -2409,108 +2414,128 @@ const getRelativeTime = (ts) => {
 
 const getVerifiedBadge = () => `<svg class="w-2.5 h-2.5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"></path></svg>`;
 
-window.switchHubView = async (view, isLoadMore = false) => {
-    if (isFetchingHub) return;
-    isFetchingHub = true;
-    currentActiveView = view;
-
+window.switchHubView = async (view) => {
     const container = document.getElementById('hub-content');
+    currentViewMode = view;
+    currentSortKey = view === 'live' ? 'timestamp' : (view === 'top-donors' ? 'totalDonated' : 'totalRaised');
+    const dbPath = view === 'live' ? 'donations' : 'users';
+
+    // UI Tab Update
+    document.querySelectorAll('.hub-nav-btn').forEach(btn => {
+        btn.classList.remove('active', 'text-blue-500');
+        btn.classList.add('text-zinc-500');
+    });
+    const activeBtnId = view === 'live' ? 'btn-live' : (view === 'top-donors' ? 'btn-donors' : 'btn-earners');
+    document.getElementById(activeBtnId)?.classList.add('active', 'text-blue-500');
     
-    // UI: Tab Highlighting
-    if (!isLoadMore) {
-        currentLastValue = null;
-        document.querySelectorAll('.hub-nav-btn').forEach(btn => {
-            btn.classList.remove('active', 'text-blue-500');
-            btn.classList.add('text-zinc-500');
-        });
-        const activeBtnId = view === 'live' ? 'btn-live' : (view === 'top-donors' ? 'btn-donors' : 'btn-earners');
-        document.getElementById(activeBtnId)?.classList.add('active', 'text-blue-500');
-        
-        container.innerHTML = `<div id="hub-loader" class="flex flex-col items-center justify-center py-20 opacity-40"><div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div><p class="text-[8px] font-black uppercase tracking-[0.2em] text-blue-500">Synchronizing Pulse...</p></div>`;
-    }
+    // Reset Data
+    displayedCount = 0;
+    allTopItems = [];
+    container.innerHTML = `<div id="hub-loader" class="flex flex-col items-center justify-center py-20 opacity-40"><div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div><p class="text-[8px] font-black uppercase tracking-[0.2em] text-blue-500">Synchronizing Pulse...</p></div>`;
 
     try {
-        // Fetch from Vercel API
-        const response = await fetch(`/api/hub?view=${view}&lastValue=${currentLastValue}&limit=25`);
-        const { results, nextLastValue } = await response.json();
+        // One-time fetch of Top 25
+        const hubQuery = query(ref(db, dbPath), orderByChild(currentSortKey), limitToLast(25));
+        const snap = await get(hubQuery);
+        const data = snap.val();
 
-        if (!isLoadMore) document.getElementById('hub-loader')?.remove();
-        currentLastValue = nextLastValue;
-
-        if ((!results || results.length === 0) && !isLoadMore) {
+        if (!data) {
             container.innerHTML = `<div class="py-20 text-center opacity-30 text-[10px] font-black uppercase">No Signal Detected</div>`;
             return;
         }
 
-        results.forEach((item, index) => {
-            const rank = isLoadMore ? container.children.length + 1 : index + 1;
-            const isPremium = item.isPremium || item.premium || item.fromIsPremium || false;
-            
-            let html = '';
-            if (view === 'live') {
-                html = `
-                <div class="flex items-center gap-4 p-4 ${isPremium ? 'bg-blue-500/5 border-blue-500/30' : 'bg-white/5 border-white/5'} border rounded-[28px] mb-3 animate-in slide-in-from-bottom-2">
-                    <div class="flex -space-x-3 flex-shrink-0">
-                        <img src="${item.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover ${isPremium ? 'ring-2 ring-blue-500/20' : ''}">
-                        <img src="${item.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <h4 class="text-[10px] font-black text-white uppercase truncate flex items-center gap-1">
-                            @${item.fromName || 'User'} ${isPremium ? getVerifiedBadge() : ''}
-                            <span class="text-blue-500 mx-1">→</span> ${item.toName || 'Mission'}
-                        </h4>
-                        <p class="text-[7px] text-zinc-500 font-bold uppercase tracking-widest mt-1">${getRelativeTime(item.timestamp)} • ${item.type || 'Signal'}</p>
-                    </div>
-                    <div class="text-right">
-                        <span class="text-xs font-black text-emerald-400">+$${item.amount || 0}</span>
-                    </div>
-                </div>`;
-            } else {
-                const val = view === 'top-donors' ? item.totalDonated : item.totalRaised;
-                html = `
-                <div class="group flex items-center gap-4 p-4 rounded-[32px] ${isPremium ? 'bg-blue-500/5 border-blue-500/40' : 'bg-white/5 border-white/5'} border transition-all mb-3">
-                    <div class="w-8 text-center font-black italic ${rank <= 3 ? 'text-blue-500' : 'text-zinc-800'}">${rank.toString().padStart(2, '0')}</div>
-                    <div class="relative">
-                        <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover border-2 border-white/5 shadow-xl ${isPremium ? 'ring-2 ring-blue-500' : ''}">
-                        ${isPremium ? `<div class="absolute -right-1 -bottom-1 bg-blue-500 rounded-full p-0.5 border border-black shadow-lg">${getVerifiedBadge().replace('text-blue-500', 'text-white')}</div>` : ''}
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <h4 class="text-[11px] font-black text-white uppercase truncate flex items-center gap-1">
-                            @${item.username || 'User'} ${isPremium ? getVerifiedBadge() : ''}
-                        </h4>
-                        <p class="text-[7px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">${view === 'top-donors' ? 'Verified Donor' : 'Verified Recipient'}</p>
-                    </div>
-                    <div class="text-right">
-                        <span class="text-sm font-black text-white italic">${val || 0}</span>
-                        <p class="text-[7px] text-zinc-800 font-black uppercase">Tokens</p>
-                    </div>
-                </div>`;
-            }
-            container.insertAdjacentHTML('beforeend', html);
-        });
+        // Sort Descending
+        allTopItems = Object.entries(data).sort((a, b) => (b[1][currentSortKey] || 0) - (a[1][currentSortKey] || 0));
+        
+        container.innerHTML = ''; // Remove loader
+        loadNextBatch(); // Initial load of 5
 
-        // Load personal sticky stats from UID on first load
-        if (!isLoadMore && view !== 'live') {
-            const user = firebase.auth().currentUser;
+        // User Sticky Stats
+        if (view !== 'live') {
+            const user = auth.currentUser;
             if (user) {
-                const userSnap = await firebase.database().ref(`users/${user.uid}`).once('value');
-                if (userSnap.exists()) {
-                    renderStickyUserStats(userSnap.val(), view === 'top-donors' ? 'totalDonated' : 'totalRaised');
-                }
+                const userSnap = await get(ref(db, `users/${user.uid}`));
+                if (userSnap.exists()) renderStickyUserStats(userSnap.val(), currentSortKey);
             }
         }
     } catch (e) {
-        console.error("Hub Error:", e);
-    } finally {
-        isFetchingHub = false;
+        console.error("Hub Sync Failure:", e);
     }
 };
 
-// --- INFINITE SCROLL LISTENER ---
+function loadNextBatch() {
+    const container = document.getElementById('hub-content');
+    const batchSize = 5;
+    const nextItems = allTopItems.slice(displayedCount, displayedCount + batchSize);
+    
+    if (nextItems.length === 0) return;
+
+    nextItems.forEach(([id, item]) => {
+        displayedCount++;
+        const isPrem = item.isPremium || item.premium || item.fromIsPremium || false;
+        
+        const html = currentViewMode === 'live' ? 
+            renderLiveRow(item, isPrem) : 
+            renderLeaderboardRow(item, isPrem, currentViewMode, displayedCount);
+        
+        container.insertAdjacentHTML('beforeend', html);
+    });
+}
+
+// ==========================================
+// 3. ROW RENDERERS
+// ==========================================
+
+function renderLiveRow(tx, isPrem) {
+    return `
+    <div class="flex items-center gap-4 p-4 ${isPrem ? 'bg-blue-500/5 border-blue-500/30' : 'bg-white/5 border-white/5'} border rounded-[28px] mb-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div class="flex -space-x-3 flex-shrink-0">
+            <img src="${tx.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover ${isPrem ? 'ring-2 ring-blue-500' : ''}">
+            <img src="${tx.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
+        </div>
+        <div class="flex-1 min-w-0">
+            <h4 class="text-[10px] font-black text-white uppercase truncate flex items-center gap-1">
+                @${tx.fromName || 'User'} ${isPrem ? getVerifiedBadge() : ''}
+                <span class="text-blue-500 mx-1">→</span> ${tx.toName || 'Mission'}
+            </h4>
+            <p class="text-[7px] text-zinc-500 font-bold uppercase mt-1">${getRelativeTime(tx.timestamp)}</p>
+        </div>
+        <div class="text-right">
+            <span class="text-xs font-black text-emerald-400">+$${tx.amount || 0}</span>
+        </div>
+    </div>`;
+}
+
+function renderLeaderboardRow(item, isPrem, view, rank) {
+    const val = view === 'top-donors' ? item.totalDonated : item.totalRaised;
+    return `
+    <div class="group flex items-center gap-4 p-4 rounded-[32px] ${isPrem ? 'bg-blue-500/5 border-blue-500/40 shadow-lg shadow-blue-500/5' : 'bg-white/5 border-white/5'} border mb-3 transition-all animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div class="w-8 text-center font-black italic ${rank <= 3 ? 'text-blue-500' : 'text-zinc-800'}">${rank.toString().padStart(2, '0')}</div>
+        <div class="relative">
+            <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover border-2 border-white/5 ${isPrem ? 'ring-2 ring-blue-500' : ''}">
+            ${isPrem ? `<div class="absolute -right-1 -bottom-1 bg-blue-500 rounded-full p-0.5 border border-black">${getVerifiedBadge().replace('text-blue-500', 'text-white')}</div>` : ''}
+        </div>
+        <div class="flex-1 min-w-0">
+            <h4 class="text-[11px] font-black text-white uppercase truncate flex items-center gap-1">@${item.username || 'User'} ${isPrem ? getVerifiedBadge() : ''}</h4>
+            <p class="text-[7px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">${view === 'top-donors' ? 'Verified Donor' : 'Verified Recipient'}</p>
+        </div>
+        <div class="text-right">
+            <span class="text-sm font-black text-white italic">${val || 0}</span>
+            <p class="text-[7px] text-zinc-800 font-black uppercase">Tokens</p>
+        </div>
+    </div>`;
+}
+
+// ==========================================
+// 4. SCROLL & STICKY STATS
+// ==========================================
+
 document.getElementById('explore-modal').addEventListener('scroll', function() {
-    if (this.scrollTop + this.clientHeight >= this.scrollHeight - 100) {
-        if (!isFetchingHub && currentLastValue) {
-            window.switchHubView(currentActiveView, true);
+    const { scrollTop, scrollHeight, clientHeight } = this;
+    // Trigger next 5 when 50px from bottom of visible list
+    if (scrollTop + clientHeight >= scrollHeight - 50) {
+        if (displayedCount < allTopItems.length) {
+            loadNextBatch();
         }
     }
 });
@@ -2527,10 +2552,9 @@ function renderStickyUserStats(data, sortKey) {
             <div class="flex items-center gap-3">
                 <div class="relative">
                     <img src="${data.avatar || presets[0]}" class="w-10 h-10 rounded-full object-cover border-2 border-blue-600">
-                    <div class="absolute inset-0 rounded-full animate-pulse border border-blue-400"></div>
                 </div>
                 <div>
-                    <p class="text-[10px] font-black text-white uppercase tracking-tight flex items-center gap-1">
+                    <p class="text-[10px] font-black text-white uppercase flex items-center gap-1">
                         @${data.username} ${isPremium ? getVerifiedBadge() : ''}
                     </p>
                     <p class="text-[7px] text-blue-500 font-black uppercase tracking-[0.2em]">${label}</p>
@@ -2542,7 +2566,6 @@ function renderStickyUserStats(data, sortKey) {
             </div>
         </div>`;
 }
-
 
 </script>
 </body>
