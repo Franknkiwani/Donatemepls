@@ -1131,29 +1131,53 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-
-
-   // New Free Upload Handler
+// --- UNIFIED FREE UPLOAD & VERCEL SYNC ---
 window.handleFreeUpload = () => {
     const user = auth.currentUser;
     if (!user) return notify("Please login first");
-    
-    // Direct trigger - no premium check
     document.getElementById('pfp-upload').click();
 };
 
-// Handle the actual file selection and preview
-document.getElementById('pfp-upload').onchange = (e) => {
+document.getElementById('pfp-upload').onchange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            // Update the preview image in the modal
-            document.getElementById('modal-preview-img').src = event.target.result;
-            notify("Avatar selected! Click Update to save.");
-        };
-        reader.readAsDataURL(file);
-    }
+    if (!file) return;
+
+    // 1. Validation
+    if (file.size > 2 * 1024 * 1024) return notify("Image too large (Max 2MB)");
+    
+    // 2. Local Preview (Instant Feedback)
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = async () => {
+        const base64Image = reader.result;
+        // Show the image in the modal immediately
+        document.getElementById('modal-preview-img').src = base64Image;
+        
+        notify("Uploading to cloud...");
+
+        try {
+            // 3. Vercel Sync
+            const response = await fetch('/api/upload-pfp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: base64Image })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.link) {
+                // IMPORTANT: Save the Imgur link to tempAvatar
+                window.tempAvatar = data.link; 
+                notify("Cloud sync ready! Click 'Update Profile' to save.");
+            } else {
+                console.error("Vercel/Imgur Error:", data);
+                notify(data.error || "Cloud upload failed. Using local preview.");
+            }
+        } catch (err) {
+            notify("Network error. Could not sync to cloud.");
+            console.error(err);
+        }
+    };
 };
 
 
@@ -2551,3 +2575,4 @@ function renderStickyUserStats(data, sortKey) {
 </script>
 </body>
 </html>
+o
