@@ -793,6 +793,16 @@
         </div>
     </div>
 </div>
+<div id="upload-spinner-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+    <div class="bg-zinc-900 border border-white/10 p-8 rounded-[32px] flex flex-col items-center text-center max-w-xs shadow-2xl">
+        <div class="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mb-4"></div>
+        <h3 class="text-white font-black text-[10px] uppercase tracking-[0.2em] italic mb-2">Syncing Pulse</h3>
+        <p class="text-zinc-500 text-[9px] font-bold leading-relaxed uppercase tracking-tighter">
+            Establishing secure uplink to cloud storage. Please do not close the window.
+        </p>
+    </div>
+</div>
+
 <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
 <script type="module" src="./firebase-config.js"></script>
 
@@ -1131,7 +1141,21 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// --- UNIFIED FREE UPLOAD & VERCEL SYNC ---
+// --- UNIFIED FREE UPLOAD, SPINNER & VERCEL SYNC ---
+
+// Helper to toggle the UI lock
+const toggleUploadSpinner = (show) => {
+    const spinner = document.getElementById('upload-spinner-modal');
+    if (!spinner) return;
+    if (show) {
+        spinner.classList.remove('hidden');
+        document.body.classList.add('stop-scrolling'); // Lock background
+    } else {
+        spinner.classList.add('hidden');
+        document.body.classList.remove('stop-scrolling'); // Unlock background
+    }
+};
+
 window.handleFreeUpload = () => {
     const user = auth.currentUser;
     if (!user) return notify("Please login first");
@@ -1142,21 +1166,24 @@ document.getElementById('pfp-upload').onchange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // 1. Validation
+    // 1. Client-side Validation
     if (file.size > 2 * 1024 * 1024) return notify("Image too large (Max 2MB)");
     
-    // 2. Local Preview (Instant Feedback)
+    // 2. Start Processing
     const reader = new FileReader();
     reader.readAsDataURL(file);
+    
+    reader.onloadstart = () => toggleUploadSpinner(true);
+
     reader.onload = async () => {
         const base64Image = reader.result;
-        // Show the image in the modal immediately
-        document.getElementById('modal-preview-img').src = base64Image;
         
-        notify("Uploading to cloud...");
+        // Update Local Preview Immediately
+        const previewImg = document.getElementById('modal-preview-img');
+        if (previewImg) previewImg.src = base64Image;
 
         try {
-            // 3. Vercel Sync
+            // 3. Vercel / Imgur Sync
             const response = await fetch('/api/upload-pfp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1166,19 +1193,29 @@ document.getElementById('pfp-upload').onchange = async (e) => {
             const data = await response.json();
 
             if (response.ok && data.link) {
-                // IMPORTANT: Save the Imgur link to tempAvatar
+                // Success: Secure the cloud link
                 window.tempAvatar = data.link; 
-                notify("Cloud sync ready! Click 'Update Profile' to save.");
+                notify("Cloud Sync Ready! Click Update to save.");
             } else {
-                console.error("Vercel/Imgur Error:", data);
-                notify(data.error || "Cloud upload failed. Using local preview.");
+                // Fail: Inform user but keep local preview as backup
+                console.error("Vercel Error:", data);
+                notify("Cloud sync failed. Saved to local session only.");
             }
         } catch (err) {
-            notify("Network error. Could not sync to cloud.");
+            notify("Network error. Could not reach cloud.");
             console.error(err);
+        } finally {
+            // 4. Always hide spinner regardless of success/fail
+            toggleUploadSpinner(false);
         }
     };
+
+    reader.onerror = () => {
+        toggleUploadSpinner(false);
+        notify("Error reading file.");
+    };
 };
+
 
 
     window.buyPack = (amount, tokens) => {
@@ -2575,4 +2612,3 @@ function renderStickyUserStats(data, sortKey) {
 </script>
 </body>
 </html>
-o
