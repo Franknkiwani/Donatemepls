@@ -2324,66 +2324,77 @@ window.sendChatMessage = async () => {
 document.addEventListener('DOMContentLoaded', loadChatHistory);
 
 
-// --- ATTACHING TO WINDOW FOR ONCLICK ACCESS ---
+// --- MODAL SYSTEM CONTROLS ---
+
+// Helper to handle body scroll locking
+const toggleScrollLock = (isLocked) => {
+    if (isLocked) {
+        document.body.classList.add('stop-scrolling');
+    } else {
+        document.body.classList.remove('stop-scrolling');
+    }
+};
+
 window.openSupportChat = () => {
     const el = document.getElementById('support-modal');
     if(el) {
         el.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
+        toggleScrollLock(true);
         if(window.lucide) lucide.createIcons();
     }
 };
 
 window.closeSupportChat = () => {
     document.getElementById('support-modal').classList.add('hidden');
-    document.body.style.overflow = '';
+    toggleScrollLock(false);
 };
 
 window.openExploreModal = () => {
     const el = document.getElementById('explore-modal');
     if(el) {
         el.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
+        toggleScrollLock(true);
+        // Auto-load Hub on Top Donors
+        window.switchHubView('top-donors');
     }
+};
+
+window.closeExploreModal = () => {
+    document.getElementById('explore-modal').classList.add('hidden');
+    toggleScrollLock(false);
 };
 
 window.openWalletModal = () => {
     const el = document.getElementById('wallet-modal');
     if(el) {
         el.classList.remove('hidden');
-        // Sync balance from your header/main state
         const bal = document.getElementById('token-count')?.innerText || "0";
         const walletDisplay = document.getElementById('wallet-token-count');
         if(walletDisplay) walletDisplay.innerText = bal;
-        
-        document.body.style.overflow = 'hidden';
+        toggleScrollLock(true);
     }
+};
+
+window.closeWalletModal = () => {
+    document.getElementById('wallet-modal').classList.add('hidden');
+    toggleScrollLock(false);
 };
 
 window.openAccountModal = () => {
     const el = document.getElementById('account-modal');
     if(el) {
         el.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
+        toggleScrollLock(true);
     }
-};
-
-// Standard close functions for the new modals
-window.closeWalletModal = () => {
-    document.getElementById('wallet-modal').classList.add('hidden');
-    document.body.style.overflow = '';
 };
 
 window.closeAccountModal = () => {
     document.getElementById('account-modal').classList.add('hidden');
-    document.body.style.overflow = '';
+    toggleScrollLock(false);
 };
 
-window.closeExploreModal = () => {
-    document.getElementById('explore-modal').classList.add('hidden');
-    document.body.style.overflow = '';
-};
-// --- 1. RELATIVE TIME ENGINE ---
+// --- HUB ENGINE ---
+
 const getRelativeTime = (ts) => {
     if (!ts) return "Recently";
     const ms = Date.now() - ts;
@@ -2396,9 +2407,8 @@ const getRelativeTime = (ts) => {
     return `${Math.floor(hr / 24)}d ago`;
 };
 
-// --- 2. THE HUB CONTROLLER ---
 window.switchHubView = async (view) => {
-    // UI: Update Active Button Highlighting
+    // UI: Tab Highlighting
     document.querySelectorAll('.hub-nav-btn').forEach(btn => {
         btn.classList.remove('active', 'text-blue-500');
         btn.classList.add('text-zinc-500');
@@ -2412,8 +2422,6 @@ window.switchHubView = async (view) => {
     }
 
     const container = document.getElementById('hub-content');
-    
-    // Pulse Loading State
     container.innerHTML = `
         <div class="flex flex-col items-center justify-center py-20 opacity-40">
             <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -2422,7 +2430,6 @@ window.switchHubView = async (view) => {
 
     try {
         if (view === 'live') {
-            // --- LIVE FEED ---
             const snap = await get(ref(db, 'donations')); 
             const logs = snap.val();
             
@@ -2440,16 +2447,12 @@ window.switchHubView = async (view) => {
                 container.insertAdjacentHTML('beforeend', `
                 <div class="flex items-center gap-4 p-4 bg-white/5 border border-white/5 rounded-[28px] animate-in slide-in-from-bottom-2">
                     <div class="flex -space-x-3 flex-shrink-0">
-                        <img src="${tx.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover shadow-lg">
-                        <img src="${tx.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover shadow-lg">
+                        <img src="${tx.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
+                        <img src="${tx.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
                     </div>
                     <div class="flex-1 min-w-0">
-                        <h4 class="text-[10px] font-black text-white uppercase truncate">
-                            ${tx.fromName || 'User'} <span class="text-blue-500 mx-1">→</span> ${tx.toName || 'Mission'}
-                        </h4>
-                        <p class="text-[7px] text-zinc-500 font-bold uppercase tracking-widest mt-1">
-                            ${getRelativeTime(tx.timestamp)} • ${tx.type || 'Signal'}
-                        </p>
+                        <h4 class="text-[10px] font-black text-white uppercase truncate">${tx.fromName || 'User'} <span class="text-blue-500 mx-1">→</span> ${tx.toName || 'Mission'}</h4>
+                        <p class="text-[7px] text-zinc-500 font-bold uppercase tracking-widest mt-1">${getRelativeTime(tx.timestamp)} • ${tx.type || 'Signal'}</p>
                     </div>
                     <div class="text-right flex flex-col items-end">
                         <span class="text-xs font-black text-emerald-400">+$${tx.amount || 0}</span>
@@ -2458,13 +2461,12 @@ window.switchHubView = async (view) => {
             });
 
         } else {
-            // --- LEADERBOARD (Top Donors vs Top Earners) ---
             const sortKey = view === 'top-donors' ? 'totalDonated' : 'totalRaised';
             const snapshot = await get(ref(db, 'users'));
             const allData = snapshot.val() || {};
 
             const sorted = Object.entries(allData)
-                .filter(([id, u]) => (u[sortKey] || 0) > 0) // Hide zeros
+                .filter(([id, u]) => (u[sortKey] || 0) > 0)
                 .sort((a, b) => (b[1][sortKey] || 0) - (a[1][sortKey] || 0))
                 .slice(0, 25);
 
@@ -2480,15 +2482,11 @@ window.switchHubView = async (view) => {
                     const rank = index + 1;
                     container.insertAdjacentHTML('beforeend', `
                     <div class="group flex items-center gap-4 p-4 rounded-[32px] bg-white/5 border border-white/5 transition-all">
-                        <div class="w-8 text-center font-black italic ${rank <= 3 ? 'text-blue-500' : 'text-zinc-800'}">
-                            ${rank.toString().padStart(2, '0')}
-                        </div>
+                        <div class="w-8 text-center font-black italic ${rank <= 3 ? 'text-blue-500' : 'text-zinc-800'}">${rank.toString().padStart(2, '0')}</div>
                         <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover border-2 border-white/5 shadow-xl">
                         <div class="flex-1 min-w-0">
                             <h4 class="text-[11px] font-black text-white uppercase truncate">${item.username || 'Ghost_Signal'}</h4>
-                            <p class="text-[7px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">
-                                ${view === 'top-donors' ? 'Donor Level Verified' : 'Verified Recipient'}
-                            </p>
+                            <p class="text-[7px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">${view === 'top-donors' ? 'Donor Level Verified' : 'Verified Recipient'}</p>
                         </div>
                         <div class="text-right">
                             <span class="text-sm font-black text-white italic">${item[sortKey] || 0}</span>
@@ -2498,7 +2496,6 @@ window.switchHubView = async (view) => {
                 });
             }
 
-            // Update Sticky Stats Footer contextually
             const user = auth.currentUser;
             if (user && allData[user.uid]) {
                 renderStickyUserStats(allData[user.uid], sortKey);
@@ -2510,12 +2507,9 @@ window.switchHubView = async (view) => {
     }
 };
 
-// --- 3. STICKY STATS (OPEN TO ALL) ---
 function renderStickyUserStats(data, sortKey) {
     let bar = document.getElementById('user-hub-status');
     if (!bar) return;
-
-    // Change label based on what tab is active
     const label = sortKey === 'totalDonated' ? 'Donation Volume' : 'Total Earnings';
 
     bar.className = "sticky bottom-0 p-5 bg-black/90 border-t border-blue-500/20 mt-4 backdrop-blur-2xl animate-in slide-in-from-bottom-full";
@@ -2538,13 +2532,6 @@ function renderStickyUserStats(data, sortKey) {
         </div>`;
 }
 
-// --- 4. AUTO-LOAD ON OPEN ---
-window.openExploreModal = () => {
-    document.getElementById('explore-modal').classList.remove('hidden');
-    document.body.classList.add('stop-scrolling');
-    // Start on Top Donors by default
-    window.switchHubView('top-donors'); 
-};
 
 </script>
 </body>
