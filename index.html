@@ -2322,7 +2322,6 @@ window.sendChatMessage = async () => {
 };
 
 document.addEventListener('DOMContentLoaded', loadChatHistory);
-
 // --- MODAL SYSTEM CONTROLS ---
 
 const toggleScrollLock = (isLocked) => {
@@ -2352,7 +2351,7 @@ window.openExploreModal = () => {
     if(el) {
         el.classList.remove('hidden');
         toggleScrollLock(true);
-        window.switchHubView('top-donors');
+        window.switchHubView('top-donors'); // Initial Load
     }
 };
 
@@ -2390,7 +2389,11 @@ window.closeAccountModal = () => {
     toggleScrollLock(false);
 };
 
-// --- HUB ENGINE ---
+// --- HUB ENGINE (Vercel Powered + Scalable) ---
+
+let currentLastValue = null;
+let isFetchingHub = false;
+let currentActiveView = 'top-donors';
 
 const getRelativeTime = (ts) => {
     if (!ts) return "Recently";
@@ -2404,102 +2407,113 @@ const getRelativeTime = (ts) => {
     return `${Math.floor(hr / 24)}d ago`;
 };
 
-// Reusable Verified Badge Component
 const getVerifiedBadge = () => `<svg class="w-2.5 h-2.5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"></path></svg>`;
 
-window.switchHubView = async (view) => {
-    document.querySelectorAll('.hub-nav-btn').forEach(btn => {
-        btn.classList.remove('active', 'text-blue-500');
-        btn.classList.add('text-zinc-500');
-    });
-    
-    const activeBtnId = view === 'live' ? 'btn-live' : (view === 'top-donors' ? 'btn-donors' : 'btn-earners');
-    const activeBtn = document.getElementById(activeBtnId);
-    if (activeBtn) {
-        activeBtn.classList.add('active', 'text-blue-500');
-        activeBtn.classList.remove('text-zinc-500');
-    }
+window.switchHubView = async (view, isLoadMore = false) => {
+    if (isFetchingHub) return;
+    isFetchingHub = true;
+    currentActiveView = view;
 
     const container = document.getElementById('hub-content');
-    container.innerHTML = `<div class="flex flex-col items-center justify-center py-20 opacity-40"><div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div><p class="text-[8px] font-black uppercase tracking-[0.2em] text-blue-500">Synchronizing Pulse...</p></div>`;
+    
+    // UI: Tab Highlighting
+    if (!isLoadMore) {
+        currentLastValue = null;
+        document.querySelectorAll('.hub-nav-btn').forEach(btn => {
+            btn.classList.remove('active', 'text-blue-500');
+            btn.classList.add('text-zinc-500');
+        });
+        const activeBtnId = view === 'live' ? 'btn-live' : (view === 'top-donors' ? 'btn-donors' : 'btn-earners');
+        document.getElementById(activeBtnId)?.classList.add('active', 'text-blue-500');
+        
+        container.innerHTML = `<div id="hub-loader" class="flex flex-col items-center justify-center py-20 opacity-40"><div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div><p class="text-[8px] font-black uppercase tracking-[0.2em] text-blue-500">Synchronizing Pulse...</p></div>`;
+    }
 
     try {
-        if (view === 'live') {
-            const snap = await get(ref(db, 'donations')); 
-            const logs = snap.val();
-            if (!logs) { container.innerHTML = `<div class="py-20 text-center opacity-30 text-[10px] font-black uppercase">No Signal Detected</div>`; return; }
+        // Fetch from Vercel API
+        const response = await fetch(`/api/hub?view=${view}&lastValue=${currentLastValue}&limit=25`);
+        const { results, nextLastValue } = await response.json();
 
-            const sortedLogs = Object.entries(logs).sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0)).slice(0, 20);
-            container.innerHTML = '';
-            sortedLogs.forEach(([id, tx]) => {
-                const isPremium = tx.fromIsPremium || false;
-                container.insertAdjacentHTML('beforeend', `
-                <div class="flex items-center gap-4 p-4 ${isPremium ? 'bg-blue-500/5 border-blue-500/30' : 'bg-white/5 border-white/5'} border rounded-[28px] animate-in slide-in-from-bottom-2">
+        if (!isLoadMore) document.getElementById('hub-loader')?.remove();
+        currentLastValue = nextLastValue;
+
+        if ((!results || results.length === 0) && !isLoadMore) {
+            container.innerHTML = `<div class="py-20 text-center opacity-30 text-[10px] font-black uppercase">No Signal Detected</div>`;
+            return;
+        }
+
+        results.forEach((item, index) => {
+            const rank = isLoadMore ? container.children.length + 1 : index + 1;
+            const isPremium = item.isPremium || item.premium || item.fromIsPremium || false;
+            
+            let html = '';
+            if (view === 'live') {
+                html = `
+                <div class="flex items-center gap-4 p-4 ${isPremium ? 'bg-blue-500/5 border-blue-500/30' : 'bg-white/5 border-white/5'} border rounded-[28px] mb-3 animate-in slide-in-from-bottom-2">
                     <div class="flex -space-x-3 flex-shrink-0">
-                        <img src="${tx.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover ${isPremium ? 'ring-2 ring-blue-500/20' : ''}">
-                        <img src="${tx.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
+                        <img src="${item.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover ${isPremium ? 'ring-2 ring-blue-500/20' : ''}">
+                        <img src="${item.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
                     </div>
                     <div class="flex-1 min-w-0">
                         <h4 class="text-[10px] font-black text-white uppercase truncate flex items-center gap-1">
-                            @${tx.fromName || 'User'} ${isPremium ? getVerifiedBadge() : ''}
-                            <span class="text-blue-500 mx-1">→</span> ${tx.toName || 'Mission'}
+                            @${item.fromName || 'User'} ${isPremium ? getVerifiedBadge() : ''}
+                            <span class="text-blue-500 mx-1">→</span> ${item.toName || 'Mission'}
                         </h4>
-                        <p class="text-[7px] text-zinc-500 font-bold uppercase tracking-widest mt-1">${getRelativeTime(tx.timestamp)} • ${tx.type || 'Signal'}</p>
+                        <p class="text-[7px] text-zinc-500 font-bold uppercase tracking-widest mt-1">${getRelativeTime(item.timestamp)} • ${item.type || 'Signal'}</p>
                     </div>
                     <div class="text-right">
-                        <span class="text-xs font-black text-emerald-400">+$${tx.amount || 0}</span>
+                        <span class="text-xs font-black text-emerald-400">+$${item.amount || 0}</span>
                     </div>
-                </div>`);
-            });
-
-        } else {
-            const sortKey = view === 'top-donors' ? 'totalDonated' : 'totalRaised';
-            const snapshot = await get(ref(db, 'users'));
-            const allData = snapshot.val() || {};
-
-            const sorted = Object.entries(allData)
-                .filter(([id, u]) => (u[sortKey] || 0) > 0)
-                .sort((a, b) => (b[1][sortKey] || 0) - (a[1][sortKey] || 0))
-                .slice(0, 25);
-
-            if (sorted.length === 0) {
-                container.innerHTML = `<div class="py-20 text-center"><p class="text-[9px] font-black uppercase text-zinc-600 tracking-widest">No Data Recorded Yet</p></div>`;
+                </div>`;
             } else {
-                container.innerHTML = '';
-                sorted.forEach(([id, item], index) => {
-                    const rank = index + 1;
-                    const isPremium = item.isPremium || item.premium || false;
-                    container.insertAdjacentHTML('beforeend', `
-                    <div class="group flex items-center gap-4 p-4 rounded-[32px] ${isPremium ? 'bg-blue-500/5 border-blue-500/40' : 'bg-white/5 border-white/5'} border transition-all">
-                        <div class="w-8 text-center font-black italic ${rank <= 3 ? 'text-blue-500' : 'text-zinc-800'}">${rank.toString().padStart(2, '0')}</div>
-                        <div class="relative">
-                            <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover border-2 border-white/5 shadow-xl ${isPremium ? 'ring-2 ring-blue-500' : ''}">
-                            ${isPremium ? `<div class="absolute -right-1 -bottom-1 bg-blue-500 rounded-full p-0.5 border border-black shadow-lg">${getVerifiedBadge().replace('text-blue-500', 'text-white')}</div>` : ''}
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <h4 class="text-[11px] font-black text-white uppercase truncate flex items-center gap-1">
-                                @${item.username || 'Ghost_Signal'} ${isPremium ? getVerifiedBadge() : ''}
-                            </h4>
-                            <p class="text-[7px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">${view === 'top-donors' ? 'Verified Donor' : 'Verified Recipient'}</p>
-                        </div>
-                        <div class="text-right">
-                            <span class="text-sm font-black text-white italic">${item[sortKey] || 0}</span>
-                            <p class="text-[7px] text-zinc-800 font-black uppercase">Tokens</p>
-                        </div>
-                    </div>`);
-                });
+                const val = view === 'top-donors' ? item.totalDonated : item.totalRaised;
+                html = `
+                <div class="group flex items-center gap-4 p-4 rounded-[32px] ${isPremium ? 'bg-blue-500/5 border-blue-500/40' : 'bg-white/5 border-white/5'} border transition-all mb-3">
+                    <div class="w-8 text-center font-black italic ${rank <= 3 ? 'text-blue-500' : 'text-zinc-800'}">${rank.toString().padStart(2, '0')}</div>
+                    <div class="relative">
+                        <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover border-2 border-white/5 shadow-xl ${isPremium ? 'ring-2 ring-blue-500' : ''}">
+                        ${isPremium ? `<div class="absolute -right-1 -bottom-1 bg-blue-500 rounded-full p-0.5 border border-black shadow-lg">${getVerifiedBadge().replace('text-blue-500', 'text-white')}</div>` : ''}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="text-[11px] font-black text-white uppercase truncate flex items-center gap-1">
+                            @${item.username || 'User'} ${isPremium ? getVerifiedBadge() : ''}
+                        </h4>
+                        <p class="text-[7px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">${view === 'top-donors' ? 'Verified Donor' : 'Verified Recipient'}</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-sm font-black text-white italic">${val || 0}</span>
+                        <p class="text-[7px] text-zinc-800 font-black uppercase">Tokens</p>
+                    </div>
+                </div>`;
             }
+            container.insertAdjacentHTML('beforeend', html);
+        });
 
-            const currentUser = auth.currentUser;
-            if (currentUser && allData[currentUser.uid]) {
-                renderStickyUserStats(allData[currentUser.uid], sortKey);
+        // Load personal sticky stats from UID on first load
+        if (!isLoadMore && view !== 'live') {
+            const user = firebase.auth().currentUser;
+            if (user) {
+                const userSnap = await firebase.database().ref(`users/${user.uid}`).once('value');
+                if (userSnap.exists()) {
+                    renderStickyUserStats(userSnap.val(), view === 'top-donors' ? 'totalDonated' : 'totalRaised');
+                }
             }
         }
-    } catch (e) { 
+    } catch (e) {
         console.error("Hub Error:", e);
-        container.innerHTML = `<p class="text-center text-red-500 text-[8px] uppercase font-black py-20">Network Sync Error</p>`;
+    } finally {
+        isFetchingHub = false;
     }
 };
+
+// --- INFINITE SCROLL LISTENER ---
+document.getElementById('explore-modal').addEventListener('scroll', function() {
+    if (this.scrollTop + this.clientHeight >= this.scrollHeight - 100) {
+        if (!isFetchingHub && currentLastValue) {
+            window.switchHubView(currentActiveView, true);
+        }
+    }
+});
 
 function renderStickyUserStats(data, sortKey) {
     let bar = document.getElementById('user-hub-status');
@@ -2528,6 +2542,7 @@ function renderStickyUserStats(data, sortKey) {
             </div>
         </div>`;
 }
+
 
 </script>
 </body>
