@@ -3,7 +3,8 @@
         onAuthStateChanged, signInWithPopup, GoogleAuthProvider, 
         signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword 
     } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
-    
+    import './wallet.js';
+
     import { 
         ref, update, onValue, get, set, push,
         query, orderByChild, limitToLast, endBefore 
