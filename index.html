@@ -2144,10 +2144,8 @@ window.handleBoostRequest = (id) => {
 window.closeDeleteModal = () => document.getElementById('delete-modal').classList.add('hidden');
 window.closeBoostModal = () => document.getElementById('boost-modal').classList.add('hidden');
 
-
-// --- CHAT STORAGE & DIRECT HUMAN HANDOFF ENGINE ---
+// --- CHAT STORAGE & API-BASED REDIRECT ENGINE ---
 const CHAT_STORAGE_KEY = 'grok_chat_history';
-window.isHumanActive = false; 
 
 // 1. Storage Logic
 const saveMessage = (role, text) => {
@@ -2167,7 +2165,7 @@ const loadChatHistory = () => {
     if (validHistory.length > 0) {
         validHistory.forEach(msg => renderMessage(msg.role, msg.text));
     } else {
-        window.triggerInitialPoll(); // Instant choice on empty chat
+        window.triggerInitialPoll(); 
     }
 };
 
@@ -2216,114 +2214,43 @@ window.triggerInitialPoll = () => {
     container.scrollTop = container.scrollHeight;
 };
 
-window.selectPath = (choice) => {
-    document.getElementById('initial-poll')?.remove();
+// 4. Redirect Logic (Communicates with API)
+window.selectPath = async (choice) => {
     if (choice === 'ai') {
-        window.appendMessage('bot', "Grok Core Online. How can I help you today?");
+        document.getElementById('initial-poll')?.remove();
+        window.appendMessage('bot', "Grok AI active. How can I help you today?");
     } else {
-        window.connectToHuman(true);
-    }
-};
-
-window.triggerHumanPoll = () => {
-    const container = document.getElementById('chat-messages');
-    const pollHtml = `
-        <div id="human-poll" class="bg-zinc-900 border border-amber-500/30 p-5 rounded-[24px] my-4 animate-in zoom-in duration-300">
-            <p class="text-[9px] font-black text-amber-500 uppercase mb-4 tracking-widest text-center text-balance">Switch to Human Agent for better assistance?</p>
-            <div class="flex gap-2">
-                <button onclick="connectToHuman(true)" class="flex-1 py-3 bg-emerald-500 text-black text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">Yes, Connect</button>
-                <button onclick="connectToHuman(false)" class="flex-1 py-3 bg-white/5 text-zinc-400 text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">No</button>
-            </div>
-        </div>`;
-    container.insertAdjacentHTML('beforeend', pollHtml);
-    container.scrollTop = container.scrollHeight;
-};
-
-// 4. Firebase Direct Connectivity
-window.connectToHuman = async (confirmed) => {
-    document.getElementById('human-poll')?.remove();
-    if (!confirmed) {
-        window.appendMessage('bot', "Grok remains at your service.");
-        return;
-    }
-
-    const user = auth.currentUser;
-    if(!user) {
-        window.appendMessage('bot', "Identification required. Please log in.");
-        return;
-    }
-
-    window.isHumanActive = true; 
-    window.appendMessage('bot', "Establishing secure uplink to operator...");
-    
-    const container = document.getElementById('chat-messages');
-    container.insertAdjacentHTML('beforeend', `
-        <div id="waiting-ui" class="flex flex-col items-center py-6 animate-pulse">
-            <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-            <p class="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Waiting for Operator...</p>
-        </div>`);
-
-    try {
-        await set(ref(db, `support_tickets/${user.uid}`), {
-            username: document.getElementById('header-handle')?.innerText || "User",
-            timestamp: Date.now(),
-            status: 'pending'
-        });
-
-        onValue(ref(db, `support_chats/${user.uid}`), (snap) => {
-            const data = snap.val();
-            if(!data) return;
-            const lastMsg = Object.values(data).pop();
-            if(lastMsg.role === 'admin') {
-                document.getElementById('waiting-ui')?.remove();
-                window.appendMessage('bot', `[AGENT]: ${lastMsg.text}`);
-            }
-        });
-    } catch(e) { console.error("Firebase Sync Error"); }
-};
-
-// 5. Imgur Image Upload (Optional)
-window.uploadImage = async (file) => {
-    // Replace with your Imgur Client ID if available
-    const CLIENT_ID = 'YOUR_IMGUR_CLIENT_ID'; 
-    const formData = new FormData();
-    formData.append('image', file);
-
-    try {
-        const res = await fetch('https://api.imgur.com/3/image', {
-            method: 'POST',
-            headers: { Authorization: `Client-ID ${CLIENT_ID}` },
-            body: formData
-        });
-        const data = await res.json();
-        if(data.success) {
-            window.sendChatMessage(data.data.link);
+        // TELL API TO SETUP TICKET AND REDIRECT
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    action: 'INITIATE_HANDOFF',
+                    userId: auth.currentUser?.uid,
+                    username: document.getElementById('header-handle')?.innerText 
+                })
+            });
+            const data = await response.json();
+            if (data.redirect) window.location.href = data.redirect;
+        } catch (e) {
+            window.location.href = '/support'; // Fallback if API fails
         }
-    } catch (e) { console.error("Upload failed"); }
+    }
 };
 
-// 6. Core Chat Send Function
-window.sendChatMessage = async (forcedText = null) => {
+// 5. Core Chat Send Function
+window.sendChatMessage = async () => {
     const input = document.getElementById('chat-input');
     const msgContainer = document.getElementById('chat-messages');
     const btn = document.getElementById('chat-send-btn');
-    const userText = forcedText || input.value.trim();
+    const userText = input.value.trim();
 
     if (!userText) return;
 
     window.appendMessage('user', userText);
     input.value = '';
     btn.disabled = true;
-
-    if (window.isHumanActive) {
-        await push(ref(db, `support_chats/${auth.currentUser.uid}`), {
-            role: 'user',
-            text: userText,
-            timestamp: Date.now()
-        });
-        btn.disabled = false;
-        return;
-    }
 
     const tid = 'load-' + Date.now();
     msgContainer.insertAdjacentHTML('beforeend', `<div id="${tid}" class="flex gap-2 p-4 animate-pulse"><div class="w-1 h-1 bg-blue-500 rounded-full animate-bounce"></div></div>`);
@@ -2343,8 +2270,10 @@ window.sendChatMessage = async (forcedText = null) => {
         const data = await response.json();
         document.getElementById(tid)?.remove();
 
-        if (data.text.includes("HANDOFF_REQUEST")) {
-            window.triggerHumanPoll();
+        // If the AI triggers a handoff or provides a redirect URL
+        if (data.redirect || data.text === "HANDOFF_REQUEST") {
+            window.appendMessage('bot', "Transferring you to a human agent...");
+            setTimeout(() => { window.location.href = data.redirect || '/support'; }, 1000);
         } else {
             window.appendMessage('bot', data.text);
         }
@@ -2358,6 +2287,7 @@ window.sendChatMessage = async (forcedText = null) => {
 };
 
 document.addEventListener('DOMContentLoaded', loadChatHistory);
+
 
 // --- ATTACHING TO WINDOW FOR ONCLICK ACCESS ---
 window.openSupportChat = () => {
