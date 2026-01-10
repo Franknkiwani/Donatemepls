@@ -2143,9 +2143,10 @@ window.handleBoostRequest = (id) => {
 
 window.closeDeleteModal = () => document.getElementById('delete-modal').classList.add('hidden');
 window.closeBoostModal = () => document.getElementById('boost-modal').classList.add('hidden');
-// --- CHAT STORAGE ENGINE ---
+// --- CHAT STORAGE & HUMAN HANDOFF ENGINE ---
 const CHAT_STORAGE_KEY = 'grok_chat_history';
 
+// 1. Storage Logic
 const saveMessage = (role, text) => {
     const history = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
     history.push({ role, text, timestamp: Date.now() });
@@ -2156,27 +2157,24 @@ const loadChatHistory = () => {
     const history = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]');
     const oneDay = 24 * 60 * 60 * 1000;
     const now = Date.now();
-    
-    // Filter out messages older than 24 hours
     const validHistory = history.filter(msg => (now - msg.timestamp) < oneDay);
     localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(validHistory));
-    
     validHistory.forEach(msg => renderMessage(msg.role, msg.text));
 };
 
-// Internal render helper (no saving)
+// 2. UI Rendering
 const renderMessage = (role, text) => {
     const container = document.getElementById('chat-messages');
     if (!container) return;
     const isUser = role === 'user';
     const html = isUser ? `
-        <div class="flex justify-end gap-3 max-w-[90%] ml-auto animate-in fade-in slide-in-from-right-4 duration-300">
+        <div class="flex justify-end gap-3 max-w-[90%] ml-auto animate-in fade-in slide-in-from-right-4">
             <div class="bg-blue-600 p-4 rounded-2xl rounded-tr-none shadow-xl">
                 <p class="text-[11px] text-white leading-relaxed font-medium">${text}</p>
             </div>
         </div>
     ` : `
-        <div class="flex gap-4 max-w-[90%] animate-in fade-in slide-in-from-left-4 duration-300">
+        <div class="flex gap-4 max-w-[90%] animate-in fade-in slide-in-from-left-4">
             <div class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
                 <span class="text-[10px] font-black text-blue-400">G</span>
             </div>
@@ -2188,12 +2186,55 @@ const renderMessage = (role, text) => {
     container.scrollTop = container.scrollHeight;
 };
 
-// Global append for new messages (with saving)
 window.appendMessage = (role, text) => {
     saveMessage(role, text);
     renderMessage(role, text);
 };
 
+// 3. Human Handoff UI
+window.triggerHumanPoll = () => {
+    const container = document.getElementById('chat-messages');
+    const pollHtml = `
+        <div id="human-poll" class="bg-zinc-900 border border-amber-500/30 p-5 rounded-[24px] my-4 animate-in zoom-in duration-300">
+            <p class="text-[9px] font-black text-amber-500 uppercase mb-4 tracking-widest text-center">Transfer to Real Human Agent?</p>
+            <div class="flex gap-2">
+                <button onclick="connectToHuman(true)" class="flex-1 py-3 bg-emerald-500 text-black text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">Yes, Connect</button>
+                <button onclick="connectToHuman(false)" class="flex-1 py-3 bg-white/5 text-zinc-400 text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">No</button>
+            </div>
+        </div>`;
+    container.insertAdjacentHTML('beforeend', pollHtml);
+    container.scrollTop = container.scrollHeight;
+};
+
+window.connectToHuman = async (confirmed) => {
+    document.getElementById('human-poll')?.remove();
+    if (!confirmed) {
+        window.appendMessage('bot', "Understood. Grok Core remains active.");
+        return;
+    }
+
+    window.appendMessage('bot', "Requesting human uplink... Please wait.");
+    const container = document.getElementById('chat-messages');
+    container.insertAdjacentHTML('beforeend', `
+        <div id="waiting-ui" class="flex flex-col items-center py-6 animate-pulse">
+            <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <p class="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Waiting for Agent...</p>
+        </div>`);
+
+    // Push to Firebase for Admin Notification
+    try {
+        const user = auth.currentUser;
+        if(user) {
+            await set(ref(db, `support_tickets/${user.uid}`), {
+                username: document.getElementById('header-handle')?.innerText || "User",
+                timestamp: Date.now(),
+                status: 'pending'
+            });
+        }
+    } catch(e) { console.error("Firebase Handoff Fail"); }
+};
+
+// 4. Core Chat Send Function
 window.sendChatMessage = async () => {
     const input = document.getElementById('chat-input');
     const msgContainer = document.getElementById('chat-messages');
@@ -2206,22 +2247,8 @@ window.sendChatMessage = async () => {
     input.value = '';
     btn.disabled = true;
 
-    const typingId = 'grok-load-' + Date.now();
-    const typingHtml = `
-        <div id="${typingId}" class="flex gap-4 max-w-[90%] animate-pulse">
-            <div class="flex-shrink-0 w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center">
-                <span class="text-[10px] font-black text-zinc-500">G</span>
-            </div>
-            <div class="bg-white/5 border border-white/5 p-4 rounded-2xl rounded-tl-none">
-                <div class="flex gap-1 py-2 px-1">
-                    <div class="w-1 h-1 bg-blue-500 rounded-full animate-bounce"></div>
-                    <div class="w-1 h-1 bg-blue-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                    <div class="w-1 h-1 bg-blue-500 rounded-full animate-bounce [animation-delay:0.4s]"></div>
-                </div>
-            </div>
-        </div>`;
-    
-    msgContainer.insertAdjacentHTML('beforeend', typingHtml);
+    const tid = 'load-' + Date.now();
+    msgContainer.insertAdjacentHTML('beforeend', `<div id="${tid}" class="flex gap-2 p-4 animate-pulse"><div class="w-1 h-1 bg-blue-500 rounded-full animate-bounce"></div></div>`);
     msgContainer.scrollTop = msgContainer.scrollHeight;
 
     try {
@@ -2232,27 +2259,22 @@ window.sendChatMessage = async () => {
         });
 
         const data = await response.json();
-        const typingEl = document.getElementById(typingId);
-        
-        if (typingEl) {
-            typingEl.remove(); // Remove thinking dots
-            window.appendMessage('bot', data.text || "I couldn't process that request.");
+        document.getElementById(tid)?.remove();
+
+        if (data.text.includes("HANDOFF_REQUEST")) {
+            window.triggerHumanPoll();
+        } else {
+            window.appendMessage('bot', data.text || "Connection weak. Try again.");
         }
     } catch (e) {
-        const typingEl = document.getElementById(typingId);
-        if (typingEl) {
-            typingEl.classList.remove('animate-pulse');
-            typingEl.querySelector('.bg-white\\/5').innerHTML = 
-                `<p class="text-[11px] text-red-400 font-bold uppercase italic">Link Error: Offline</p>`;
-        }
+        document.getElementById(tid)?.remove();
+        renderMessage('bot', "Critical Link Error.");
     } finally {
         btn.disabled = false;
         msgContainer.scrollTop = msgContainer.scrollHeight;
-        if(window.lucide) lucide.createIcons();
     }
 };
 
-// Initialize History on Load
 document.addEventListener('DOMContentLoaded', loadChatHistory);
 
 // --- ATTACHING TO WINDOW FOR ONCLICK ACCESS ---
