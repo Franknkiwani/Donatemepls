@@ -881,57 +881,49 @@ const syncScrollLock = () => {
             grid.appendChild(img);
         });
     }
-// --- MASTER DATA SYNC (STABLE VERSION + BAN GUARD) ---
+// --- MASTER DATA SYNC (STABLE VERSION + SECURITY + PRO PREVIEW) ---
 onAuthStateChanged(auth, (user) => {
     if (user) {
-        // --- ADMIN CHECK ---
         const isAdmin = user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1";
 
-        // 1. User Data Listener & BAN GUARD
+        // 1. User Data Listener & UI Sync
         onValue(ref(db, `users/${user.uid}`), (s) => {
             const d = s.val() || {};
 
             // --- THE BAN GUARD ---
             if (d.banned) {
-                document.body.innerHTML = `
-                    <div class="h-screen bg-black flex flex-col items-center justify-center text-center p-6 font-sans">
-                        <div class="p-8 border border-red-500/30 bg-red-500/5 rounded-[40px] max-w-sm">
-                            <h1 class="text-red-600 text-5xl font-black mb-4 italic tracking-tighter">ACCESS REVOKED</h1>
-                            <p class="text-zinc-500 text-[10px] uppercase tracking-[0.2em] font-bold mb-6">Security Protocol 403: UID Blacklisted</p>
-                            <p class="text-white/80 text-xs font-medium leading-relaxed mb-8">
-                                This account has been permanently suspended for multiple self-donation attempts or platform abuse.
-                            </p>
-                            <div class="py-3 px-6 bg-red-600 text-black font-black text-[10px] uppercase rounded-full">Contact Support</div>
-                        </div>
-                    </div>`;
-                return; // Stop execution
+                document.body.innerHTML = `<div class="h-screen bg-black flex flex-col items-center justify-center text-center p-6 font-sans"><div class="p-8 border border-red-500/30 bg-red-500/5 rounded-[40px] max-w-sm"><h1 class="text-red-600 text-5xl font-black mb-4 italic tracking-tighter">ACCESS REVOKED</h1><p class="text-zinc-500 text-[10px] uppercase tracking-[0.2em] font-bold mb-6">Security Protocol 403: UID Blacklisted</p><p class="text-white/80 text-xs font-medium leading-relaxed mb-8">This account has been permanently suspended for platform abuse.</p><div class="py-3 px-6 bg-red-600 text-black font-black text-[10px] uppercase rounded-full">Contact Support</div></div></div>`;
+                return;
             }
 
             const name = d.username || "User";
             const avatar = d.avatar || presets[0];
 
-            if (isAdmin) {
-                console.log("Welcome back, Boss. Admin Mode Active.");
-                const tokenElement = document.getElementById('token-count');
-                if(tokenElement) tokenElement.classList.add('text-amber-500');
-            }
-
-            // Update Header & Profile
+            // --- FIXED: UPDATE HEADER & PROFILE & PRO MODAL ---
             const hHandle = document.getElementById('header-handle');
             const hPfp = document.getElementById('header-pfp');
-            const hInit = document.getElementById('header-initial');
             const uInput = document.getElementById('username-input');
             const mPreview = document.getElementById('modal-preview-img');
+            
+            // PRO Modal Specific IDs
+            const proPfp = document.getElementById('pro-pfp-preview');
+            const proName = document.getElementById('pro-name-preview');
 
             if(hHandle) hHandle.innerText = isAdmin ? `👑 @${name}` : `@${name}`;
-            if(hPfp) { hPfp.src = avatar; hPfp.classList.remove('hidden'); }
-            if(hInit) hInit.classList.add('hidden');
+            if(hPfp) hPfp.src = avatar;
             if(uInput) uInput.value = name;
             if(mPreview) mPreview.src = avatar;
+            
+            // Updates the live preview in your Upgrade Modal
+            if(proPfp) proPfp.src = avatar;
+            if(proName) proName.innerText = name;
 
-            // Update Token Display
+            // Update Tokens
             const tokenElement = document.getElementById('token-count');
-            if(tokenElement) tokenElement.innerText = d.tokens || 0;
+            if(tokenElement) {
+                tokenElement.innerText = d.tokens || 0;
+                if(isAdmin) tokenElement.classList.add('text-amber-500');
+            }
 
             // Update Premium/Verified Toggles
             const hVerified = document.getElementById('header-verified');
@@ -950,65 +942,65 @@ onAuthStateChanged(auth, (user) => {
         });
 
         // 2. Initial UI Visibility
-        const tools = document.getElementById('user-tools');
-        const loginBtn = document.getElementById('login-btn');
-        const tokenBar = document.getElementById('token-bar');
-        
-        if(tools) tools.classList.remove('hidden');
-        if(loginBtn) loginBtn.classList.add('hidden');
-        if(tokenBar) tokenBar.classList.remove('hidden');
+        ['user-tools', 'token-bar'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
+        document.getElementById('login-btn')?.classList.add('hidden');
 
-        // 3. Initialize Community Features
+        // 3. Community Loaders
         if (typeof setupPresence === 'function') setupPresence(user.uid);
         if (typeof loadUserFeed === 'function') loadUserFeed();
         if (typeof loadCampaigns === 'function') loadCampaigns();
         if (typeof switchView === 'function') switchView('campaigns');
 
-        // 4. Payout Listener
+        // 4. Payout Listener (History)
         onValue(ref(db, `payouts`), (snapshot) => {
             const allPayouts = snapshot.val() || {};
             const historyList = document.getElementById('payout-history-list');
             const historyContainer = document.getElementById('payout-history-container');
-            
             if(historyList) historyList.innerHTML = '';
 
-            let totalPaid = 0;
-            let pendingCount = 0;
-            let hasHistory = false;
+            let totalPaid = 0; let pendingCount = 0; let hasHistory = false;
 
-            const sorted = Object.values(allPayouts)
-                .filter(p => p.uid === user.uid)
-                .sort((a, b) => b.timestamp - a.timestamp);
-
-            sorted.forEach(p => {
+            Object.values(allPayouts).filter(p => p.uid === user.uid).sort((a,b) => b.timestamp - a.timestamp).forEach(p => {
                 hasHistory = true; 
-                if (p.status === 'completed') totalPaid += (p.netAmount || 0);
+                if (p.status === 'completed' || p.status === 'paid') totalPaid += (p.netAmount || 0);
                 if (p.status === 'pending') pendingCount++;
 
                 if(historyList) {
                     const div = document.createElement('div');
-                    div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5";
-                    const statusColor = p.status === 'completed' ? 'text-emerald-500' : 'text-amber-500';
-                    div.innerHTML = `
-                        <div class="flex flex-col">
-                            <span class="text-[9px] font-black text-white uppercase">$${p.netAmount.toFixed(2)}</span>
-                            <span class="text-[8px] text-zinc-500">${new Date(p.timestamp).toLocaleDateString()}</span>
-                        </div>
-                        <span class="text-[8px] font-black uppercase ${statusColor}">${p.status}</span>
-                    `;
+                    div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 mb-2";
+                    const statusColor = (p.status === 'completed' || p.status === 'paid') ? 'text-emerald-500' : 'text-amber-500';
+                    div.innerHTML = `<div class="flex flex-col"><span class="text-[9px] font-black text-white uppercase">$${p.netAmount.toFixed(2)}</span><span class="text-[8px] text-zinc-500">${new Date(p.timestamp).toLocaleDateString()}</span></div><span class="text-[8px] font-black uppercase ${statusColor}">${p.status}</span>`;
                     historyList.appendChild(div);
                 }
             });
-
             if(hasHistory && historyContainer) historyContainer.classList.remove('hidden');
-            
-            const totalWithdrawnEl = document.getElementById('total-withdrawn');
-            const pendingCountEl = document.getElementById('pending-count');
-            if(totalWithdrawnEl) totalWithdrawnEl.innerText = `$${totalPaid.toFixed(2)}`;
-            if(pendingCountEl) pendingCountEl.innerText = pendingCount;
+            if(document.getElementById('total-withdrawn')) document.getElementById('total-withdrawn').innerText = `$${totalPaid.toFixed(2)}`;
+            if(document.getElementById('pending-count')) document.getElementById('pending-count').innerText = pendingCount;
         });
+
+        // --- 5. GROK SECURITY MONITOR (QUOTA OPTIMIZED) ---
+        let actionCount = 0;
+        window.logSecurityAction = async (actionType, metadata = {}) => {
+            actionCount++;
+            // Only trigger Grok API if suspicious activity is detected (e.g., 10 clicks in 5 seconds or high value)
+            const isHighValue = metadata.amount && metadata.amount > 1000;
+            const isSpamming = actionCount > 15;
+
+            if (isHighValue || isSpamming) {
+                try {
+                    const idToken = await user.getIdToken();
+                    await fetch('/api/security-audit', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ idToken, actionType, metadata, severity: isSpamming ? 'medium' : 'high' })
+                    });
+                    if(isSpamming) actionCount = 0; // Reset after logging
+                } catch (e) { console.error("Audit Fail"); }
+            }
+        };
     }
 });
+
 
 
     window.checkPremiumAndUpload = async () => {
