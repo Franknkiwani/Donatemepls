@@ -50,6 +50,7 @@ export default async function handler(req, res) {
         let recipientOwnerUid = targetId;
         let recipientDisplayName = "User";
         let recipientDisplayAvatar = "";
+        let recipientIsPremium = false;
 
         if (type === 'campaign') {
             const campSnap = await db.ref(`campaigns/${targetId}`).get();
@@ -59,11 +60,13 @@ export default async function handler(req, res) {
             recipientOwnerUid = campData.creator;
             recipientDisplayName = campData.title || "Mission";
             recipientDisplayAvatar = campData.image || "";
+            // Optionally check creator premium status here if needed
         } else {
             const recSnap = await db.ref(`users/${targetId}`).get();
             const recData = recSnap.val() || {};
             recipientDisplayName = recData.username || "Ghost_Signal";
             recipientDisplayAvatar = recData.avatar || "";
+            recipientIsPremium = recData.isPremium || false;
         }
 
         // --- 4. SELF-DONATION CHECK ---
@@ -83,14 +86,17 @@ export default async function handler(req, res) {
         const feeAmount = amount - netAmount;     
         const updates = {};
 
-        // Financial Updates
+        // SENDER UPDATES (Subtract tokens, Add to donor rank)
         updates[`users/${senderUid}/tokens`] = ServerValue.increment(-amount);
+        updates[`users/${senderUid}/totalDonated`] = ServerValue.increment(amount); // REQUIRED FOR TOP DONORS LIST
+
+        // RECIPIENT UPDATES
         updates[`users/${recipientOwnerUid}/tokens`] = ServerValue.increment(netAmount);
         updates[`users/${recipientOwnerUid}/totalEarned`] = ServerValue.increment(netAmount);
-        updates[`users/${recipientOwnerUid}/totalRaised`] = ServerValue.increment(netAmount);
+        updates[`users/${recipientOwnerUid}/totalRaised`] = ServerValue.increment(netAmount); // REQUIRED FOR TOP EARNERS LIST
         updates[`users/${recipientOwnerUid}/donorCount`] = ServerValue.increment(1);
 
-        // Campaign Specific
+        // Campaign Specific logic
         if (type === 'campaign') {
             updates[`campaigns/${targetId}/raised`] = ServerValue.increment(netAmount);
             updates[`campaigns/${targetId}/donorsCount`] = ServerValue.increment(1);
@@ -113,6 +119,7 @@ export default async function handler(req, res) {
         updates[`donations/${liveLogId}`] = {
             fromName: userData.username || "Anonymous",
             fromAvatar: userData.avatar || "",
+            fromIsPremium: userData.isPremium || false, // Matches frontend logic for checkmarks
             toName: recipientDisplayName,
             toAvatar: recipientDisplayAvatar,
             amount: amount,
