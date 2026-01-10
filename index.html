@@ -2143,9 +2143,11 @@ window.handleBoostRequest = (id) => {
 
 window.closeDeleteModal = () => document.getElementById('delete-modal').classList.add('hidden');
 window.closeBoostModal = () => document.getElementById('boost-modal').classList.add('hidden');
-// --- CHAT STORAGE & HUMAN HANDOFF ENGINE ---
+
+
+// --- CHAT STORAGE & DIRECT HUMAN HANDOFF ENGINE ---
 const CHAT_STORAGE_KEY = 'grok_chat_history';
-window.isHumanActive = false; // Global toggle to bypass AI
+window.isHumanActive = false; 
 
 // 1. Storage Logic
 const saveMessage = (role, text) => {
@@ -2165,8 +2167,7 @@ const loadChatHistory = () => {
     if (validHistory.length > 0) {
         validHistory.forEach(msg => renderMessage(msg.role, msg.text));
     } else {
-        // Show the initial "Choose your path" poll if no history exists
-        window.triggerInitialPoll();
+        window.triggerInitialPoll(); // Instant choice on empty chat
     }
 };
 
@@ -2199,13 +2200,13 @@ window.appendMessage = (role, text) => {
     renderMessage(role, text);
 };
 
-// 3. Choice Polls (Initial & Mid-Chat)
+// 3. Protocol Selection (Initial Poll)
 window.triggerInitialPoll = () => {
     const container = document.getElementById('chat-messages');
     const pollHtml = `
         <div id="initial-poll" class="bg-zinc-900 border border-blue-500/30 p-6 rounded-[32px] my-4 animate-in zoom-in duration-500 text-center">
-            <h3 class="text-[10px] font-black text-white uppercase mb-1 tracking-widest">Welcome to Support</h3>
-            <p class="text-[8px] text-zinc-500 uppercase mb-4 font-bold tracking-tighter">Choose how you want to proceed</p>
+            <h3 class="text-[10px] font-black text-white uppercase mb-1 tracking-widest italic">Uplink Established</h3>
+            <p class="text-[8px] text-zinc-500 uppercase mb-4 font-bold tracking-tighter">Choose your interaction protocol</p>
             <div class="flex flex-col gap-2">
                 <button onclick="selectPath('ai')" class="w-full py-3 bg-blue-600 text-white text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">Chat with AI (Instant)</button>
                 <button onclick="selectPath('human')" class="w-full py-3 bg-white/5 text-zinc-300 border border-white/10 text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">Request Human Agent</button>
@@ -2218,7 +2219,7 @@ window.triggerInitialPoll = () => {
 window.selectPath = (choice) => {
     document.getElementById('initial-poll')?.remove();
     if (choice === 'ai') {
-        window.appendMessage('bot', "Grok Core Online. How can I help you with your tokens, reach, or crowdfunding today?");
+        window.appendMessage('bot', "Grok Core Online. How can I help you today?");
     } else {
         window.connectToHuman(true);
     }
@@ -2228,7 +2229,7 @@ window.triggerHumanPoll = () => {
     const container = document.getElementById('chat-messages');
     const pollHtml = `
         <div id="human-poll" class="bg-zinc-900 border border-amber-500/30 p-5 rounded-[24px] my-4 animate-in zoom-in duration-300">
-            <p class="text-[9px] font-black text-amber-500 uppercase mb-4 tracking-widest text-center">Switch to Real Human Agent?</p>
+            <p class="text-[9px] font-black text-amber-500 uppercase mb-4 tracking-widest text-center text-balance">Switch to Human Agent for better assistance?</p>
             <div class="flex gap-2">
                 <button onclick="connectToHuman(true)" class="flex-1 py-3 bg-emerald-500 text-black text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">Yes, Connect</button>
                 <button onclick="connectToHuman(false)" class="flex-1 py-3 bg-white/5 text-zinc-400 text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">No</button>
@@ -2238,39 +2239,37 @@ window.triggerHumanPoll = () => {
     container.scrollTop = container.scrollHeight;
 };
 
-// 4. Firebase Connectivity
+// 4. Firebase Direct Connectivity
 window.connectToHuman = async (confirmed) => {
     document.getElementById('human-poll')?.remove();
     if (!confirmed) {
-        window.appendMessage('bot', "Understood. Grok Core remains active.");
+        window.appendMessage('bot', "Grok remains at your service.");
         return;
     }
 
     const user = auth.currentUser;
     if(!user) {
-        window.appendMessage('bot', "System Error: You must be logged in to reach a human.");
+        window.appendMessage('bot', "Identification required. Please log in.");
         return;
     }
 
     window.isHumanActive = true; 
-    window.appendMessage('bot', "Requesting human uplink... Please wait.");
+    window.appendMessage('bot', "Establishing secure uplink to operator...");
     
     const container = document.getElementById('chat-messages');
     container.insertAdjacentHTML('beforeend', `
         <div id="waiting-ui" class="flex flex-col items-center py-6 animate-pulse">
             <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-            <p class="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Waiting for Agent...</p>
+            <p class="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Waiting for Operator...</p>
         </div>`);
 
     try {
-        // Push ticket via Vercel API or Direct Firebase (Assuming Direct for this example)
         await set(ref(db, `support_tickets/${user.uid}`), {
             username: document.getElementById('header-handle')?.innerText || "User",
             timestamp: Date.now(),
             status: 'pending'
         });
 
-        // Listen for Admin replies
         onValue(ref(db, `support_chats/${user.uid}`), (snap) => {
             const data = snap.val();
             if(!data) return;
@@ -2280,15 +2279,35 @@ window.connectToHuman = async (confirmed) => {
                 window.appendMessage('bot', `[AGENT]: ${lastMsg.text}`);
             }
         });
-    } catch(e) { console.error("Link Fail"); }
+    } catch(e) { console.error("Firebase Sync Error"); }
 };
 
-// 5. Core Chat Send Function
-window.sendChatMessage = async () => {
+// 5. Imgur Image Upload (Optional)
+window.uploadImage = async (file) => {
+    // Replace with your Imgur Client ID if available
+    const CLIENT_ID = 'YOUR_IMGUR_CLIENT_ID'; 
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+        const res = await fetch('https://api.imgur.com/3/image', {
+            method: 'POST',
+            headers: { Authorization: `Client-ID ${CLIENT_ID}` },
+            body: formData
+        });
+        const data = await res.json();
+        if(data.success) {
+            window.sendChatMessage(data.data.link);
+        }
+    } catch (e) { console.error("Upload failed"); }
+};
+
+// 6. Core Chat Send Function
+window.sendChatMessage = async (forcedText = null) => {
     const input = document.getElementById('chat-input');
     const msgContainer = document.getElementById('chat-messages');
     const btn = document.getElementById('chat-send-btn');
-    const userText = input.value.trim();
+    const userText = forcedText || input.value.trim();
 
     if (!userText) return;
 
@@ -2296,10 +2315,8 @@ window.sendChatMessage = async () => {
     input.value = '';
     btn.disabled = true;
 
-    // IF HUMAN IS ACTIVE: Send to Firebase instead of AI
     if (window.isHumanActive) {
-        const user = auth.currentUser;
-        await push(ref(db, `support_chats/${user.uid}`), {
+        await push(ref(db, `support_chats/${auth.currentUser.uid}`), {
             role: 'user',
             text: userText,
             timestamp: Date.now()
@@ -2308,7 +2325,6 @@ window.sendChatMessage = async () => {
         return;
     }
 
-    // NORMAL AI FLOW
     const tid = 'load-' + Date.now();
     msgContainer.insertAdjacentHTML('beforeend', `<div id="${tid}" class="flex gap-2 p-4 animate-pulse"><div class="w-1 h-1 bg-blue-500 rounded-full animate-bounce"></div></div>`);
     msgContainer.scrollTop = msgContainer.scrollHeight;
@@ -2330,11 +2346,11 @@ window.sendChatMessage = async () => {
         if (data.text.includes("HANDOFF_REQUEST")) {
             window.triggerHumanPoll();
         } else {
-            window.appendMessage('bot', data.text || "Connection weak. Try again.");
+            window.appendMessage('bot', data.text);
         }
     } catch (e) {
         document.getElementById(tid)?.remove();
-        renderMessage('bot', "Critical Link Error.");
+        renderMessage('bot', "Connection Error.");
     } finally {
         btn.disabled = false;
         msgContainer.scrollTop = msgContainer.scrollHeight;
