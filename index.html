@@ -2145,6 +2145,7 @@ window.closeDeleteModal = () => document.getElementById('delete-modal').classLis
 window.closeBoostModal = () => document.getElementById('boost-modal').classList.add('hidden');
 // --- CHAT STORAGE & HUMAN HANDOFF ENGINE ---
 const CHAT_STORAGE_KEY = 'grok_chat_history';
+window.isHumanActive = false; // Global toggle to bypass AI
 
 // 1. Storage Logic
 const saveMessage = (role, text) => {
@@ -2158,8 +2159,15 @@ const loadChatHistory = () => {
     const oneDay = 24 * 60 * 60 * 1000;
     const now = Date.now();
     const validHistory = history.filter(msg => (now - msg.timestamp) < oneDay);
+    
     localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(validHistory));
-    validHistory.forEach(msg => renderMessage(msg.role, msg.text));
+    
+    if (validHistory.length > 0) {
+        validHistory.forEach(msg => renderMessage(msg.role, msg.text));
+    } else {
+        // Show the initial "Choose your path" poll if no history exists
+        window.triggerInitialPoll();
+    }
 };
 
 // 2. UI Rendering
@@ -2168,13 +2176,13 @@ const renderMessage = (role, text) => {
     if (!container) return;
     const isUser = role === 'user';
     const html = isUser ? `
-        <div class="flex justify-end gap-3 max-w-[90%] ml-auto animate-in fade-in slide-in-from-right-4">
+        <div class="flex justify-end gap-3 max-w-[90%] ml-auto animate-in fade-in slide-in-from-right-4 duration-300">
             <div class="bg-blue-600 p-4 rounded-2xl rounded-tr-none shadow-xl">
                 <p class="text-[11px] text-white leading-relaxed font-medium">${text}</p>
             </div>
         </div>
     ` : `
-        <div class="flex gap-4 max-w-[90%] animate-in fade-in slide-in-from-left-4">
+        <div class="flex gap-4 max-w-[90%] animate-in fade-in slide-in-from-left-4 duration-300">
             <div class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
                 <span class="text-[10px] font-black text-blue-400">G</span>
             </div>
@@ -2191,12 +2199,36 @@ window.appendMessage = (role, text) => {
     renderMessage(role, text);
 };
 
-// 3. Human Handoff UI
+// 3. Choice Polls (Initial & Mid-Chat)
+window.triggerInitialPoll = () => {
+    const container = document.getElementById('chat-messages');
+    const pollHtml = `
+        <div id="initial-poll" class="bg-zinc-900 border border-blue-500/30 p-6 rounded-[32px] my-4 animate-in zoom-in duration-500 text-center">
+            <h3 class="text-[10px] font-black text-white uppercase mb-1 tracking-widest">Welcome to Support</h3>
+            <p class="text-[8px] text-zinc-500 uppercase mb-4 font-bold tracking-tighter">Choose how you want to proceed</p>
+            <div class="flex flex-col gap-2">
+                <button onclick="selectPath('ai')" class="w-full py-3 bg-blue-600 text-white text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">Chat with AI (Instant)</button>
+                <button onclick="selectPath('human')" class="w-full py-3 bg-white/5 text-zinc-300 border border-white/10 text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">Request Human Agent</button>
+            </div>
+        </div>`;
+    container.insertAdjacentHTML('beforeend', pollHtml);
+    container.scrollTop = container.scrollHeight;
+};
+
+window.selectPath = (choice) => {
+    document.getElementById('initial-poll')?.remove();
+    if (choice === 'ai') {
+        window.appendMessage('bot', "Grok Core Online. How can I help you with your tokens, reach, or crowdfunding today?");
+    } else {
+        window.connectToHuman(true);
+    }
+};
+
 window.triggerHumanPoll = () => {
     const container = document.getElementById('chat-messages');
     const pollHtml = `
         <div id="human-poll" class="bg-zinc-900 border border-amber-500/30 p-5 rounded-[24px] my-4 animate-in zoom-in duration-300">
-            <p class="text-[9px] font-black text-amber-500 uppercase mb-4 tracking-widest text-center">Transfer to Real Human Agent?</p>
+            <p class="text-[9px] font-black text-amber-500 uppercase mb-4 tracking-widest text-center">Switch to Real Human Agent?</p>
             <div class="flex gap-2">
                 <button onclick="connectToHuman(true)" class="flex-1 py-3 bg-emerald-500 text-black text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">Yes, Connect</button>
                 <button onclick="connectToHuman(false)" class="flex-1 py-3 bg-white/5 text-zinc-400 text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">No</button>
@@ -2206,6 +2238,7 @@ window.triggerHumanPoll = () => {
     container.scrollTop = container.scrollHeight;
 };
 
+// 4. Firebase Connectivity
 window.connectToHuman = async (confirmed) => {
     document.getElementById('human-poll')?.remove();
     if (!confirmed) {
@@ -2213,7 +2246,15 @@ window.connectToHuman = async (confirmed) => {
         return;
     }
 
+    const user = auth.currentUser;
+    if(!user) {
+        window.appendMessage('bot', "System Error: You must be logged in to reach a human.");
+        return;
+    }
+
+    window.isHumanActive = true; 
     window.appendMessage('bot', "Requesting human uplink... Please wait.");
+    
     const container = document.getElementById('chat-messages');
     container.insertAdjacentHTML('beforeend', `
         <div id="waiting-ui" class="flex flex-col items-center py-6 animate-pulse">
@@ -2221,20 +2262,28 @@ window.connectToHuman = async (confirmed) => {
             <p class="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Waiting for Agent...</p>
         </div>`);
 
-    // Push to Firebase for Admin Notification
     try {
-        const user = auth.currentUser;
-        if(user) {
-            await set(ref(db, `support_tickets/${user.uid}`), {
-                username: document.getElementById('header-handle')?.innerText || "User",
-                timestamp: Date.now(),
-                status: 'pending'
-            });
-        }
-    } catch(e) { console.error("Firebase Handoff Fail"); }
+        // Push ticket via Vercel API or Direct Firebase (Assuming Direct for this example)
+        await set(ref(db, `support_tickets/${user.uid}`), {
+            username: document.getElementById('header-handle')?.innerText || "User",
+            timestamp: Date.now(),
+            status: 'pending'
+        });
+
+        // Listen for Admin replies
+        onValue(ref(db, `support_chats/${user.uid}`), (snap) => {
+            const data = snap.val();
+            if(!data) return;
+            const lastMsg = Object.values(data).pop();
+            if(lastMsg.role === 'admin') {
+                document.getElementById('waiting-ui')?.remove();
+                window.appendMessage('bot', `[AGENT]: ${lastMsg.text}`);
+            }
+        });
+    } catch(e) { console.error("Link Fail"); }
 };
 
-// 4. Core Chat Send Function
+// 5. Core Chat Send Function
 window.sendChatMessage = async () => {
     const input = document.getElementById('chat-input');
     const msgContainer = document.getElementById('chat-messages');
@@ -2247,6 +2296,19 @@ window.sendChatMessage = async () => {
     input.value = '';
     btn.disabled = true;
 
+    // IF HUMAN IS ACTIVE: Send to Firebase instead of AI
+    if (window.isHumanActive) {
+        const user = auth.currentUser;
+        await push(ref(db, `support_chats/${user.uid}`), {
+            role: 'user',
+            text: userText,
+            timestamp: Date.now()
+        });
+        btn.disabled = false;
+        return;
+    }
+
+    // NORMAL AI FLOW
     const tid = 'load-' + Date.now();
     msgContainer.insertAdjacentHTML('beforeend', `<div id="${tid}" class="flex gap-2 p-4 animate-pulse"><div class="w-1 h-1 bg-blue-500 rounded-full animate-bounce"></div></div>`);
     msgContainer.scrollTop = msgContainer.scrollHeight;
@@ -2255,7 +2317,11 @@ window.sendChatMessage = async () => {
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: userText })
+            body: JSON.stringify({ 
+                prompt: userText,
+                userId: auth.currentUser?.uid,
+                username: document.getElementById('header-handle')?.innerText 
+            })
         });
 
         const data = await response.json();
