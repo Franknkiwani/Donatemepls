@@ -1401,50 +1401,65 @@ window.handleWithdrawSubmit = async () => {
         }
     }
 };
-
-// --- SECURE VERCEL UPLOAD HANDLER ---
+// --- SECURE VERCEL UPLOAD HANDLER (PREMIUM & LIMIT AWARE) ---
 document.getElementById('pfp-upload')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
+    const user = auth.currentUser;
+
     if (!file) return;
+    if (!user) return notify("Please login first");
 
     // 1. Client-side Size Validation
     if (file.size > 2 * 1024 * 1024) {
         return notify("Image too large (Max 2MB)");
     }
     
-    notify("Processing via Vercel...");
+    // UI Feedback: Show the spinner you created earlier
+    if (typeof toggleUploadSpinner === 'function') toggleUploadSpinner(true);
+    else notify("Processing via Vercel...");
     
-    // Create FormData for the file
-    const formData = new FormData();
-    formData.append('image', file);
+    // 2. Convert to Base64 to send via JSON
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    
+    reader.onload = async () => {
+        const base64Image = reader.result;
 
-    try {
-        // 2. Replace '/api/upload-pfp' with your actual Vercel endpoint path
-        const response = await fetch('/api/upload-pfp', {
-            method: 'POST',
-            // Note: We don't send the Client-ID here anymore. 
-            // Vercel handles it using Environment Variables for safety.
-            body: formData
-        });
+        try {
+            // 3. Send Image + UID to Vercel
+            const response = await fetch('/api/upload-pfp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    image: base64Image,
+                    uid: user.uid 
+                })
+            });
 
-        const data = await response.json();
+            const data = await response.json();
 
-        if (response.ok && data.link) {
-            const link = data.link;
-            
-            // 3. Update UI and global state
-            window.tempAvatar = link; 
-            document.getElementById('modal-preview-img').src = link;
-            
-            notify("Verified! Click 'Update Profile' to apply.");
-        } else {
-            notify(data.error || "Upload failed via Vercel.");
+            if (response.ok && data.link) {
+                // 4. Update UI and global state
+                window.tempAvatar = data.link; 
+                const previewImg = document.getElementById('modal-preview-img');
+                if (previewImg) previewImg.src = data.link;
+                
+                notify("Verified! Click 'Update Profile' to apply.");
+            } else if (response.status === 429) {
+                // This is the specific "Limit Reached" error from the API
+                notify("Daily limit reached! Upgrade to Premium for unlimited.");
+            } else {
+                notify(data.error || "Upload failed via Vercel.");
+            }
+        } catch (err) {
+            notify("Vercel connection error.");
+            console.error("Upload Error:", err);
+        } finally {
+            if (typeof toggleUploadSpinner === 'function') toggleUploadSpinner(false);
         }
-    } catch (err) {
-        notify("Vercel connection error.");
-        console.error("Upload Error:", err);
-    }
+    };
 });
+
 
 // --- 0. CONFIG & PRESETS ---
 const communityPresets = [
