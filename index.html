@@ -1517,160 +1517,176 @@ window.switchView = (view) => {
         campView?.classList.add('hidden');
     }
 };
-// --- 4. CAMPAIGN FEED (ENHANCED & STABLE) ---
+// --- 4. CAMPAIGN FEED (INFINITE SCROLL 5-AT-A-TIME) ---
 
-let activeCampaignListeners = [];
+let lastVisibleTimestamp = null;
+let isFetching = false;
+let reachedEnd = false;
 
 // Helper for Real-time Countdown
 const getRemainingTime = (deadline) => {
     const diff = deadline - Date.now();
     if (diff <= 0) return "EXPIRED";
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-    if (days > 0) return `${days}D ${hours}H LEFT`;
-    return `${hours}H LEFT`;
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff / (1000 * 60)) % 60);
+    return `${hours}H ${mins}M LEFT`;
 };
 
-const loadCampaigns = () => {
+/**
+ * Main Loader
+ * @param {boolean} isInitial - If true, clears grid and starts from newest
+ */
+const loadCampaigns = async (isInitial = true) => {
+    if (isFetching || (reachedEnd && !isInitial)) return;
+    
     const grid = document.getElementById('campaign-grid');
     if (!grid) return;
 
-    // CLEANUP: Prevent memory stacking
-    activeCampaignListeners.forEach(unsub => unsub());
-    activeCampaignListeners = [];
+    isFetching = true;
 
-    const campaignsRef = ref(db, 'campaigns');
-    
-    const unsubscribe = onValue(campaignsRef, (snapshot) => {
-        const campaigns = snapshot.val();
-        grid.innerHTML = ''; 
-        
-        if (!campaigns) {
-            grid.innerHTML = `<div class="col-span-full py-20 text-center opacity-40 text-white text-[10px] font-black uppercase tracking-widest">No active missions available</div>`;
+    if (isInitial) {
+        grid.innerHTML = '';
+        lastVisibleTimestamp = null;
+        reachedEnd = false;
+    }
+
+    // Build High-Speed Query
+    let q;
+    if (isInitial) {
+        // Get the 5 most recent
+        q = query(ref(db, 'campaigns'), orderByChild('timestamp'), limitToLast(5));
+    } else {
+        // Get 5 older than the last one we saw
+        q = query(ref(db, 'campaigns'), orderByChild('timestamp'), endBefore(lastVisibleTimestamp), limitToLast(5));
+    }
+
+    try {
+        const snapshot = await get(q);
+        const data = snapshot.val();
+
+        // MASTER SIGNAL: First 5 are here, hide skeleton
+        if (isInitial && window.signalDataReady) window.signalDataReady('campaigns');
+
+        if (!data) {
+            if (isInitial) grid.innerHTML = `<div class="col-span-full py-20 text-center opacity-40 text-white text-[10px] font-black uppercase">No active missions</div>`;
+            reachedEnd = true;
             return;
         }
 
-        const now = Date.now();
+        // Convert to array and sort Newest -> Oldest
+        const items = Object.keys(data)
+            .map(id => ({ id, ...data[id] }))
+            .sort((a, b) => b.timestamp - a.timestamp);
 
-        // SORT: Boosted first (based on 1:3 reach math), then newest
-        const sortedKeys = Object.keys(campaigns).sort((a, b) => {
-            const aReachUsed = campaigns[a].viewsActive || 0;
-            const bReachUsed = campaigns[b].viewsActive || 0;
-            const isABoosted = ((campaigns[a].tokensBudget || 0) * 3 > aReachUsed);
-            const isBBoosted = ((campaigns[b].tokensBudget || 0) * 3 > bReachUsed);
-            
-            if (isABoosted && !isBBoosted) return -1;
-            if (!isABoosted && isBBoosted) return 1;
-            return campaigns[b].timestamp - campaigns[a].timestamp;
-        });
+        // Update tracking for next scroll
+        lastVisibleTimestamp = items[items.length - 1].timestamp;
+        if (items.length < 5) reachedEnd = true;
 
-        sortedKeys.forEach(id => {
-            const c = campaigns[id];
-            
-            // FILTER: Public Only
+        items.forEach(c => {
             if (c.visibility === 'private') return;
-
-            const totalReachAllowed = (c.tokensBudget || 0) * 3;
-            const views = c.viewsActive || 0;
-            const isCurrentlyBoosted = (totalReachAllowed > views);
-            const isPro = c.creatorIsPremium || false;
-            const progress = Math.min((c.raised / c.goal) * 100, 100);
-            
-            const card = document.createElement('div');
-            // AI Purple theme if AI generated, Amber if Boosted, Pink if Pro
-            card.className = `p-5 rounded-[32px] border relative flex flex-col gap-4 transition-all duration-500 hover:translate-y-[-4px] ${
-                isCurrentlyBoosted ? 'border-amber-500 shadow-[0_0_25px_rgba(245,158,11,0.25)] bg-zinc-900 scale-[1.01]' : 
-                c.isAiGenerated ? 'border-purple-500/30 bg-zinc-900/90 shadow-[0_10px_30px_rgba(168,85,247,0.1)]' :
-                isPro ? 'border-pink-500/40 bg-zinc-900/90 shadow-[0_10px_30px_rgba(236,72,153,0.1)]' : 
-                'border-white/5 bg-zinc-900/40'
-            }`;
-
-            card.innerHTML = `
-                <div class="flex justify-between items-center">
-                    <div class="flex items-center gap-2">
-                        <div class="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-full border border-white/5">
-                            <div class="w-1.5 h-1.5 rounded-full ${now > (c.deadline - 3600000) ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}"></div>
-                            <span class="text-[9px] font-black text-white uppercase countdown-timer" data-deadline="${c.deadline}">
-                                ${getRemainingTime(c.deadline)}
-                            </span>
-                        </div>
-                        ${isCurrentlyBoosted ? '<span class="bg-amber-500 text-black text-[7px] font-black px-2 py-0.5 rounded-full shadow-[0_0_10px_#f59e0b]">⚡ BOOSTED</span>' : ''}
-                    </div>
-                    <span class="text-[9px] font-black text-zinc-500 uppercase tracking-widest">${c.category || 'Global'}</span>
-                </div>
-
-                <div class="flex gap-4 items-start">
-                    <div class="w-16 h-16 rounded-2xl bg-zinc-800 flex-shrink-0 border border-white/10 overflow-hidden shadow-2xl relative">
-                        <img src="${c.imageUrl}" class="w-full h-full object-cover">
-                        ${c.isAiGenerated ? '<div class="absolute inset-0 bg-purple-500/10 mix-blend-overlay"></div>' : ''}
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 mb-1">
-                            <h3 class="text-sm font-black uppercase text-white truncate tracking-tight">${c.title}</h3>
-                            ${c.isAiGenerated ? '<span class="text-[7px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded-md font-black uppercase border border-purple-500/30">✨ AI</span>' : ''}
-                        </div>
-                        <div class="text-[11px] text-zinc-400 leading-snug">
-                            <span id="desc-short-${id}">${formatCampaignText(c.description || '', 85)}</span>
-                            <span id="desc-full-${id}" class="hidden">${formatCampaignText(c.description || '')}</span>
-                            ${c.description?.length > 85 ? `<button onclick="toggleDesc('${id}')" id="btn-${id}" class="text-blue-500 font-bold ml-1 hover:underline">Read More</button>` : ''}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-black/30 p-3 rounded-2xl border border-white/5">
-                    <div class="flex justify-between text-[10px] font-black mb-2 px-1 uppercase">
-                        <span class="text-emerald-400">$${Number(c.raised || 0).toLocaleString()} <span class="text-zinc-600 text-[8px] ml-1">Raised</span></span>
-                        <span class="text-zinc-400">$${Number(c.goal || 0).toLocaleString()} <span class="text-zinc-600 text-[8px] ml-1">Goal</span></span>
-                    </div>
-                    <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                        <div class="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 shadow-[0_0_10px_#10b981]" style="width: ${progress}%"></div>
-                    </div>
-                </div>
-
-                <div class="flex items-center justify-between border-t border-white/5 pt-3 mt-auto">
-                    <div class="flex items-center gap-3">
-                        <button onclick="viewCreatorProfile('${c.creator}')" class="group flex items-center gap-2">
-                            <div class="relative">
-                                <img src="${c.creatorAvatar || 'https://img.icons8.com/fluency/48/user-male-circle.png'}" class="w-6 h-6 rounded-full object-cover border border-white/10 group-hover:border-blue-500 transition-all">
-                                ${isPro ? '<img src="https://img.icons8.com/color/48/verified-badge.png" class="absolute -right-1 -bottom-1 w-3 h-3 bg-zinc-900 rounded-full">' : ''}
-                            </div>
-                            <span class="text-[9px] font-black text-zinc-500 group-hover:text-white uppercase">@${c.creatorName || 'Member'}</span>
-                        </button>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button onclick="shareMission('${id}', '${c.title.replace(/'/g, "\\'")}')" class="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5 active:scale-90">
-                            <img src="https://img.icons8.com/material-outlined/24/ffffff/share.png" class="w-3.5 h-3.5 opacity-70">
-                        </button>
-                        <button onclick="handleDonateCampaign('${id}', '${c.title.replace(/'/g, "\\'")}')" class="px-5 py-2.5 bg-white text-black rounded-xl text-[10px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all shadow-xl active:scale-95">Donate</button>
-                    </div>
-                </div>
-            `;
-            grid.appendChild(card);
-            if(window.loadDonors) loadDonors(id);
+            renderCampaignCard(c, grid);
         });
-    });
-    activeCampaignListeners.push(unsubscribe);
-};
 
-// --- SUPPORTING UTILITIES ---
-
-window.shareMission = (id, title) => {
-    const shareUrl = `${window.location.origin}/donate?id=${id}`;
-    if (navigator.share) {
-        navigator.share({ title: title, url: shareUrl }).catch(() => copyLink(shareUrl));
-    } else {
-        copyLink(shareUrl);
+    } catch (e) {
+        console.error("Scroll Fetch Error:", e);
+    } finally {
+        isFetching = false;
     }
 };
 
-const copyLink = (url) => {
-    navigator.clipboard.writeText(url);
-    notify("Mission link copied to clipboard!");
+// --- THE RENDER ENGINE ---
+const renderCampaignCard = (c, container) => {
+    const id = c.id;
+    const now = Date.now();
+    const isCurrentlyBoosted = ((c.tokensBudget || 0) * 3 > (c.viewsActive || 0));
+    const isPro = c.creatorIsPremium || false;
+    const progress = Math.min((c.raised / c.goal) * 100, 100);
+
+    const card = document.createElement('div');
+    card.className = `p-5 rounded-[32px] border relative flex flex-col gap-4 transition-all duration-500 hover:translate-y-[-4px] ${
+        isCurrentlyBoosted ? 'border-amber-500 shadow-[0_0_25px_rgba(245,158,11,0.25)] bg-zinc-900 scale-[1.01]' : 
+        c.isAiGenerated ? 'border-purple-500/30 bg-zinc-900/90 shadow-[0_10px_30px_rgba(168,85,247,0.1)]' :
+        isPro ? 'border-pink-500/40 bg-zinc-900/90 shadow-[0_10px_30px_rgba(236,72,153,0.1)]' : 
+        'border-white/5 bg-zinc-900/40'
+    }`;
+
+    card.innerHTML = `
+        <div class="flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-full border border-white/5">
+                    <div class="w-1.5 h-1.5 rounded-full ${now > (c.deadline - 3600000) ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}"></div>
+                    <span class="text-[9px] font-black text-white uppercase countdown-timer" data-deadline="${c.deadline}">
+                        ${getRemainingTime(c.deadline)}
+                    </span>
+                </div>
+                ${isCurrentlyBoosted ? '<span class="bg-amber-500 text-black text-[7px] font-black px-2 py-0.5 rounded-full shadow-[0_0_10px_#f59e0b]">⚡ BOOSTED</span>' : ''}
+            </div>
+            <span class="text-[9px] font-black text-zinc-500 uppercase tracking-widest">${c.category || 'Global'}</span>
+        </div>
+
+        <div class="flex gap-4 items-start">
+            <div class="w-16 h-16 rounded-2xl bg-zinc-800 flex-shrink-0 border border-white/10 overflow-hidden shadow-2xl relative">
+                <img src="${c.imageUrl}" class="w-full h-full object-cover" loading="lazy">
+                ${c.isAiGenerated ? '<div class="absolute inset-0 bg-purple-500/10 mix-blend-overlay"></div>' : ''}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                    <h3 class="text-sm font-black uppercase text-white truncate tracking-tight">${c.title}</h3>
+                    ${c.isAiGenerated ? '<span class="text-[7px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded-md font-black uppercase border border-purple-500/30">✨ AI</span>' : ''}
+                </div>
+                <div class="text-[11px] text-zinc-400 leading-snug">
+                    <span id="desc-short-${id}">${formatCampaignText(c.description || '', 85)}</span>
+                    <span id="desc-full-${id}" class="hidden">${formatCampaignText(c.description || '')}</span>
+                    ${c.description?.length > 85 ? `<button onclick="toggleDesc('${id}')" id="btn-${id}" class="text-blue-500 font-bold ml-1 hover:underline">Read More</button>` : ''}
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-black/30 p-3 rounded-2xl border border-white/5">
+            <div class="flex justify-between text-[10px] font-black mb-2 px-1 uppercase">
+                <span class="text-emerald-400">$${Number(c.raised || 0).toLocaleString()} <span class="text-zinc-600 text-[8px] ml-1">Raised</span></span>
+                <span class="text-zinc-400">$${Number(c.goal || 0).toLocaleString()} <span class="text-zinc-600 text-[8px] ml-1">Goal</span></span>
+            </div>
+            <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-emerald-500 to-cyan-500" style="width: ${progress}%"></div>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between border-t border-white/5 pt-3 mt-auto">
+            <div class="flex items-center gap-3">
+                <button onclick="viewCreatorProfile('${c.creator}')" class="group flex items-center gap-2">
+                    <div class="relative">
+                        <img src="${c.creatorAvatar || 'https://img.icons8.com/fluency/48/user-male-circle.png'}" class="w-6 h-6 rounded-full object-cover border border-white/10">
+                        ${isPro ? '<img src="https://img.icons8.com/color/48/verified-badge.png" class="absolute -right-1 -bottom-1 w-3 h-3 bg-zinc-900 rounded-full">' : ''}
+                    </div>
+                    <span class="text-[9px] font-black text-zinc-500 group-hover:text-white uppercase">@${c.creatorName || 'Member'}</span>
+                </button>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="shareMission('${id}', '${c.title.replace(/'/g, "\\'")}')" class="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5">
+                    <img src="https://img.icons8.com/material-outlined/24/ffffff/share.png" class="w-3.5 h-3.5 opacity-70">
+                </button>
+                <button onclick="handleDonateCampaign('${id}', '${c.title.replace(/'/g, "\\'")}')" class="px-5 py-2.5 bg-white text-black rounded-xl text-[10px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all shadow-xl active:scale-95">Donate</button>
+            </div>
+        </div>
+    `;
+    container.appendChild(card);
+    if(window.loadDonors) loadDonors(id);
 };
+
+// --- THE SCROLL LISTENER ---
+window.addEventListener('scroll', () => {
+    // Triggers when user is 200px from the bottom
+    if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200) {
+        loadCampaigns(false);
+    }
+});
+
+// --- UTILITIES ---
 
 function formatCampaignText(text, limit = null) {
     if (!text) return "";
-    let clean = text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-pink-500 hover:underline">$1</a>')
+    let clean = text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-blue-400 hover:underline">$1</a>')
                     .replace(/#(\w+)/g, '<span class="text-amber-500">#$1</span>');
     if (limit && text.length > limit) return clean.substring(0, limit) + "...";
     return clean;
@@ -1690,27 +1706,32 @@ const loadDonors = (campaignId) => {
     onValue(ref(db, `campaign_donors/${campaignId}`), (snap) => {
         const container = document.getElementById(`donors-${campaignId}`);
         if(!container) return;
-        container.innerHTML = '';
         const data = snap.val();
         if(!data) return;
+        container.innerHTML = '';
         Object.values(data).slice(0, 3).forEach(d => {
-            container.innerHTML += `<img src="${d.avatar || 'https://img.icons8.com/fluency/48/user-male-circle.png'}" class="w-5 h-5 rounded-full border-2 border-zinc-900 -ml-1.5 first:ml-0">`;
+            container.innerHTML += `<img src="${d.avatar || 'https://img.icons8.com/fluency/48/user-male-circle.png'}" class="w-5 h-5 rounded-full border-2 border-zinc-900 -ml-1.5 first:ml-0 shadow-sm">`;
         });
     }, { onlyOnce: true });
 };
 
-// TIMER LOOP
+// GLOBAL TIMER LOOP
 setInterval(() => {
     document.querySelectorAll('.countdown-timer').forEach(el => {
         const deadline = parseInt(el.getAttribute('data-deadline'));
         const diff = deadline - Date.now();
-        if (diff <= 0) { el.innerText = "ENDED"; el.className = "text-[9px] font-black text-red-500 uppercase"; return; }
+        if (diff <= 0) { 
+            el.innerText = "ENDED"; 
+            el.classList.replace('text-white', 'text-red-500');
+            return; 
+        }
         const h = Math.floor(diff / 3600000);
         const m = Math.floor((diff % 3600000) / 60000);
         const s = Math.floor((diff % 60000) / 1000);
         el.innerText = `${h}H ${m}M ${s}S`;
     });
 }, 1000);
+
 
 // --- 5. USER FEED ---
 const loadUserFeed = () => {
