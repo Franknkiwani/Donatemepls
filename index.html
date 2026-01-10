@@ -1019,7 +1019,7 @@ const syncScrollLock = () => {
         });
     }
 
-// --- MASTER DATA SYNC (WITH SKELETON AUTO-EXIT) ---
+ --- MASTER DATA SYNC (WITH SKELETON AUTO-EXIT) ---
 onAuthStateChanged(auth, (user) => {
     if (user) {
         const isAdmin = user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1";
@@ -1549,6 +1549,9 @@ const injectSkeletons = () => {
     const loader = document.getElementById('master-loader');
     if (!loader) return;
 
+    // FIX: Force loader background to match current theme variables
+    loader.style.background = 'var(--bg)';
+
     loader.innerHTML = `
         <div class="max-w-6xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             ${Array(6).fill(0).map(() => `
@@ -1581,12 +1584,15 @@ const injectSkeletons = () => {
     `;
 };
 
-// Helper: Custom Skeleton Exit Signal
+// Helper: Custom Skeleton Exit Signal (UPDATED WITH 3s DELAY)
 window.signalDataReady = (type) => {
     const loader = document.getElementById('master-loader');
     if (loader) {
-        loader.classList.add('loader-fade-out');
-        setTimeout(() => loader.remove(), 600);
+        // Force the skeletons to stay for 3 seconds for a premium feel
+        setTimeout(() => {
+            loader.classList.add('loader-fade-out');
+            setTimeout(() => loader.remove(), 600);
+        }, 3000);
     }
 };
 
@@ -1646,10 +1652,7 @@ const loadCampaigns = async (isInitial = true) => {
             return;
         }
 
-        // Process batch
         let items = Object.keys(data).map(id => ({ id, ...data[id] }));
-        
-        // Sort for tracking, then shuffle for display
         items.sort((a, b) => b.timestamp - a.timestamp);
         lastVisibleTimestamp = items[items.length - 1].timestamp;
         
@@ -1805,6 +1808,7 @@ setInterval(() => {
         el.innerText = getRemainingTime(deadline);
     });
 }, 1000);
+
 
 // --- 5. USER FEED ---
 const loadUserFeed = () => {
