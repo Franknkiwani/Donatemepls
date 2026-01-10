@@ -22,13 +22,11 @@ export default async function handler(req, res) {
         const decodedToken = await auth.verifyIdToken(idToken);
         const senderUid = decodedToken.uid; 
 
-        // --- 1. ADMIN VAULT VERIFICATION ---
+        // --- 1. SENDER & ADMIN VAULT VERIFICATION ---
         if (senderUid === BLOCKED_ADMIN_UID) {
             const expectedSecret = process.env.ADMIN_VERIFY_TOKEN; 
             if (!adminSecret || adminSecret !== expectedSecret) {
-                return res.status(403).json({ 
-                    error: "ADMIN_LOCK: Verification Token required to move Vault funds." 
-                });
+                return res.status(403).json({ error: "ADMIN_LOCK: Verification Token required." });
             }
         }
 
@@ -44,21 +42,28 @@ export default async function handler(req, res) {
         // --- 2. ANTI-FRAUD: STRIKE SYSTEM ---
         let currentStrikes = userData.strikes || 0;
         const lastStrikeTime = userData.lastStrikeTimestamp || 0;
-        // Reset strikes after 24 hours
         if (currentStrikes > 0 && (Date.now() - lastStrikeTime) > 86400000) {
             currentStrikes = 0;
         }
 
-        // --- 3. FIND RECIPIENT ---
+        // --- 3. FIND RECIPIENT & PREP LIVE FEED DATA ---
         let recipientOwnerUid = targetId;
-        let campaignTitle = "";
+        let recipientDisplayName = "User";
+        let recipientDisplayAvatar = "";
 
         if (type === 'campaign') {
             const campSnap = await db.ref(`campaigns/${targetId}`).get();
             const campData = campSnap.val();
             if (!campData) return res.status(404).json({ error: "Campaign not found" });
+            
             recipientOwnerUid = campData.creator;
-            campaignTitle = campData.title;
+            recipientDisplayName = campData.title || "Mission";
+            recipientDisplayAvatar = campData.image || "";
+        } else {
+            const recSnap = await db.ref(`users/${targetId}`).get();
+            const recData = recSnap.val() || {};
+            recipientDisplayName = recData.username || "Ghost_Signal";
+            recipientDisplayAvatar = recData.avatar || "";
         }
 
         // --- 4. SELF-DONATION CHECK ---
@@ -70,32 +75,26 @@ export default async function handler(req, res) {
                 return res.status(403).json({ error: "BANNED: Third Strike for Self-Donation." });
             }
             await senderRef.update(strikeData);
-            return res.status(400).json({ error: `Self-Donation Strike ${newStrikes}/3. Do not donate to yourself.` });
+            return res.status(400).json({ error: `Self-Donation Strike ${newStrikes}/3.` });
         }
 
         // --- 5. SECURE ATOMIC UPDATES ---
-        const netAmount = Math.floor(amount * 0.7); // Creator gets 70%
-        const feeAmount = amount - netAmount;     // System/Vault gets 30%
+        const netAmount = Math.floor(amount * 0.7); 
+        const feeAmount = amount - netAmount;     
         const updates = {};
 
-        // Deduct from Sender
+        // Financial Updates
         updates[`users/${senderUid}/tokens`] = ServerValue.increment(-amount);
-
-        // Credit to Recipient
         updates[`users/${recipientOwnerUid}/tokens`] = ServerValue.increment(netAmount);
-        updates[`users/${recipientOwnerUid}/totalRaised`] = ServerValue.increment(netAmount);
-        
-        // IMPORTANT: Update totalEarned so the withdrawal security check passes
         updates[`users/${recipientOwnerUid}/totalEarned`] = ServerValue.increment(netAmount);
-        
+        updates[`users/${recipientOwnerUid}/totalRaised`] = ServerValue.increment(netAmount);
         updates[`users/${recipientOwnerUid}/donorCount`] = ServerValue.increment(1);
 
-        // Campaign Specific Updates
+        // Campaign Specific
         if (type === 'campaign') {
             updates[`campaigns/${targetId}/raised`] = ServerValue.increment(netAmount);
             updates[`campaigns/${targetId}/donorsCount`] = ServerValue.increment(1);
             
-            // Log Donor for the campaign "Wall of Fame"
             const donorLogRef = `campaign_donors/${targetId}/${senderUid}`;
             updates[donorLogRef] = {
                 uid: senderUid,
@@ -106,16 +105,28 @@ export default async function handler(req, res) {
             };
         }
 
-        // 6. THE VAULT (Admin/Platform Fee)
+        // --- 6. THE VAULT (Admin Fee) ---
         updates[`users/${BLOCKED_ADMIN_UID}/tokens`] = ServerValue.increment(feeAmount);
 
-        // Execute all database changes at once (Atomic)
+        // --- 7. GLOBAL LIVE FEED LOG ---
+        const liveLogId = db.ref('donations').push().key;
+        updates[`donations/${liveLogId}`] = {
+            fromName: userData.username || "Anonymous",
+            fromAvatar: userData.avatar || "",
+            toName: recipientDisplayName,
+            toAvatar: recipientDisplayAvatar,
+            amount: amount,
+            timestamp: ServerValue.TIMESTAMP,
+            type: type
+        };
+
+        // EXECUTE ALL CHANGES ATOMICALLY
         await db.ref().update(updates);
 
         return res.status(200).json({ 
             success: true, 
             netSent: netAmount,
-            message: "Donation successful! Withdrawal balance updated."
+            message: "Transmission Complete."
         });
 
     } catch (error) {
