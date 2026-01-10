@@ -1,44 +1,45 @@
-// /api/chat.js
 export default async function handler(req, res) {
-    // Only allow POST requests
-    if (req.method !== 'POST') {
-        return res.status(405).json({ text: "Method not allowed" });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const API_KEY = process.env.GROQ_API_KEY;
+  if (!API_KEY) return res.status(500).json({ error: "Missing GROQ_API_KEY" });
+
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const userPrompt = body.prompt?.trim();
+
+    if (!userPrompt) return res.status(400).json({ error: "No message provided." });
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { 
+            role: "system", 
+            content: "You are Grok Core, a helpful AI assistant. Be concise, professional, and friendly. Answer any user questions accurately." 
+          },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      return res.status(500).json({ text: "System over capacity. Please retry." });
     }
 
-    try {
-        const { prompt } = req.body;
+    const aiText = data.choices[0].message.content.trim();
+    return res.status(200).json({ text: aiText });
 
-        const response = await fetch("https://api.x.ai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${process.env.GROK_API_KEY}` 
-            },
-            body: JSON.stringify({
-                model: "grok-beta",
-                messages: [
-                    { 
-                        role: "system", 
-                        content: "You are Grok, the AI assistant for this fundraising platform. Be sharp, helpful, and concise." 
-                    },
-                    { role: "user", content: prompt }
-                ],
-                stream: false
-            })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            console.error("xAI Error:", data);
-            return res.status(500).json({ text: "Grok is resting. Try again shortly." });
-        }
-
-        // Send the text back to your glassy modal
-        res.status(200).json({ text: data.choices[0].message.content });
-
-    } catch (error) {
-        console.error("Server Error:", error);
-        res.status(500).json({ text: "Connection to Grok Core failed." });
-    }
+  } catch (error) {
+    return res.status(500).json({ text: "Grok is resting. Try again shortly." });
+  }
 }
