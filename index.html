@@ -145,44 +145,26 @@
     </div>
 </div>
 
-<div id="explore-modal" class="hidden fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl font-['Plus_Jakarta_Sans']">
-    
-    <div class="max-w-4xl mx-auto h-full flex flex-col p-6">
+<div id="explore-modal" class="hidden fixed inset-0 z-[100] bg-[#050505] backdrop-blur-3xl font-sans overflow-hidden">
+    <div class="max-w-2xl mx-auto h-full flex flex-col">
         
-        <div class="flex flex-col md:flex-row justify-between items-end gap-6 mb-10 border-b border-white/5 pb-8">
+        <div class="p-6 border-b border-white/5 flex justify-between items-center bg-black/50">
             <div>
-                <h2 class="text-3xl font-black italic tracking-tighter text-white uppercase leading-none">
-                    Global <span class="text-blue-500">Pulse</span>
-                </h2>
-                <p class="text-[9px] text-zinc-500 font-bold uppercase tracking-[0.3em] mt-2 italic">
-                    Top 25 Network Signal • 2026 Protocol
-                </p>
+                <h2 class="text-xl font-black italic tracking-tighter text-white uppercase">Network <span class="text-blue-500">Activity</span></h2>
+                <div class="flex gap-4 mt-2">
+                    <button onclick="switchHubView('live')" id="btn-live" class="text-[9px] font-black uppercase tracking-widest text-blue-500 border-b-2 border-blue-500 pb-1">Live Feed</button>
+                    <button onclick="switchHubView('top-donors')" id="btn-donors" class="text-[9px] font-black uppercase tracking-widest text-zinc-500 pb-1">Top Donors</button>
+                </div>
             </div>
-
-            <div class="flex bg-zinc-900 border border-white/5 p-1 rounded-2xl">
-                <button onclick="switchHubView('top-donors')" 
-                        class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:text-white text-zinc-400">
-                    Top Donors
-                </button>
-                <button onclick="switchHubView('top-missions')" 
-                        class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:text-white text-zinc-400">
-                    Top Earners
-                </button>
-            </div>
-
-            <button onclick="closeModals()" class="mb-2 text-[10px] font-black uppercase text-zinc-600 hover:text-red-500 transition-colors">
-                Close [ESC]
+            <button onclick="closeExploreModal()" class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 hover:bg-red-500/20 transition-all">
+                <span class="text-white text-xs">✕</span>
             </button>
         </div>
 
-        <div id="hub-content" class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-            <div class="flex flex-col items-center justify-center py-40 opacity-20">
-                <p class="text-[10px] font-black uppercase tracking-widest">Awaiting Signal Input...</p>
+        <div id="hub-content" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             </div>
-        </div>
 
-        <div id="user-hub-status"></div>
-
+        <div id="user-hub-status" class="bg-zinc-900/90 border-t border-white/5 p-4 backdrop-blur-md"></div>
     </div>
 </div>
 
@@ -2396,75 +2378,122 @@ window.closeExploreModal = () => {
     document.getElementById('explore-modal').classList.add('hidden');
     document.body.style.overflow = '';
 };
+// Helper for Relative Time (1m ago, 2h ago)
+const getRelativeTime = (ts) => {
+    if (!ts) return "Recently";
+    const ms = Date.now() - ts;
+    const sec = Math.floor(ms / 1000);
+    if (sec < 60) return "Just now";
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    return `${Math.floor(hr / 24)}d ago`;
+};
+
 window.switchHubView = async (view) => {
     const container = document.getElementById('hub-content');
-    // Loading state with a custom pulse
+    
+    // 1. Loading State
     container.innerHTML = `
         <div class="flex flex-col items-center justify-center py-20 opacity-40">
             <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p class="text-[8px] font-black uppercase tracking-[0.2em] text-blue-400">Synchronizing Pulse...</p>
+            <p class="text-[8px] font-black uppercase tracking-widest text-blue-500">Syncing Network...</p>
         </div>`;
 
-    const path = 'users'; 
-    const sortKey = view === 'top-donors' ? 'totalDonated' : 'raised';
-
     try {
-        const snapshot = await get(ref(db, path));
-        const allData = snapshot.val();
-        if (!allData) return;
-
-        // Sort Top 25 locally (Efficient for testing)
-        const sorted = Object.entries(allData)
-            .sort((a, b) => (b[1][sortKey] || 0) - (a[1][sortKey] || 0))
-            .slice(0, 25); 
-
-        container.innerHTML = '';
-        sorted.forEach(([id, item], index) => {
-            const rank = index + 1;
-            const isFirst = rank === 1;
-            const isTop3 = rank <= 3;
+        if (view === 'live') {
+            // --- LIVE DONATIONS MODE (Real-time Feed) ---
+            // Assumes you have a 'donations' node in your DB
+            const snap = await get(ref(db, 'donations')); 
+            const logs = snap.val() || {};
             
-            const card = `
-                <div class="group relative flex items-center gap-4 p-5 rounded-[24px] transition-all duration-500 
-                    ${isFirst ? 'bg-blue-600/10 border-2 border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.2)]' : 'bg-white/5 border border-white/5 hover:border-white/20'}">
+            const sortedLogs = Object.entries(logs)
+                .sort((a, b) => b[1].timestamp - a[1].timestamp)
+                .slice(0, 20);
+
+            if (sortedLogs.length === 0) {
+                container.innerHTML = `<p class="text-center py-20 text-[10px] text-zinc-600 font-black uppercase">No recent signal detected</p>`;
+                return;
+            }
+
+            container.innerHTML = '';
+            sortedLogs.forEach(([id, tx]) => {
+                container.insertAdjacentHTML('beforeend', `
+                <div class="flex items-center gap-4 p-4 bg-white/5 border border-white/5 rounded-[28px] animate-in slide-in-from-bottom-2">
+                    <div class="flex -space-x-3">
+                        <img src="${tx.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
+                        <img src="${tx.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="text-[10px] font-black text-white uppercase truncate">
+                            ${tx.fromName || 'User'} <span class="text-blue-500 mx-1">→</span> ${tx.toName || 'Mission'}
+                        </h4>
+                        <p class="text-[7px] text-zinc-500 font-bold uppercase tracking-widest mt-1">
+                            ${getRelativeTime(tx.timestamp)} • ${tx.type || 'Contribution'}
+                        </p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-xs font-black text-emerald-400">+$${tx.amount}</span>
+                    </div>
+                </div>`);
+            });
+
+        } else {
+            // --- LEADERBOARD MODE (Top 25) ---
+            const sortKey = view === 'top-donors' ? 'totalDonated' : 'raised';
+            const snapshot = await get(ref(db, 'users'));
+            const allData = snapshot.val() || {};
+
+            const sorted = Object.entries(allData)
+                .sort((a, b) => (b[1][sortKey] || 0) - (a[1][sortKey] || 0))
+                .slice(0, 25);
+
+            container.innerHTML = '';
+            sorted.forEach(([id, item], index) => {
+                const rank = index + 1;
+                const isFirst = rank === 1;
+                
+                container.insertAdjacentHTML('beforeend', `
+                <div class="group flex items-center gap-4 p-4 rounded-[32px] transition-all duration-500 
+                    ${isFirst ? 'bg-blue-600/10 border-2 border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.1)]' : 'bg-white/5 border border-white/5'}">
                     
-                    <div class="relative w-10 flex-shrink-0">
-                        <span class="text-2xl font-black italic tracking-tighter ${isTop3 ? 'text-blue-500' : 'text-zinc-800'}">
-                            ${rank.toString().padStart(2, '0')}
-                        </span>
-                        ${isFirst ? '<div class="absolute -top-4 -left-2 text-[10px] animate-bounce">👑</div>' : ''}
+                    <div class="w-8 text-center font-black italic ${rank <= 3 ? 'text-blue-500' : 'text-zinc-800'}">
+                        ${rank.toString().padStart(2, '0')}
                     </div>
 
-                    <div class="flex-1">
-                        <h4 class="text-[11px] font-extrabold text-white uppercase tracking-tight group-hover:text-blue-400 transition-colors">
-                            ${item.username || 'Ghost_Signal'}
-                        </h4>
-                        <p class="text-[8px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">
-                            ${view === 'top-donors' ? 'Uplink Contributor' : 'Mission Leader'}
-                        </p>
+                    <div class="relative">
+                        <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover border-2 border-white/10 shadow-2xl">
+                        ${isFirst ? '<div class="absolute -top-2 -right-1 text-xs animate-bounce">👑</div>' : ''}
+                    </div>
+
+                    <div class="flex-1 min-w-0">
+                        <h4 class="text-[11px] font-black text-white uppercase truncate">${item.username || 'Ghost_Signal'}</h4>
+                        <p class="text-[7px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">Network Node Verified</p>
                     </div>
 
                     <div class="text-right">
-                        <div class="flex items-center justify-end gap-1">
-                            <span class="text-sm font-black text-white italic">${item[sortKey] || 0}</span>
-                            <div class="w-1.5 h-1.5 rounded-full bg-blue-500 ${isFirst ? 'animate-ping' : ''}"></div>
+                        <span class="text-sm font-black text-white italic">${item[sortKey] || 0}</span>
+                        <div class="flex items-center justify-end gap-1 mt-0.5">
+                            <p class="text-[7px] text-zinc-600 font-black uppercase tracking-tighter">Tokens</p>
+                            <div class="w-1 h-1 rounded-full bg-blue-500 ${isFirst ? 'animate-ping' : ''}"></div>
                         </div>
-                        <p class="text-[7px] text-zinc-500 font-black uppercase">Tokens</p>
                     </div>
-                </div>`;
-            container.insertAdjacentHTML('beforeend', card);
-        });
+                </div>`);
+            });
 
-        // Sticky User Rank (Only if they aren't in the Top 25 already)
-        const user = auth.currentUser;
-        if (user && allData[user.uid]) {
-            renderStickyUserStats(allData[user.uid], sortKey);
+            // Sticky Personal Stats
+            const user = auth.currentUser;
+            if (user && allData[user.uid]) {
+                renderStickyUserStats(allData[user.uid], sortKey);
+            }
         }
-
-    } catch (e) {
-        console.error("Hub Sync Failed", e);
+    } catch (e) { 
+        console.error("Hub Error:", e);
+        container.innerHTML = `<p class="text-center text-red-500 text-[8px] uppercase font-black">Sync Failed</p>`;
     }
 };
+
 function renderStickyUserStats(data, sortKey) {
     let bar = document.getElementById('user-hub-status');
     if (!bar) {
@@ -2473,19 +2502,22 @@ function renderStickyUserStats(data, sortKey) {
         document.getElementById('explore-modal').appendChild(bar);
     }
 
-    bar.className = "sticky bottom-0 left-0 right-0 p-6 bg-zinc-950/80 backdrop-blur-md border-t border-blue-500/30 mt-4 animate-in slide-in-from-bottom-full";
+    bar.className = "sticky bottom-0 p-5 bg-black/90 border-t border-blue-500/20 mt-4 backdrop-blur-2xl animate-in slide-in-from-bottom-full";
     bar.innerHTML = `
-        <div class="flex justify-between items-center max-w-4xl mx-auto">
+        <div class="flex justify-between items-center max-w-2xl mx-auto">
             <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-black text-white italic">YOU</div>
+                <div class="relative">
+                    <img src="${data.avatar || presets[0]}" class="w-10 h-10 rounded-full object-cover border-2 border-blue-600">
+                    <div class="absolute inset-0 rounded-full animate-pulse border border-blue-400"></div>
+                </div>
                 <div>
-                    <p class="text-[10px] font-black text-white uppercase">${data.username}</p>
-                    <p class="text-[8px] text-zinc-500 font-bold uppercase tracking-widest">Personal Signal</p>
+                    <p class="text-[10px] font-black text-white uppercase tracking-tight">@${data.username}</p>
+                    <p class="text-[7px] text-blue-500 font-black uppercase tracking-[0.2em]">Personal Signal</p>
                 </div>
             </div>
             <div class="text-right">
-                <span class="text-lg font-black text-blue-500 italic">${data[sortKey] || 0}</span>
-                <p class="text-[8px] text-zinc-500 font-black uppercase">Your Tokens</p>
+                <span class="text-xl font-black text-white italic">${data[sortKey] || 0}</span>
+                <p class="text-[8px] text-zinc-600 font-black uppercase">My Volume</p>
             </div>
         </div>`;
 }
