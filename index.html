@@ -29,15 +29,20 @@
             <button id="login-btn" onclick="openAuthModal()" class="bg-white text-black px-5 py-1.5 rounded-full font-bold text-xs">Login</button>
         </div>
     </nav>
-<div id="global-loader" class="global-skeleton-container">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="h-64 skeleton-box"></div>
-        <div class="h-64 skeleton-box"></div>
-        <div class="h-64 skeleton-box"></div>
+<div id="master-loader" class="p-6 space-y-8">
+    <div class="flex gap-4">
+        <div class="h-16 w-1/3 rounded-3xl skeleton-item opacity-40"></div>
+        <div class="h-16 w-1/3 rounded-3xl skeleton-item opacity-40"></div>
+        <div class="h-16 w-1/3 rounded-3xl skeleton-item opacity-40"></div>
     </div>
-    <div class="h-32 w-full skeleton-box"></div>
-    <div class="h-32 w-full skeleton-box"></div>
+    <div class="w-full h-64 rounded-[40px] skeleton-item opacity-25"></div>
+    <div class="grid grid-cols-2 gap-4">
+        <div class="h-40 rounded-[32px] skeleton-item opacity-10"></div>
+        <div class="h-40 rounded-[32px] skeleton-item opacity-10"></div>
+    </div>
 </div>
+
+
 
     <div id="auth-modal" class="fixed inset-0 z-[110] hidden bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-zinc-900 text-white w-full max-w-[380px] rounded-[32px] p-8 border border-white/10">
@@ -995,17 +1000,31 @@ const syncScrollLock = () => {
             grid.appendChild(img);
         });
     }
-// --- MASTER DATA SYNC (STABLE VERSION + SECURITY + PRO PREVIEW + BAN APPEAL) ---
+
+// --- MASTER DATA SYNC (WITH SKELETON AUTO-EXIT) ---
 onAuthStateChanged(auth, (user) => {
     if (user) {
         const isAdmin = user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1";
+        
+        // Track readiness for skeleton exit
+        let syncReady = { user: false, campaigns: false };
+        const checkReady = () => {
+            if (syncReady.user && syncReady.campaigns) {
+                const loader = document.getElementById('master-loader'); // Use your loader's ID
+                if (loader) {
+                    loader.classList.add('loader-fade-out');
+                    setTimeout(() => loader.remove(), 600);
+                }
+            }
+        };
 
         // 1. User Data Listener & UI Sync
         onValue(ref(db, `users/${user.uid}`), (s) => {
             const d = s.val() || {};
 
-            // --- THE BAN GUARD (WITH GREEN APPEAL REDIRECT) ---
+            // --- THE BAN GUARD ---
             if (d.banned) {
+                document.getElementById('master-loader')?.remove(); // Kill loader if banned
                 document.body.innerHTML = `
                     <div class="h-screen bg-black flex flex-col items-center justify-center text-center p-6 font-sans">
                         <div class="p-8 border border-red-500/30 bg-red-500/5 rounded-[40px] max-w-sm">
@@ -1026,55 +1045,37 @@ onAuthStateChanged(auth, (user) => {
             const name = d.username || "User";
             const avatar = d.avatar || presets[0];
 
-            // --- FIXED: HEADER & PROFILE & PRO MODAL PREVIEWS ---
+            // Update Header & Modals
             const hHandle = document.getElementById('header-handle');
             const hPfp = document.getElementById('header-pfp');
             const hInit = document.getElementById('header-initial');
-            
             const uInput = document.getElementById('username-input');
             const mPreview = document.getElementById('modal-preview-img');
             const mInit = document.getElementById('modal-preview-initial'); 
-            
             const proPfp = document.getElementById('pro-pfp-preview');      
             const proName = document.getElementById('pro-name-preview');
 
-            // Update Header
             if(hHandle) hHandle.innerText = isAdmin ? `👑 @${name}` : `@${name}`;
             if(hPfp) { hPfp.src = avatar; hPfp.classList.remove('hidden'); }
             if(hInit) hInit.classList.add('hidden');
-
-            // Update Profile Modal (Big Preview)
             if(uInput) uInput.value = name;
-            if(mPreview) { 
-                mPreview.src = avatar; 
-                mPreview.classList.remove('hidden'); 
-            }
+            if(mPreview) { mPreview.src = avatar; mPreview.classList.remove('hidden'); }
             if(mInit) mInit.classList.add('hidden'); 
-            
-            // Update PRO/Upgrade Modal Preview
-            if(proPfp) {
-                proPfp.src = avatar;
-                proPfp.classList.remove('hidden');
-            }
+            if(proPfp) { proPfp.src = avatar; proPfp.classList.remove('hidden'); }
             if(proName) proName.innerText = name;
 
-            // Update Tokens
+            // Tokens & Security
             const tokenElement = document.getElementById('token-count');
             if(tokenElement) {
                 tokenElement.innerText = d.tokens || 0;
                 if(isAdmin) tokenElement.classList.add('text-amber-500');
             }
+            if(d.tokens > 10000) window.logSecurityAction('WHALE_ACCOUNT_SYNC', { tokens: d.tokens, user: name });
 
-            // --- GROK SECURITY: AUTO-FLAG LARGE BALANCES ---
-            if(d.tokens > 10000) {
-                window.logSecurityAction('WHALE_ACCOUNT_SYNC', { tokens: d.tokens, user: name });
-            }
-
-            // Update Premium/Verified Toggles
+            // Premium Logic
             const hVerified = document.getElementById('header-verified');
             const mgmtZone = document.getElementById('premium-management-zone');
             const upgradeNavBtn = document.querySelector('button[onclick="openUpgradeModal()"]');
-            
             if(d.isPremium || isAdmin) {
                 if(hVerified) hVerified.classList.remove('hidden');
                 if(mgmtZone && d.isPremium) mgmtZone.classList.remove('hidden');
@@ -1084,6 +1085,9 @@ onAuthStateChanged(auth, (user) => {
                 if(mgmtZone) mgmtZone.classList.add('hidden');
                 if(upgradeNavBtn) upgradeNavBtn.classList.remove('hidden');
             }
+
+            syncReady.user = true;
+            checkReady();
         });
 
         // 2. Initial UI Visibility
@@ -1093,7 +1097,12 @@ onAuthStateChanged(auth, (user) => {
         // 3. Community Loaders
         if (typeof setupPresence === 'function') setupPresence(user.uid);
         if (typeof loadUserFeed === 'function') loadUserFeed();
-        if (typeof loadCampaigns === 'function') loadCampaigns();
+        if (typeof loadCampaigns === 'function') {
+            loadCampaigns();
+            // Assuming loadCampaigns fetches data, we trigger readiness after a slight delay
+            // or you can move this line inside your loadCampaigns success callback
+            setTimeout(() => { syncReady.campaigns = true; checkReady(); }, 800);
+        }
         if (typeof switchView === 'function') switchView('campaigns');
 
         // 4. Payout Listener (History)
@@ -1104,12 +1113,10 @@ onAuthStateChanged(auth, (user) => {
             if(historyList) historyList.innerHTML = '';
 
             let totalPaid = 0; let pendingCount = 0; let hasHistory = false;
-
             Object.values(allPayouts).filter(p => p.uid === user.uid).sort((a,b) => b.timestamp - a.timestamp).forEach(p => {
                 hasHistory = true; 
                 if (p.status === 'completed' || p.status === 'paid') totalPaid += (p.netAmount || 0);
                 if (p.status === 'pending') pendingCount++;
-
                 if(historyList) {
                     const div = document.createElement('div');
                     div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 mb-2";
@@ -1123,30 +1130,26 @@ onAuthStateChanged(auth, (user) => {
             if(document.getElementById('pending-count')) document.getElementById('pending-count').innerText = pendingCount;
         });
 
-        // --- 5. GROK SECURITY MONITOR (QUOTA OPTIMIZED) ---
+        // 5. Security Action Logger
         let actionCount = 0;
         window.logSecurityAction = async (actionType, metadata = {}) => {
             actionCount++;
             const isHighValue = (metadata.amount && metadata.amount > 1000) || (metadata.tokens && metadata.tokens > 5000);
-            const isSpamming = actionCount > 15;
-
-            if (isHighValue || isSpamming || actionType === 'ADMIN_ACTION') {
+            if (isHighValue || actionCount > 15 || actionType === 'ADMIN_ACTION') {
                 try {
                     const idToken = await user.getIdToken();
                     await fetch('/api/security-audit', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            idToken, 
-                            actionType, 
-                            metadata, 
-                            severity: isSpamming ? 'medium' : (isHighValue ? 'high' : 'info')
-                        })
+                        body: JSON.stringify({ idToken, actionType, metadata, severity: isHighValue ? 'high' : 'info' })
                     });
-                    if(isSpamming) actionCount = 0; 
-                } catch (e) { console.error("Grok Audit Fail"); }
+                    if(actionCount > 15) actionCount = 0; 
+                } catch (e) { console.error("Audit Fail"); }
             }
         };
+    } else {
+        // If logged out, remove loader immediately to show landing/login
+        document.getElementById('master-loader')?.remove();
     }
 });
 
@@ -2617,46 +2620,6 @@ function renderStickyUserStats(data, sortKey) {
             </div>
         </div>`;
 }
-// A simple counter to track when data is ready
-let dataLoaded = { campaigns: false, users: false };
-
-const checkLoadingStatus = () => {
-    // Hide the loader once BOTH campaigns and users are fetched
-    if (dataLoaded.campaigns && dataLoaded.users) {
-        const loader = document.getElementById('global-loader');
-        if (loader) loader.classList.add('hide-loader');
-        
-        // Remove from DOM after transition for performance
-        setTimeout(() => loader?.remove(), 500);
-    }
-};
-
-const loadCampaigns = () => {
-    onValue(ref(db, 'campaigns'), (snapshot) => {
-        // ... your existing render logic here ...
-        
-        dataLoaded.campaigns = true;
-        checkLoadingStatus();
-    });
-};
-
-const loadUserFeed = () => {
-    onValue(ref(db, 'users'), (snapshot) => {
-        // ... your existing render logic here ...
-        
-        dataLoaded.users = true;
-        checkLoadingStatus();
-    });
-};
-
-// Start the sequence
-const startApp = () => {
-    // Header is already visible in HTML
-    loadCampaigns();
-    loadUserFeed();
-};
-
-startApp();
 
 </script>
 </body>
