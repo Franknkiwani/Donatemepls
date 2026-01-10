@@ -115,3 +115,36 @@ body.theme-light button.bg-zinc-800 {
     from { transform: scale(0.9); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
 }
+
+/* The Shimmer Effect */
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+.global-skeleton-container {
+    position: fixed;
+    top: 80px; /* Adjust based on your header height */
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #050505;
+    z-index: 40;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.skeleton-box {
+    background: linear-gradient(90deg, #121212 25%, #1d1d1d 50%, #121212 75%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite linear;
+    border-radius: 24px;
+}
+
+.hide-loader {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
