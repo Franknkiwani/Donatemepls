@@ -804,8 +804,7 @@
     } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
     
     import { 
-        ref, update, onValue, get, set, push,
-        query, orderByChild, limitToLast // ADDED for Top 25/Live logic
+        ref, update, onValue, get, set, push 
     } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 
     // 2. Importing the connection from your new file
@@ -943,95 +942,6 @@ const syncScrollLock = () => {
         notify("Profile Updated!"); 
         closeProfile();
     };
-
-    // --- HUB ENGINE (TOP 25 / LIVE FEED) ---
-    let allTopItems = [];    
-    let displayedCount = 0;  
-    let currentViewMode = '';
-
-    window.openExploreModal = () => {
-        document.getElementById('explore-modal')?.classList.remove('hidden');
-        document.body.classList.add('stop-scrolling');
-        window.switchHubView('top-donors'); 
-    };
-
-    window.closeExploreModal = () => {
-        document.getElementById('explore-modal')?.classList.add('hidden');
-        document.body.classList.remove('stop-scrolling');
-    };
-
-    window.switchHubView = async (view) => {
-        const container = document.getElementById('hub-content');
-        if(!container) return;
-        
-        currentViewMode = view;
-        const sortKey = view === 'live' ? 'timestamp' : (view === 'top-donors' ? 'totalDonated' : 'totalRaised');
-        const dbPath = view === 'live' ? 'donations' : 'users';
-
-        document.querySelectorAll('.hub-nav-btn').forEach(btn => btn.classList.remove('active', 'text-amber-500'));
-        const activeBtnId = view === 'live' ? 'btn-live' : (view === 'top-donors' ? 'btn-donors' : 'btn-earners');
-        document.getElementById(activeBtnId)?.classList.add('active', 'text-amber-500');
-        
-        displayedCount = 0;
-        allTopItems = [];
-        container.innerHTML = `<div class="py-20 text-center animate-pulse text-amber-500 text-[10px] font-black uppercase tracking-widest">Syncing Pulse...</div>`;
-
-        try {
-            const hubQuery = query(ref(db, dbPath), orderByChild(sortKey), limitToLast(25));
-            const snap = await get(hubQuery);
-            const data = snap.val();
-
-            if (!data) {
-                container.innerHTML = `<div class="py-20 text-center opacity-30 text-[10px] font-black uppercase">No Signal</div>`;
-                return;
-            }
-
-            allTopItems = Object.entries(data).sort((a, b) => (b[1][sortKey] || 0) - (a[1][sortKey] || 0));
-            container.innerHTML = ''; 
-            loadNextHubBatch();
-        } catch (e) { console.error(e); }
-    };
-
-    function loadNextHubBatch() {
-        const container = document.getElementById('hub-content');
-        const batch = allTopItems.slice(displayedCount, displayedCount + 8);
-        
-        batch.forEach(([id, item]) => {
-            displayedCount++;
-            const isPrem = item.isPremium || item.premium || false;
-            let html = '';
-
-            if (currentViewMode === 'live') {
-                html = `<div class="flex items-center gap-4 p-4 ${isPrem ? 'bg-amber-500/5 border-amber-500/30' : 'bg-white/5 border-white/5'} border rounded-[28px] mb-3">
-                    <div class="flex -space-x-3 flex-shrink-0">
-                        <img src="${item.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
-                        <img src="${item.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <h4 class="text-[10px] font-black text-white uppercase truncate">@${item.fromName} → ${item.toName}</h4>
-                    </div>
-                    <div class="text-right"><span class="text-xs font-black text-emerald-400">+$${item.amount}</span></div>
-                </div>`;
-            } else {
-                const val = currentViewMode === 'top-donors' ? item.totalDonated : item.totalRaised;
-                html = `<div class="flex items-center gap-4 p-4 rounded-[32px] ${isPrem ? 'bg-amber-500/5 border-amber-500/40' : 'bg-white/5 border-white/5'} border mb-3">
-                    <div class="w-8 text-center font-black italic text-zinc-600">${displayedCount}</div>
-                    <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover">
-                    <div class="flex-1"><h4 class="text-[11px] font-black text-white uppercase">@${item.username}</h4></div>
-                    <div class="text-right"><span class="text-sm font-black text-white italic">${val || 0}</span></div>
-                </div>`;
-            }
-            container.insertAdjacentHTML('beforeend', html);
-        });
-    }
-
-    // Scroll listener for the Hub Modal
-    document.getElementById('explore-modal')?.addEventListener('scroll', function() {
-        if (this.scrollTop + this.clientHeight >= this.scrollHeight - 50) {
-            if (displayedCount < allTopItems.length) loadNextHubBatch();
-        }
-    });
-
 
     // --- PAYPAL ---
     function initPayPal() {
@@ -2417,37 +2327,76 @@ document.addEventListener('DOMContentLoaded', loadChatHistory);
 // ==========================================
 
 const toggleScrollLock = (isLocked) => {
-    document.body.style.overflow = isLocked ? 'hidden' : '';
+    if (isLocked) {
+        document.body.classList.add('stop-scrolling');
+    } else {
+        document.body.classList.remove('stop-scrolling');
+    }
 };
 
 window.openSupportChat = () => {
-    document.getElementById('support-modal')?.classList.remove('hidden');
-    toggleScrollLock(true);
-    if(window.lucide) lucide.createIcons();
+    const el = document.getElementById('support-modal');
+    if(el) {
+        el.classList.remove('hidden');
+        toggleScrollLock(true);
+        if(window.lucide) lucide.createIcons();
+    }
 };
 
 window.closeSupportChat = () => {
-    document.getElementById('support-modal')?.classList.add('hidden');
+    document.getElementById('support-modal').classList.add('hidden');
     toggleScrollLock(false);
 };
 
 window.openExploreModal = () => {
-    document.getElementById('explore-modal')?.classList.remove('hidden');
-    toggleScrollLock(true);
-    window.switchHubView('top-donors'); 
+    const el = document.getElementById('explore-modal');
+    if(el) {
+        el.classList.remove('hidden');
+        toggleScrollLock(true);
+        window.switchHubView('top-donors'); // Initial Load
+    }
 };
 
 window.closeExploreModal = () => {
-    document.getElementById('explore-modal')?.classList.add('hidden');
+    document.getElementById('explore-modal').classList.add('hidden');
+    toggleScrollLock(false);
+};
+
+window.openWalletModal = () => {
+    const el = document.getElementById('wallet-modal');
+    if(el) {
+        el.classList.remove('hidden');
+        const bal = document.getElementById('token-count')?.innerText || "0";
+        const walletDisplay = document.getElementById('wallet-token-count');
+        if(walletDisplay) walletDisplay.innerText = bal;
+        toggleScrollLock(true);
+    }
+};
+
+window.closeWalletModal = () => {
+    document.getElementById('wallet-modal').classList.add('hidden');
+    toggleScrollLock(false);
+};
+
+window.openAccountModal = () => {
+    const el = document.getElementById('account-modal');
+    if(el) {
+        el.classList.remove('hidden');
+        toggleScrollLock(true);
+    }
+};
+
+window.closeAccountModal = () => {
+    document.getElementById('account-modal').classList.add('hidden');
     toggleScrollLock(false);
 };
 
 // ==========================================
-// 2. HUB ENGINE (REQUIRES: query, orderByChild, limitToLast)
+// 2. HUB ENGINE (DIRECT FIREBASE + STAGGERED LOAD)
 // ==========================================
 
-let allTopItems = [];    
-let displayedCount = 0;  
+let allTopItems = [];    // Stores the full Top 25 snapshot
+let displayedCount = 0;  // How many are currently rendered
 let currentViewMode = '';
 let currentSortKey = '';
 
@@ -2467,48 +2416,68 @@ const getVerifiedBadge = () => `<svg class="w-2.5 h-2.5 text-blue-500 flex-shrin
 
 window.switchHubView = async (view) => {
     const container = document.getElementById('hub-content');
-    if(!container) return;
-
     currentViewMode = view;
     currentSortKey = view === 'live' ? 'timestamp' : (view === 'top-donors' ? 'totalDonated' : 'totalRaised');
     const dbPath = view === 'live' ? 'donations' : 'users';
 
-    // UI Tab Styling
-    document.querySelectorAll('.hub-nav-btn').forEach(btn => btn.classList.remove('active', 'text-blue-500'));
+    // UI Tab Update
+    document.querySelectorAll('.hub-nav-btn').forEach(btn => {
+        btn.classList.remove('active', 'text-blue-500');
+        btn.classList.add('text-zinc-500');
+    });
     const activeBtnId = view === 'live' ? 'btn-live' : (view === 'top-donors' ? 'btn-donors' : 'btn-earners');
     document.getElementById(activeBtnId)?.classList.add('active', 'text-blue-500');
     
+    // Reset Data
     displayedCount = 0;
     allTopItems = [];
-    container.innerHTML = `<div class="py-20 text-center animate-pulse text-blue-500 text-[10px] font-black uppercase tracking-widest">Syncing Pulse...</div>`;
+    container.innerHTML = `<div id="hub-loader" class="flex flex-col items-center justify-center py-20 opacity-40"><div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div><p class="text-[8px] font-black uppercase tracking-[0.2em] text-blue-500">Synchronizing Pulse...</p></div>`;
 
     try {
-        // This uses the imports you added at the top
+        // One-time fetch of Top 25
         const hubQuery = query(ref(db, dbPath), orderByChild(currentSortKey), limitToLast(25));
         const snap = await get(hubQuery);
         const data = snap.val();
 
         if (!data) {
-            container.innerHTML = `<div class="py-20 text-center opacity-30 text-[10px] font-black uppercase">No Signal</div>`;
+            container.innerHTML = `<div class="py-20 text-center opacity-30 text-[10px] font-black uppercase">No Signal Detected</div>`;
             return;
         }
 
+        // Sort Descending
         allTopItems = Object.entries(data).sort((a, b) => (b[1][currentSortKey] || 0) - (a[1][currentSortKey] || 0));
-        container.innerHTML = ''; 
-        loadNextBatch(); 
-    } catch (e) { console.error(e); }
+        
+        container.innerHTML = ''; // Remove loader
+        loadNextBatch(); // Initial load of 5
+
+        // User Sticky Stats
+        if (view !== 'live') {
+            const user = auth.currentUser;
+            if (user) {
+                const userSnap = await get(ref(db, `users/${user.uid}`));
+                if (userSnap.exists()) renderStickyUserStats(userSnap.val(), currentSortKey);
+            }
+        }
+    } catch (e) {
+        console.error("Hub Sync Failure:", e);
+    }
 };
 
 function loadNextBatch() {
     const container = document.getElementById('hub-content');
-    const batch = allTopItems.slice(displayedCount, displayedCount + 5);
+    const batchSize = 5;
+    const nextItems = allTopItems.slice(displayedCount, displayedCount + batchSize);
     
-    batch.forEach(([id, item]) => {
+    if (nextItems.length === 0) return;
+
+    nextItems.forEach(([id, item]) => {
         displayedCount++;
         const isPrem = item.isPremium || item.premium || item.fromIsPremium || false;
+        
         const html = currentViewMode === 'live' ? 
             renderLiveRow(item, isPrem) : 
             renderLeaderboardRow(item, isPrem, currentViewMode, displayedCount);
+        
         container.insertAdjacentHTML('beforeend', html);
     });
 }
@@ -2519,36 +2488,84 @@ function loadNextBatch() {
 
 function renderLiveRow(tx, isPrem) {
     return `
-    <div class="flex items-center gap-4 p-4 ${isPrem ? 'bg-blue-500/5 border-blue-500/30' : 'bg-white/5 border-white/5'} border rounded-[28px] mb-3">
+    <div class="flex items-center gap-4 p-4 ${isPrem ? 'bg-blue-500/5 border-blue-500/30' : 'bg-white/5 border-white/5'} border rounded-[28px] mb-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div class="flex -space-x-3 flex-shrink-0">
-            <img src="${tx.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
+            <img src="${tx.fromAvatar || presets[0]}" class="w-10 h-10 rounded-full border-2 border-black object-cover ${isPrem ? 'ring-2 ring-blue-500' : ''}">
             <img src="${tx.toAvatar || presets[1]}" class="w-10 h-10 rounded-full border-2 border-black object-cover">
         </div>
         <div class="flex-1 min-w-0">
-            <h4 class="text-[10px] font-black text-white uppercase truncate">@${tx.fromName} → ${tx.toName}</h4>
+            <h4 class="text-[10px] font-black text-white uppercase truncate flex items-center gap-1">
+                @${tx.fromName || 'User'} ${isPrem ? getVerifiedBadge() : ''}
+                <span class="text-blue-500 mx-1">→</span> ${tx.toName || 'Mission'}
+            </h4>
             <p class="text-[7px] text-zinc-500 font-bold uppercase mt-1">${getRelativeTime(tx.timestamp)}</p>
         </div>
-        <div class="text-right"><span class="text-xs font-black text-emerald-400">+$${tx.amount}</span></div>
+        <div class="text-right">
+            <span class="text-xs font-black text-emerald-400">+$${tx.amount || 0}</span>
+        </div>
     </div>`;
 }
 
 function renderLeaderboardRow(item, isPrem, view, rank) {
     const val = view === 'top-donors' ? item.totalDonated : item.totalRaised;
     return `
-    <div class="flex items-center gap-4 p-4 rounded-[32px] ${isPrem ? 'bg-blue-500/5 border-blue-500/40' : 'bg-white/5 border-white/5'} border mb-3">
-        <div class="w-8 text-center font-black italic text-zinc-600">${rank}</div>
-        <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover border-2 border-white/5">
-        <div class="flex-1"><h4 class="text-[11px] font-black text-white uppercase flex items-center gap-1">@${item.username} ${isPrem ? getVerifiedBadge() : ''}</h4></div>
-        <div class="text-right"><span class="text-sm font-black text-white italic">${val || 0}</span></div>
+    <div class="group flex items-center gap-4 p-4 rounded-[32px] ${isPrem ? 'bg-blue-500/5 border-blue-500/40 shadow-lg shadow-blue-500/5' : 'bg-white/5 border-white/5'} border mb-3 transition-all animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div class="w-8 text-center font-black italic ${rank <= 3 ? 'text-blue-500' : 'text-zinc-800'}">${rank.toString().padStart(2, '0')}</div>
+        <div class="relative">
+            <img src="${item.avatar || presets[0]}" class="w-12 h-12 rounded-full object-cover border-2 border-white/5 ${isPrem ? 'ring-2 ring-blue-500' : ''}">
+            ${isPrem ? `<div class="absolute -right-1 -bottom-1 bg-blue-500 rounded-full p-0.5 border border-black">${getVerifiedBadge().replace('text-blue-500', 'text-white')}</div>` : ''}
+        </div>
+        <div class="flex-1 min-w-0">
+            <h4 class="text-[11px] font-black text-white uppercase truncate flex items-center gap-1">@${item.username || 'User'} ${isPrem ? getVerifiedBadge() : ''}</h4>
+            <p class="text-[7px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">${view === 'top-donors' ? 'Verified Donor' : 'Verified Recipient'}</p>
+        </div>
+        <div class="text-right">
+            <span class="text-sm font-black text-white italic">${val || 0}</span>
+            <p class="text-[7px] text-zinc-800 font-black uppercase">Tokens</p>
+        </div>
     </div>`;
 }
 
-// Scroll listener
-document.getElementById('explore-modal')?.addEventListener('scroll', function() {
-    if (this.scrollTop + this.clientHeight >= this.scrollHeight - 50) {
-        if (displayedCount < allTopItems.length) loadNextBatch();
+// ==========================================
+// 4. SCROLL & STICKY STATS
+// ==========================================
+
+document.getElementById('explore-modal').addEventListener('scroll', function() {
+    const { scrollTop, scrollHeight, clientHeight } = this;
+    // Trigger next 5 when 50px from bottom of visible list
+    if (scrollTop + clientHeight >= scrollHeight - 50) {
+        if (displayedCount < allTopItems.length) {
+            loadNextBatch();
+        }
     }
 });
+
+function renderStickyUserStats(data, sortKey) {
+    let bar = document.getElementById('user-hub-status');
+    if (!bar) return;
+    const label = sortKey === 'totalDonated' ? 'Donation Volume' : 'Total Earnings';
+    const isPremium = data.isPremium || data.premium || false;
+
+    bar.className = `sticky bottom-0 p-5 ${isPremium ? 'bg-blue-900/20 border-blue-500/40' : 'bg-black/90 border-blue-500/20'} border-t mt-4 backdrop-blur-2xl animate-in slide-in-from-bottom-full`;
+    bar.innerHTML = `
+        <div class="flex justify-between items-center max-w-2xl mx-auto">
+            <div class="flex items-center gap-3">
+                <div class="relative">
+                    <img src="${data.avatar || presets[0]}" class="w-10 h-10 rounded-full object-cover border-2 border-blue-600">
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-white uppercase flex items-center gap-1">
+                        @${data.username} ${isPremium ? getVerifiedBadge() : ''}
+                    </p>
+                    <p class="text-[7px] text-blue-500 font-black uppercase tracking-[0.2em]">${label}</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <span class="text-xl font-black text-white italic">${data[sortKey] || 0}</span>
+                <p class="text-[8px] text-zinc-600 font-black uppercase">My Total</p>
+            </div>
+        </div>`;
+}
 
 </script>
 </body>
