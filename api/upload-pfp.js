@@ -1,19 +1,21 @@
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '4mb', // Allows larger image strings
+    },
+  },
+};
+
 export default async function handler(req, res) {
-  // Only allow POST requests
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    // 1. Get the image data from the request body
-    // Note: We expect the frontend to send a JSON with { image: "base64_string" }
     const { image } = req.body;
+    if (!image) return res.status(400).json({ error: 'No image data provided' });
 
-    if (!image) {
-      return res.status(400).json({ error: 'No image data provided' });
-    }
+    // Remove the data:image/png;base64, prefix if it exists
+    const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
 
-    // 2. Forward to Imgur
     const imgurResponse = await fetch('https://api.imgur.com/3/image', {
       method: 'POST',
       headers: {
@@ -21,7 +23,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        image: image.split(',')[1], // Remove the "data:image/png;base64," prefix
+        image: base64Data,
         type: 'base64'
       }),
     });
@@ -32,10 +34,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ link: data.data.link });
     } else {
       console.error('Imgur Error:', data);
-      return res.status(500).json({ error: 'Imgur upload failed' });
+      return res.status(500).json({ error: 'Imgur rejected the image' });
     }
   } catch (error) {
-    console.error('Server Error:', error);
+    console.error('Vercel Error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
