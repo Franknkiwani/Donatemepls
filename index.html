@@ -1019,157 +1019,126 @@ const syncScrollLock = () => {
         });
     }
 
- --- MASTER DATA SYNC (WITH SKELETON AUTO-EXIT) ---
+ --- // --- CONSOLIDATED MASTER DATA SYNC ---
 onAuthStateChanged(auth, (user) => {
     if (user) {
         const isAdmin = user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1";
-        
-        // Track readiness for skeleton exit
-        let syncReady = { user: false, campaigns: false };
-        const checkReady = () => {
-            if (syncReady.user && syncReady.campaigns) {
-                const loader = document.getElementById('master-loader'); // Use your loader's ID
-                if (loader) {
+
+        // 1. GLOBAL LOADER EXIT SIGNAL
+        // This replaces the old checkReady logic with a smoother 3s delay
+        window.signalDataReady = () => {
+            const loader = document.getElementById('master-loader');
+            if (loader) {
+                // Wait 3 seconds for skeletons to shine, then fade out
+                setTimeout(() => {
                     loader.classList.add('loader-fade-out');
                     setTimeout(() => loader.remove(), 600);
-                }
+                }, 3000);
             }
         };
 
-        // 1. User Data Listener & UI Sync
+        // 2. USER DATA & BAN GUARD
         onValue(ref(db, `users/${user.uid}`), (s) => {
             const d = s.val() || {};
 
-            // --- THE BAN GUARD ---
             if (d.banned) {
-                document.getElementById('master-loader')?.remove(); // Kill loader if banned
+                document.getElementById('master-loader')?.remove();
                 document.body.innerHTML = `
                     <div class="h-screen bg-black flex flex-col items-center justify-center text-center p-6 font-sans">
                         <div class="p-8 border border-red-500/30 bg-red-500/5 rounded-[40px] max-w-sm">
                             <h1 class="text-red-600 text-5xl font-black mb-4 italic tracking-tighter">ACCESS REVOKED</h1>
                             <p class="text-zinc-500 text-[10px] uppercase tracking-[0.2em] font-bold mb-6">Security Protocol 403: UID Blacklisted</p>
-                            <p class="text-white/80 text-xs font-medium leading-relaxed mb-8">
-                                This account has been permanently suspended for platform abuse or reaching maximum security strikes.
-                            </p>
-                            <a href="/support" class="inline-block w-full py-4 px-6 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[11px] uppercase rounded-full transition-all transform hover:scale-105 no-underline">
-                                Appeal Suspension
-                            </a>
-                            <p class="mt-4 text-[8px] text-zinc-600 uppercase font-bold tracking-widest">Case ID: ${user.uid.substring(0, 10)}</p>
+                            <p class="text-white/80 text-xs font-medium leading-relaxed mb-8">This account has been permanently suspended for platform abuse.</p>
+                            <a href="/support" class="inline-block w-full py-4 px-6 bg-emerald-500 text-black font-black text-[11px] uppercase rounded-full no-underline">Appeal Suspension</a>
                         </div>
                     </div>`;
                 return;
             }
 
+            // Sync UI Elements
             const name = d.username || "User";
             const avatar = d.avatar || presets[0];
-
-            // Update Header & Modals
+            
             const hHandle = document.getElementById('header-handle');
             const hPfp = document.getElementById('header-pfp');
-            const hInit = document.getElementById('header-initial');
-            const uInput = document.getElementById('username-input');
-            const mPreview = document.getElementById('modal-preview-img');
-            const mInit = document.getElementById('modal-preview-initial'); 
-            const proPfp = document.getElementById('pro-pfp-preview');      
-            const proName = document.getElementById('pro-name-preview');
-
             if(hHandle) hHandle.innerText = isAdmin ? `👑 @${name}` : `@${name}`;
             if(hPfp) { hPfp.src = avatar; hPfp.classList.remove('hidden'); }
-            if(hInit) hInit.classList.add('hidden');
-            if(uInput) uInput.value = name;
-            if(mPreview) { mPreview.src = avatar; mPreview.classList.remove('hidden'); }
-            if(mInit) mInit.classList.add('hidden'); 
-            if(proPfp) { proPfp.src = avatar; proPfp.classList.remove('hidden'); }
-            if(proName) proName.innerText = name;
-
-            // Tokens & Security
+            
+            // Tokens & Premium Status
             const tokenElement = document.getElementById('token-count');
             if(tokenElement) {
                 tokenElement.innerText = d.tokens || 0;
                 if(isAdmin) tokenElement.classList.add('text-amber-500');
             }
-            if(d.tokens > 10000) window.logSecurityAction('WHALE_ACCOUNT_SYNC', { tokens: d.tokens, user: name });
 
-            // Premium Logic
             const hVerified = document.getElementById('header-verified');
-            const mgmtZone = document.getElementById('premium-management-zone');
-            const upgradeNavBtn = document.querySelector('button[onclick="openUpgradeModal()"]');
+            const upgradeBtn = document.querySelector('button[onclick="openUpgradeModal()"]');
             if(d.isPremium || isAdmin) {
-                if(hVerified) hVerified.classList.remove('hidden');
-                if(mgmtZone && d.isPremium) mgmtZone.classList.remove('hidden');
-                if(upgradeNavBtn) upgradeNavBtn.classList.add('hidden');
-            } else {
-                if(hVerified) hVerified.classList.add('hidden');
-                if(mgmtZone) mgmtZone.classList.add('hidden');
-                if(upgradeNavBtn) upgradeNavBtn.classList.remove('hidden');
+                hVerified?.classList.remove('hidden');
+                upgradeBtn?.classList.add('hidden');
             }
-
-            syncReady.user = true;
-            checkReady();
         });
 
-        // 2. Initial UI Visibility
+        // 3. CORE FEATURE LOADING
+        if (typeof setupPresence === 'function') setupPresence(user.uid);
+        if (typeof loadUserFeed === 'function') loadUserFeed();
+        
+        // This triggers the data loading + the skeleton timer
+        if (typeof loadCampaigns === 'function') {
+            loadCampaigns(true); 
+            window.signalDataReady(); 
+        }
+
+        // Show protected UI
         ['user-tools', 'token-bar'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
         document.getElementById('login-btn')?.classList.add('hidden');
 
-        // 3. Community Loaders
-        if (typeof setupPresence === 'function') setupPresence(user.uid);
-        if (typeof loadUserFeed === 'function') loadUserFeed();
-        if (typeof loadCampaigns === 'function') {
-            loadCampaigns();
-            // Assuming loadCampaigns fetches data, we trigger readiness after a slight delay
-            // or you can move this line inside your loadCampaigns success callback
-            setTimeout(() => { syncReady.campaigns = true; checkReady(); }, 800);
-        }
-        if (typeof switchView === 'function') switchView('campaigns');
-
-        // 4. Payout Listener (History)
+        // 4. PAYOUT HISTORY SYNC
         onValue(ref(db, `payouts`), (snapshot) => {
             const allPayouts = snapshot.val() || {};
-            const historyList = document.getElementById('payout-history-list');
-            const historyContainer = document.getElementById('payout-history-container');
-            if(historyList) historyList.innerHTML = '';
-
-            let totalPaid = 0; let pendingCount = 0; let hasHistory = false;
+            const list = document.getElementById('payout-history-list');
+            if(!list) return;
+            
+            list.innerHTML = '';
+            let totalPaid = 0;
+            
             Object.values(allPayouts).filter(p => p.uid === user.uid).sort((a,b) => b.timestamp - a.timestamp).forEach(p => {
-                hasHistory = true; 
                 if (p.status === 'completed' || p.status === 'paid') totalPaid += (p.netAmount || 0);
-                if (p.status === 'pending') pendingCount++;
-                if(historyList) {
-                    const div = document.createElement('div');
-                    div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 mb-2";
-                    const statusColor = (p.status === 'completed' || p.status === 'paid') ? 'text-emerald-500' : 'text-amber-500';
-                    div.innerHTML = `<div class="flex flex-col"><span class="text-[9px] font-black text-white uppercase">$${p.netAmount.toFixed(2)}</span><span class="text-[8px] text-zinc-500">${new Date(p.timestamp).toLocaleDateString()}</span></div><span class="text-[8px] font-black uppercase ${statusColor}">${p.status}</span>`;
-                    historyList.appendChild(div);
-                }
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 mb-2";
+                div.innerHTML = `
+                    <div class="flex flex-col">
+                        <span class="text-[9px] font-black text-white uppercase">$${(p.netAmount || 0).toFixed(2)}</span>
+                        <span class="text-[8px] text-zinc-500">${new Date(p.timestamp).toLocaleDateString()}</span>
+                    </div>
+                    <span class="text-[8px] font-black uppercase ${p.status === 'paid' ? 'text-emerald-500' : 'text-amber-500'}">${p.status}</span>`;
+                list.appendChild(div);
             });
-            if(hasHistory && historyContainer) historyContainer.classList.remove('hidden');
-            if(document.getElementById('total-withdrawn')) document.getElementById('total-withdrawn').innerText = `$${totalPaid.toFixed(2)}`;
-            if(document.getElementById('pending-count')) document.getElementById('pending-count').innerText = pendingCount;
+            
+            const totalDisplay = document.getElementById('total-withdrawn');
+            if(totalDisplay) totalDisplay.innerText = `$${totalPaid.toFixed(2)}`;
         });
 
-        // 5. Security Action Logger
-        let actionCount = 0;
+        // 5. SECURITY LOGGER
         window.logSecurityAction = async (actionType, metadata = {}) => {
-            actionCount++;
-            const isHighValue = (metadata.amount && metadata.amount > 1000) || (metadata.tokens && metadata.tokens > 5000);
-            if (isHighValue || actionCount > 15 || actionType === 'ADMIN_ACTION') {
-                try {
-                    const idToken = await user.getIdToken();
-                    await fetch('/api/security-audit', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ idToken, actionType, metadata, severity: isHighValue ? 'high' : 'info' })
-                    });
-                    if(actionCount > 15) actionCount = 0; 
-                } catch (e) { console.error("Audit Fail"); }
-            }
+            try {
+                const idToken = await user.getIdToken();
+                await fetch('/api/security-audit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idToken, actionType, metadata })
+                });
+            } catch (e) { console.warn("Audit log skipped"); }
         };
+
     } else {
-        // If logged out, remove loader immediately to show landing/login
+        // Logged out: Clean UI and remove loader
         document.getElementById('master-loader')?.remove();
+        document.getElementById('login-btn')?.classList.remove('hidden');
+        ['user-tools', 'token-bar'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
     }
 });
+
 
 // --- UNIFIED FREE UPLOAD, SPINNER & VERCEL SYNC ---
 
