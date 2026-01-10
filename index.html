@@ -52,7 +52,7 @@
         </div>
     </div>
 
-    <div id="profile-modal" class="fixed inset-0 z-[100] hidden bg-black/90 flex items-center justify-center p-4">
+  <div id="profile-modal" class="fixed inset-0 z-[100] hidden bg-black/90 flex items-center justify-center p-4">
     <div class="bg-zinc-900 text-white w-full max-w-sm rounded-[32px] p-8 border border-white/10 overflow-y-auto max-h-[90vh]">
         <div class="text-center mb-6">
             <div class="w-20 h-20 mx-auto rounded-full border-2 border-amber-500 p-1 mb-2">
@@ -76,10 +76,9 @@
             <div>
                 <label class="text-[10px] font-bold text-zinc-500 uppercase block mb-2">Avatars</label>
                 <div class="grid grid-cols-4 gap-2" id="avatar-grid">
-                    <div onclick="checkPremiumAndUpload()" class="relative aspect-square bg-zinc-800 rounded-xl flex items-center justify-center border-2 border-dashed border-zinc-700 hover:border-amber-500 cursor-pointer">
-                        <i data-lucide="plus" class="w-4 h-4 text-zinc-500"></i>
-                        <div class="premium-tag">PRO</div>
-                        <input type="file" id="pfp-upload" class="hidden" accept="image/*">
+                    <div onclick="document.getElementById('pfp-upload').click()" class="relative aspect-square bg-zinc-800 rounded-xl flex items-center justify-center border-2 border-dashed border-zinc-700 hover:border-blue-500 cursor-pointer group transition-all">
+                        <i data-lucide="plus" class="w-4 h-4 text-zinc-500 group-hover:text-white"></i>
+                        <input type="file" id="pfp-upload" class="hidden" accept="image/*" onchange="previewImage(event)">
                     </div>
                 </div>
             </div>
@@ -99,6 +98,7 @@
         </div>
     </div>
 </div>
+
 <div id="support-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md hidden p-4">
     <div class="bg-zinc-950 border border-white/10 w-full max-w-lg rounded-[2.5rem] overflow-hidden flex flex-col shadow-[0_0_50px_rgba(37,99,235,0.15)] h-[75vh] md:h-[600px] transition-all transform">
         
@@ -1133,18 +1133,29 @@ onAuthStateChanged(auth, (user) => {
 
 
 
-    window.checkPremiumAndUpload = async () => {
-        const user = auth.currentUser;
-        if (!user) return notify("Please login first");
-        const snap = await get(ref(db, `users/${user.uid}/isPremium`));
-        if (snap.val()) {
-            document.getElementById('pfp-upload').click();
-        } else {
-            notify("PRO required for custom uploads!");
-            closeProfile();
-            openUpgradeModal();
-        }
-    };
+   // New Free Upload Handler
+window.handleFreeUpload = () => {
+    const user = auth.currentUser;
+    if (!user) return notify("Please login first");
+    
+    // Direct trigger - no premium check
+    document.getElementById('pfp-upload').click();
+};
+
+// Handle the actual file selection and preview
+document.getElementById('pfp-upload').onchange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            // Update the preview image in the modal
+            document.getElementById('modal-preview-img').src = event.target.result;
+            notify("Avatar selected! Click Update to save.");
+        };
+        reader.readAsDataURL(file);
+    }
+};
+
 
     window.buyPack = (amount, tokens) => {
         const container = document.getElementById('paypal-tokens-container');
@@ -1319,43 +1330,50 @@ window.handleWithdrawSubmit = async () => {
     }
 };
 
-// --- IMGUR UPLOAD HANDLER ---
+// --- SECURE VERCEL UPLOAD HANDLER ---
 document.getElementById('pfp-upload')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Validation
-    if (file.size > 2 * 1024 * 1024) return notify("Image too large (Max 2MB)");
+    // 1. Client-side Size Validation
+    if (file.size > 2 * 1024 * 1024) {
+        return notify("Image too large (Max 2MB)");
+    }
     
-    notify("Uploading to Imgur...");
+    notify("Processing via Vercel...");
     
+    // Create FormData for the file
     const formData = new FormData();
     formData.append('image', file);
 
     try {
-        const response = await fetch('https://api.imgur.com/3/image', {
+        // 2. Replace '/api/upload-pfp' with your actual Vercel endpoint path
+        const response = await fetch('/api/upload-pfp', {
             method: 'POST',
-            headers: { 
-                Authorization: 'Client-ID 891e5bb4aa94282' 
-            },
+            // Note: We don't send the Client-ID here anymore. 
+            // Vercel handles it using Environment Variables for safety.
             body: formData
         });
 
         const data = await response.json();
 
-        if (data.success) {
-            const link = data.data.link;
-            window.tempAvatar = link; // Stores the URL for saveProfileChanges()
+        if (response.ok && data.link) {
+            const link = data.link;
+            
+            // 3. Update UI and global state
+            window.tempAvatar = link; 
             document.getElementById('modal-preview-img').src = link;
-            notify("Uploaded! Click 'Update Profile' to save.");
+            
+            notify("Verified! Click 'Update Profile' to apply.");
         } else {
-            notify("Imgur upload failed. Check API limits.");
+            notify(data.error || "Upload failed via Vercel.");
         }
     } catch (err) {
-        notify("Network error during upload.");
-        console.error(err);
+        notify("Vercel connection error.");
+        console.error("Upload Error:", err);
     }
 });
+
 // --- 0. CONFIG & PRESETS ---
 const communityPresets = [
     "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix",
@@ -2529,7 +2547,6 @@ function renderStickyUserStats(data, sortKey) {
             </div>
         </div>`;
 }
-
 
 </script>
 </body>
