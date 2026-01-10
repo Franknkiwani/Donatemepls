@@ -1675,8 +1675,7 @@ window.viewCreatorProfile = async (targetUid) => {
         if(window.openUpgradeModal) openUpgradeModal();
     }
 };
-
-// --- 7. TRANSACTIONS & DONOR LOGGING (API POWERED + MAX SECURITY) ---
+// --- 7. TRANSACTIONS & DONOR LOGGING (SYNCED WITH HUB) ---
 
 window.closeSuccessModal = () => {
     document.getElementById('donation-success-modal').classList.add('hidden');
@@ -1690,35 +1689,22 @@ window.confirmDonation = async () => {
     const amountInput = document.getElementById('donate-input-amount');
     const amount = parseInt(amountInput.value);
     const btn = document.getElementById('confirm-donation-btn');
-    
-    // --- SECURITY CONFIG ---
     const ADMIN_UID = "4xEDAzSt5javvSnW5mws2Ma8i8n1";
 
-    // Basic Validation
     if (!amount || amount <= 0) return notify("Enter a valid amount");
-    if (amount < 1) return notify("Minimum donation is 1 token");
 
-    // --- 1. ADMIN SECRET CHECK (AUTO-DETECTION) ---
     let adminSecret = null;
     if (user.uid === ADMIN_UID) {
-        // Triggers the neat verification popup we created
         adminSecret = await requestAdminSecret();
-        
-        // If user closes modal or leaves empty, stop the donation
-        if (!adminSecret) {
-            return; 
-        }
+        if (!adminSecret) return; 
     }
 
-    // UI Feedback: Lock the button
     btn.disabled = true;
-    btn.innerText = "Verifying Transaction...";
+    btn.innerHTML = `<span class="animate-pulse">Transmitting Signal...</span>`;
 
     try {
-        // --- STEP 1: GENERATE SECURE PASS (ID TOKEN) ---
         const idToken = await user.getIdToken(true);
 
-        // --- STEP 2: CALL VERCEL SERVERLESS API ---
         const response = await fetch('/api/donate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1726,46 +1712,47 @@ window.confirmDonation = async () => {
                 idToken,
                 targetId: activeTarget.id,
                 amount: amount,
-                type: activeTarget.type, // 'user' or 'campaign'
-                adminSecret: adminSecret  // Passed to verify against Vercel Env
+                type: activeTarget.type,
+                adminSecret: adminSecret 
             })
         });
 
         const result = await response.json();
 
-        // --- STEP 3: HANDLE SERVER ERRORS ---
         if (!response.ok) {
-            if (result.error && result.error.includes("BANNED")) {
+            if (result.error?.includes("BANNED")) {
                 location.reload();
                 return;
             }
             throw new Error(result.error || "Transaction failed");
         }
 
-        // --- STEP 4: SUCCESS UI ---
-        const netAmount = result.netSent;
-        const feeAmount = amount - netAmount;
-
-        document.getElementById('success-net-amount').innerText = netAmount;
+        // --- SUCCESS UI & HUB REFRESH ---
+        document.getElementById('success-net-amount').innerText = result.netSent;
         document.getElementById('success-gross-amount').innerText = amount;
-        document.getElementById('success-fee-amount').innerText = feeAmount;
         
         closeDonateModal(); 
         document.getElementById('donation-success-modal').classList.remove('hidden'); 
         document.body.classList.add('stop-scrolling');
         
-        // Celebrate!
         if(typeof confetti === 'function') confetti();
         amountInput.value = '';
 
+        // REFRESH THE HUB: If the hub is open, show the new live donation immediately
+        if (typeof window.switchHubView === 'function') {
+            // We wait 1 second for DB propagation then refresh the 'live' view
+            setTimeout(() => window.switchHubView('live'), 1000);
+        }
+
     } catch (e) { 
         console.error("Donation Error:", e);
-        showErrorModal(e.message);
+        notify(e.message);
     } finally {
         btn.disabled = false;
         btn.innerText = "Confirm Transfer";
     }
 };
+
 
 // --- 8. GLOBAL HANDLERS ---
 window.handleTip = async (uid, username, avatar) => {
