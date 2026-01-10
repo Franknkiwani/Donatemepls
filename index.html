@@ -29,6 +29,15 @@
             <button id="login-btn" onclick="openAuthModal()" class="bg-white text-black px-5 py-1.5 rounded-full font-bold text-xs">Login</button>
         </div>
     </nav>
+<div id="global-loader" class="global-skeleton-container">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="h-64 skeleton-box"></div>
+        <div class="h-64 skeleton-box"></div>
+        <div class="h-64 skeleton-box"></div>
+    </div>
+    <div class="h-32 w-full skeleton-box"></div>
+    <div class="h-32 w-full skeleton-box"></div>
+</div>
 
     <div id="auth-modal" class="fixed inset-0 z-[110] hidden bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-zinc-900 text-white w-full max-w-[380px] rounded-[32px] p-8 border border-white/10">
@@ -2608,6 +2617,46 @@ function renderStickyUserStats(data, sortKey) {
             </div>
         </div>`;
 }
+// A simple counter to track when data is ready
+let dataLoaded = { campaigns: false, users: false };
+
+const checkLoadingStatus = () => {
+    // Hide the loader once BOTH campaigns and users are fetched
+    if (dataLoaded.campaigns && dataLoaded.users) {
+        const loader = document.getElementById('global-loader');
+        if (loader) loader.classList.add('hide-loader');
+        
+        // Remove from DOM after transition for performance
+        setTimeout(() => loader?.remove(), 500);
+    }
+};
+
+const loadCampaigns = () => {
+    onValue(ref(db, 'campaigns'), (snapshot) => {
+        // ... your existing render logic here ...
+        
+        dataLoaded.campaigns = true;
+        checkLoadingStatus();
+    });
+};
+
+const loadUserFeed = () => {
+    onValue(ref(db, 'users'), (snapshot) => {
+        // ... your existing render logic here ...
+        
+        dataLoaded.users = true;
+        checkLoadingStatus();
+    });
+};
+
+// Start the sequence
+const startApp = () => {
+    // Header is already visible in HTML
+    loadCampaigns();
+    loadUserFeed();
+};
+
+startApp();
 
 </script>
 </body>
