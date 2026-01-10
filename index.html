@@ -145,6 +145,54 @@
     </div>
 </div>
 
+<div id="explore-modal" class="hidden fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl font-['Plus_Jakarta_Sans']">
+    
+    <div class="max-w-4xl mx-auto h-full flex flex-col p-6">
+        
+        <div class="flex flex-col md:flex-row justify-between items-end gap-6 mb-10 border-b border-white/5 pb-8">
+            <div>
+                <h2 class="text-3xl font-black italic tracking-tighter text-white uppercase leading-none">
+                    Global <span class="text-blue-500">Pulse</span>
+                </h2>
+                <p class="text-[9px] text-zinc-500 font-bold uppercase tracking-[0.3em] mt-2 italic">
+                    Top 25 Network Signal • 2026 Protocol
+                </p>
+            </div>
+
+            <div class="flex bg-zinc-900 border border-white/5 p-1 rounded-2xl">
+                <button onclick="switchHubView('top-donors')" 
+                        class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:text-white text-zinc-400">
+                    Top Donors
+                </button>
+                <button onclick="switchHubView('top-missions')" 
+                        class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:text-white text-zinc-400">
+                    Top Earners
+                </button>
+            </div>
+
+            <button onclick="closeModals()" class="mb-2 text-[10px] font-black uppercase text-zinc-600 hover:text-red-500 transition-colors">
+                Close [ESC]
+            </button>
+        </div>
+
+        <div id="hub-content" class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+            <div class="flex flex-col items-center justify-center py-40 opacity-20">
+                <p class="text-[10px] font-black uppercase tracking-widest">Awaiting Signal Input...</p>
+            </div>
+        </div>
+
+        <div id="user-hub-status"></div>
+
+    </div>
+</div>
+
+<style>
+    /* Clean scrollbar for the hub */
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
+</style>
 
 <div id="upgrade-modal" class="hidden fixed inset-0 z-[110] bg-black/95 flex items-center justify-center p-4">
     <div class="bg-zinc-900 text-white w-full max-w-2xl rounded-[40px] border border-white/10 overflow-hidden flex flex-col md:flex-row max-h-[90vh] overflow-y-auto custom-scrollbar">
@@ -2348,6 +2396,99 @@ window.closeExploreModal = () => {
     document.getElementById('explore-modal').classList.add('hidden');
     document.body.style.overflow = '';
 };
+window.switchHubView = async (view) => {
+    const container = document.getElementById('hub-content');
+    // Loading state with a custom pulse
+    container.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-20 opacity-40">
+            <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p class="text-[8px] font-black uppercase tracking-[0.2em] text-blue-400">Synchronizing Pulse...</p>
+        </div>`;
+
+    const path = 'users'; 
+    const sortKey = view === 'top-donors' ? 'totalDonated' : 'raised';
+
+    try {
+        const snapshot = await get(ref(db, path));
+        const allData = snapshot.val();
+        if (!allData) return;
+
+        // Sort Top 25 locally (Efficient for testing)
+        const sorted = Object.entries(allData)
+            .sort((a, b) => (b[1][sortKey] || 0) - (a[1][sortKey] || 0))
+            .slice(0, 25); 
+
+        container.innerHTML = '';
+        sorted.forEach(([id, item], index) => {
+            const rank = index + 1;
+            const isFirst = rank === 1;
+            const isTop3 = rank <= 3;
+            
+            const card = `
+                <div class="group relative flex items-center gap-4 p-5 rounded-[24px] transition-all duration-500 
+                    ${isFirst ? 'bg-blue-600/10 border-2 border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.2)]' : 'bg-white/5 border border-white/5 hover:border-white/20'}">
+                    
+                    <div class="relative w-10 flex-shrink-0">
+                        <span class="text-2xl font-black italic tracking-tighter ${isTop3 ? 'text-blue-500' : 'text-zinc-800'}">
+                            ${rank.toString().padStart(2, '0')}
+                        </span>
+                        ${isFirst ? '<div class="absolute -top-4 -left-2 text-[10px] animate-bounce">👑</div>' : ''}
+                    </div>
+
+                    <div class="flex-1">
+                        <h4 class="text-[11px] font-extrabold text-white uppercase tracking-tight group-hover:text-blue-400 transition-colors">
+                            ${item.username || 'Ghost_Signal'}
+                        </h4>
+                        <p class="text-[8px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">
+                            ${view === 'top-donors' ? 'Uplink Contributor' : 'Mission Leader'}
+                        </p>
+                    </div>
+
+                    <div class="text-right">
+                        <div class="flex items-center justify-end gap-1">
+                            <span class="text-sm font-black text-white italic">${item[sortKey] || 0}</span>
+                            <div class="w-1.5 h-1.5 rounded-full bg-blue-500 ${isFirst ? 'animate-ping' : ''}"></div>
+                        </div>
+                        <p class="text-[7px] text-zinc-500 font-black uppercase">Tokens</p>
+                    </div>
+                </div>`;
+            container.insertAdjacentHTML('beforeend', card);
+        });
+
+        // Sticky User Rank (Only if they aren't in the Top 25 already)
+        const user = auth.currentUser;
+        if (user && allData[user.uid]) {
+            renderStickyUserStats(allData[user.uid], sortKey);
+        }
+
+    } catch (e) {
+        console.error("Hub Sync Failed", e);
+    }
+};
+function renderStickyUserStats(data, sortKey) {
+    let bar = document.getElementById('user-hub-status');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'user-hub-status';
+        document.getElementById('explore-modal').appendChild(bar);
+    }
+
+    bar.className = "sticky bottom-0 left-0 right-0 p-6 bg-zinc-950/80 backdrop-blur-md border-t border-blue-500/30 mt-4 animate-in slide-in-from-bottom-full";
+    bar.innerHTML = `
+        <div class="flex justify-between items-center max-w-4xl mx-auto">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-black text-white italic">YOU</div>
+                <div>
+                    <p class="text-[10px] font-black text-white uppercase">${data.username}</p>
+                    <p class="text-[8px] text-zinc-500 font-bold uppercase tracking-widest">Personal Signal</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <span class="text-lg font-black text-blue-500 italic">${data[sortKey] || 0}</span>
+                <p class="text-[8px] text-zinc-500 font-black uppercase">Your Tokens</p>
+            </div>
+        </div>`;
+}
 
 </script>
 </body>
