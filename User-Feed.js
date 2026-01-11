@@ -1,5 +1,6 @@
-import { ref, onValue, get, query, limitToLast } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+Import { ref, onValue, get, query, limitToLast } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 import { auth, db } from './firebase-config.js';
+import { ref, onValue, get, query, limitToLast, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 
 const communityPresets = [
     "https://img.pikbest.com/origin/10/25/30/74apIkbEsT5qB.jpg!w700wp",
@@ -213,4 +214,79 @@ window.closeQuickProfile = () => {
     toggleScroll(false);
     document.getElementById('quick-profile-modal').style.display = 'none';
     window.history.replaceState(null, null, ' '); // Clears hash without jump
+};
+// --- REQUEST SYSTEM ---
+window.openRequestPanel = (targetUid, username) => {
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'request-panel-overlay';
+    overlay.className = "fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300";
+    
+    overlay.innerHTML = `
+        <div class="bg-zinc-900 border border-white/10 w-full max-w-[400px] rounded-[35px] p-8 shadow-2xl relative scale-in-center">
+            <h3 class="text-white font-black uppercase tracking-widest text-lg mb-2 italic">Send Request</h3>
+            <p class="text-zinc-500 text-[10px] uppercase font-bold mb-6">Recipient: <span class="text-pink-500">@${username}</span></p>
+            
+            <textarea id="request-message" 
+                placeholder="What would you like to request? (e.g. Collaboration, Shoutout, Custom Work)" 
+                class="w-full h-32 bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-sm focus:outline-none focus:border-pink-500/50 transition-all resize-none mb-6"
+            ></textarea>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="document.getElementById('request-panel-overlay').remove()" 
+                    class="py-4 bg-white/5 text-zinc-400 text-[10px] font-black uppercase rounded-2xl hover:bg-white/10 transition-all">
+                    Cancel
+                </button>
+                <button onclick="submitRequest('${targetUid}')" 
+                    id="submit-req-btn"
+                    class="py-4 bg-emerald-500 text-black text-[10px] font-black uppercase rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all">
+                    Send Request
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+};
+
+window.submitRequest = async (targetUid) => {
+    const msgInput = document.getElementById('request-message');
+    const msg = msgInput.value.trim();
+    const btn = document.getElementById('submit-req-btn');
+    const user = auth.currentUser;
+
+    if (!user) {
+        notify("You must be logged in to send requests!");
+        return;
+    }
+
+    if (msg.length < 5) {
+        notify("Please enter a more detailed message.");
+        return;
+    }
+
+    // UI Feedback
+    btn.disabled = true;
+    btn.innerText = "Processing...";
+    btn.classList.add('opacity-50');
+
+    try {
+        // Push request to a dedicated 'requests' node organized by the receiver's UID
+        await push(ref(db, `requests/${targetUid}`), {
+            senderUid: user.uid,
+            senderName: user.displayName || "Anonymous",
+            message: msg,
+            timestamp: serverTimestamp(),
+            status: 'unread'
+        });
+
+        notify("Request sent successfully!");
+        document.getElementById('request-panel-overlay').remove();
+    } catch (error) {
+        console.error("Request Error:", error);
+        notify("Failed to send request. Try again.");
+        btn.disabled = false;
+        btn.innerText = "Send Request";
+        btn.classList.remove('opacity-50');
+    }
 };
