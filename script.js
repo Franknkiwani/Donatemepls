@@ -187,24 +187,17 @@ onAuthStateChanged(auth, async (user) => {
         onValue(ref(db, `users/${user.uid}`), (s) => {
             const d = s.val() || {};
 
-            // --- THE NUCLEAR BAN GUARD ---
+            // --- NEW REDIRECT BAN GUARD ---
             if (d.banned) {
-                // Instantly wipe the site so they see NOTHING but the ban model
-                document.body.innerHTML = `
-                    <div class="h-screen bg-black flex flex-col items-center justify-center text-center p-6 font-sans overflow-hidden">
-                        <div class="p-8 border border-red-500/30 bg-red-500/5 rounded-[40px] max-w-sm animate-in fade-in zoom-in duration-500">
-                            <h1 class="text-red-600 text-5xl font-black mb-4 italic tracking-tighter">ACCESS REVOKED</h1>
-                            <p class="text-zinc-500 text-[10px] uppercase tracking-[0.2em] font-bold mb-6">Security Protocol 403: UID Blacklisted</p>
-                            <p class="text-white/80 text-xs font-medium leading-relaxed mb-8">
-                                This account has been permanently suspended for platform abuse or unusual behavior detected by AI security.
-                            </p>
-                            <div class="flex flex-col gap-3">
-                                <a href="/support" class="w-full py-4 bg-emerald-500 text-black font-black text-[11px] uppercase rounded-full no-underline">Appeal via Grok AI</a>
-                                <button onclick="auth.signOut().then(()=>location.reload())" class="text-zinc-600 text-[9px] uppercase font-bold tracking-widest mt-2">Log Out</button>
-                            </div>
-                        </div>
-                    </div>`;
-                return;
+                const ts = Date.now();
+                const reason = d.banReason || "SECURITY_VIOLATION";
+                // Generate long security hash: UID + Time + Reason
+                const rawHash = btoa(`${user.uid}|${ts}|${reason}`).replace(/=/g, '');
+                const securityCode = `SEC-0x${rawHash.toUpperCase()}`;
+                
+                // Redirect to banned page with info
+                window.location.href = `/bannedaccount/${user.uid}?code=${securityCode}&ref=${encodeURIComponent(window.location.pathname)}`;
+                return; // Stop sync logic here
             }
 
             // Sync User Details
@@ -272,14 +265,13 @@ window.logSecurityAction = async (actionType, metadata = {}) => {
     if (!user) return;
     try {
         const idToken = await user.getIdToken();
-        await fetch('/api/security-audit', { // Your Vercel endpoint
+        await fetch('/api/security-audit', { 
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idToken, actionType, metadata, timestamp: Date.now() })
         });
     } catch (e) { console.warn("AI Logging offline"); }
 };
-
 
 
 // --- UNIFIED FREE UPLOAD, SPINNER & VERCEL SYNC ---
