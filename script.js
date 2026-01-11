@@ -9,6 +9,7 @@ import './modal-controls.js';
 import './hub.js';
 import './transactions.js';
 import './User-Feed.js';
+import './campaigns-feed.js';
 
     import { 
         ref, update, onValue, get, set, push,
