@@ -8,6 +8,7 @@
 import './modal-controls.js';
 import './hub.js';
 import './transactions.js';
+import './User-Feed.js';
 
     import { 
         ref, update, onValue, get, set, push,
