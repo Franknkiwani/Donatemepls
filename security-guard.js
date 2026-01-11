@@ -1,51 +1,55 @@
-// --- BOT DETECTION: SCROLL & SWIPE GUARD ---
+// --- BOT DETECTION: UNIQUE GUARD SYSTEM ---
 let lastScrollTime = Date.now();
 let scrollStrikes = 0;
 
-/**
- * EXCLUSIVE TO BOT DETECTION
- * This specifically targets the "Bot Detected" modal in your HTML
- */
-const triggerSecurityLock = (msg) => {
-    const modal = document.getElementById('error-modal');
-    const msgLabel = document.getElementById('error-msg');
+const triggerSecurityGuard = (msg) => {
+    const modal = document.getElementById('guard-modal');
+    const msgLabel = document.getElementById('guard-msg');
     
     if (modal && msgLabel) {
         msgLabel.innerText = msg;
         modal.classList.remove('hidden');
-        console.warn("🚨 SECURITY ALERT: Inhuman velocity detected.");
+        
+        // Optional: Re-run Lucide icons if you use them
+        if (window.lucide) window.lucide.createIcons();
     }
 };
 
 const handleFastActivity = (diff) => {
-    // 30ms threshold
-    if (diff < 30) { 
+    // 25ms is the threshold. Scripts usually fire events at 1-5ms.
+    if (diff < 25) { 
         scrollStrikes++;
         
-        // Debugging logs
-        console.log(`⚠️ Bot Strike: ${scrollStrikes}/10`);
+        // Log to console to see it climbing
+        console.log(`🛡️ Guard Strike: ${scrollStrikes}/8`);
 
-        if (scrollStrikes > 10) {
+        if (scrollStrikes > 8) {
             scrollStrikes = 0;
-            triggerSecurityLock("Unusual scrolling speed detected. Please scroll naturally.");
+            triggerSecurityGuard("Automated scrolling behavior detected. Please interact naturally.");
+            
+            // Log to your Grok/Vercel audit trail
+            if (window.logSecurityAction) {
+                window.logSecurityAction('VELOCITY_LIMIT_EXCEEDED', { diff });
+            }
         }
     } else {
-        // Human speed decay
-        if (scrollStrikes > 0) scrollStrikes -= 0.5;
+        // Human decay: resets strikes if they scroll normally
+        if (scrollStrikes > 0) scrollStrikes -= 0.2;
     }
 };
 
-// --- LISTENERS ---
+// Desktop Scroll
 window.addEventListener('wheel', () => {
     const now = Date.now();
     handleFastActivity(now - lastScrollTime);
     lastScrollTime = now;
 }, { passive: true });
 
+// Mobile Swipe
 window.addEventListener('touchmove', () => {
     const now = Date.now();
     handleFastActivity(now - lastScrollTime);
     lastScrollTime = now;
 }, { passive: true });
 
-console.log("🛡️ Security Guard Active: Monitoring Pulse...");
+console.log("🛡️ Security Guard: Isolated & Monitoring...");
