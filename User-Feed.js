@@ -9,19 +9,26 @@ const communityPresets = [
 
 let activeListeners = [];
 
-const shuffleArray = (array) => {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-};
-
 const notify = (msg) => {
     if (window.showErrorModal) window.showErrorModal(msg);
     else if (window.notify) window.notify(msg);
     else alert(msg);
 };
+
+// --- UTILITY: LOCK SCROLL ---
+const toggleScroll = (lock) => {
+    document.body.style.overflow = lock ? 'hidden' : '';
+};
+
+// --- DEEP LINKING LOGIC ---
+// If someone visits yoursite.com/#profile-123, it opens that profile automatically
+window.addEventListener('load', () => {
+    const hash = window.location.hash;
+    if (hash.startsWith('#profile-')) {
+        const uid = hash.replace('#profile-', '');
+        window.openQuickProfile(uid);
+    }
+});
 
 // --- DYNAMIC USER FEED ENGINE ---
 window.loadUserFeed = async () => {
@@ -42,7 +49,7 @@ window.loadUserFeed = async () => {
         }
 
         feedGrid.innerHTML = '';
-        const shuffledUids = shuffleArray(Object.keys(data));
+        const shuffledUids = Object.keys(data).sort(() => Math.random() - 0.5);
 
         shuffledUids.forEach((uid, index) => {
             const userPos = index + 1;
@@ -50,10 +57,11 @@ window.loadUserFeed = async () => {
             card.id = `user-card-${uid}`;
             feedGrid.appendChild(card);
 
+            // Interval Banner
             if (userPos === 3 || userPos === 8 || userPos === 16) {
                 const banner = document.createElement('div');
                 banner.className = "col-span-full my-6 overflow-hidden rounded-[24px] border border-white/10 shadow-2xl";
-                banner.innerHTML = `<img src="https://i.imgur.com/tJgykoC.png" class="w-full h-auto object-cover block">`;
+                banner.innerHTML = `<img src="https://i.imgur.com/tJgykoC.png" class="w-full h-auto object-cover">`;
                 feedGrid.appendChild(banner);
             }
 
@@ -63,59 +71,29 @@ window.loadUserFeed = async () => {
 
                 const isPro = u.isPremium || u.premium || false;
                 const isAdmin = uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1";
-                const shareUrl = encodeURIComponent(`${window.location.origin}/profile.html?id=${uid}`);
-                const shareText = encodeURIComponent(`Check out ${u.username || 'this user'}!`);
 
-                card.className = `p-5 rounded-[28px] border relative transition-all duration-500 hover:translate-y-[-4px] flex flex-col justify-between ${
-                    isPro ? 'border-pink-500/40 bg-pink-500/5 shadow-[0_0_25px_rgba(236,72,153,0.1)]' : 'border-white/5 bg-zinc-900/40'
+                card.className = `p-5 rounded-[28px] border transition-all duration-500 hover:translate-y-[-4px] ${
+                    isPro ? 'border-pink-500/40 bg-pink-500/5' : 'border-white/5 bg-zinc-900/40'
                 }`;
 
                 card.innerHTML = `
                     <div class="flex items-start gap-4">
-                        <div onclick="openQuickProfile('${uid}')" class="relative w-14 h-14 rounded-2xl border-2 ${isPro ? 'border-pink-500 animate-pulse' : 'border-zinc-800'} p-0.5 flex-shrink-0 cursor-pointer overflow-hidden shadow-lg">
+                        <div onclick="window.openQuickProfile('${uid}')" class="relative w-14 h-14 rounded-2xl border-2 ${isPro ? 'border-pink-500' : 'border-zinc-800'} p-0.5 flex-shrink-0 cursor-pointer overflow-hidden">
                             <img src="${u.avatar || communityPresets[0]}" class="w-full h-full object-cover rounded-xl" loading="lazy">
                         </div>
-
                         <div class="flex-1 min-w-0">
-                            <div class="flex justify-between items-center gap-1 mb-1">
-                                <div class="bg-white/5 backdrop-blur-md px-2 py-0.5 rounded-lg border border-white/10 flex items-center gap-1.5 max-w-full overflow-hidden">
-                                    <span class="font-black text-[10px] text-white uppercase italic tracking-tight truncate pr-1">
-                                        @${u.username || 'Member'}
-                                    </span>
-                                    ${isPro ? '<img src="https://img.icons8.com/color/48/verified-badge.png" class="w-3 h-3 flex-shrink-0">' : ''}
-                                    ${(isPro || isAdmin) ? '<img src="https://i.imgur.com/BoVp6Td.png" class="w-4 h-4 object-contain flex-shrink-0">' : ''}
-                                </div>
-                                <span class="text-xs flex-shrink-0">${u.mood === 'happy' ? '😊' : '😐'}</span>
+                            <div class="bg-white/5 backdrop-blur-md px-2 py-0.5 rounded-lg border border-white/10 inline-flex items-center gap-1.5 mb-1 max-w-full">
+                                <span class="font-black text-[10px] text-white uppercase italic truncate pr-1">@${u.username || 'User'}</span>
+                                ${isPro ? '<img src="https://img.icons8.com/color/48/verified-badge.png" class="w-3 h-3">' : ''}
+                                ${(isPro || isAdmin) ? '<img src="https://i.imgur.com/BoVp6Td.png" class="w-4 h-4">' : ''}
                             </div>
-                            
-                            <p class="text-[9px] text-zinc-400 italic line-clamp-1 mb-2 px-1">
-                                ${u.bio || 'Sharing the energy...'}
-                            </p>
-
-                            <div class="flex items-center justify-between mt-1 px-1">
-                                <span class="text-[7px] bg-black/40 px-2 py-0.5 rounded-full text-zinc-500 font-bold uppercase border border-white/5">
-                                    ${u.country || 'Global'}
-                                </span>
-                                <div class="flex items-center gap-2.5">
-                                    <a href="https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}" target="_blank" class="opacity-40 hover:opacity-100"><img src="https://img.icons8.com/ios-filled/50/ffffff/twitterx.png" class="w-2.5 h-2.5"></a>
-                                    <a href="https://wa.me/?text=${shareText}%20${shareUrl}" target="_blank" class="opacity-40 hover:opacity-100"><img src="https://img.icons8.com/ios-filled/50/ffffff/whatsapp.png" class="w-2.5 h-2.5"></a>
-                                    <a href="https://www.facebook.com/sharer/sharer.php?u=${shareUrl}" target="_blank" class="opacity-40 hover:opacity-100"><img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png" class="w-2.5 h-2.5"></a>
-                                </div>
+                            <p class="text-[9px] text-zinc-400 italic line-clamp-1 mb-2">"${u.bio || '...'}"</p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="handleTip('${uid}', '${u.username}', '${u.avatar}')" class="py-2 ${isPro ? 'bg-pink-600' : 'bg-emerald-500'} text-black text-[9px] font-black uppercase rounded-lg">Donate</button>
+                                <button onclick="window.openQuickProfile('${uid}')" class="py-2 bg-white/5 text-white text-[9px] font-black uppercase rounded-lg">Profile</button>
                             </div>
                         </div>
                     </div>
-
-                    <div class="grid grid-cols-2 gap-2 mt-4">
-                        <button onclick="handleTip('${uid}', '${(u.username || 'User').replace(/'/g, "\\'")}', '${u.avatar}')" 
-                            class="py-2.5 ${isPro ? 'bg-pink-600' : 'bg-zinc-800 text-white'} text-[9px] font-black uppercase rounded-xl transition-all active:scale-95 shadow-lg">
-                            Tip
-                        </button>
-                        <button onclick="openQuickProfile('${uid}')" 
-                            class="py-2.5 ${isPro ? 'bg-white text-black' : 'bg-emerald-500 text-black'} text-[9px] font-black uppercase rounded-xl transition-all active:scale-95 shadow-lg">
-                            Profile
-                        </button>
-                    </div>
-                    ${isAdmin ? '<div class="absolute -top-2 -right-1 bg-amber-500 text-black text-[7px] px-2 py-0.5 rounded-full font-black shadow-lg">STAFF UNIT</div>' : ''}
                 `;
             });
             activeListeners.push(unsubscribe);
@@ -125,58 +103,83 @@ window.loadUserFeed = async () => {
 
 // --- QUICK PROFILE MODAL LOGIC ---
 window.openQuickProfile = async (targetUid) => {
-    // Check access first
-    const user = auth.currentUser;
-    if (!user) return notify("Login required");
+    toggleScroll(true); // Stop background scroll
+    window.location.hash = `profile-${targetUid}`; // Update URL for sharing
 
-    const userSnap = await get(ref(db, `users/${user.uid}`));
-    const isPremium = userSnap.val()?.isPremium || userSnap.val()?.premium;
-    const isAdmin = user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1";
-
-    if (!isPremium && !isAdmin) {
-        notify("PRO required to view profiles");
-        if(window.openUpgradeModal) window.openUpgradeModal();
-        return;
-    }
-
-    // This creates an overlay that loads the profile content
     let modal = document.getElementById('quick-profile-modal');
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'quick-profile-modal';
-        modal.className = "fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4";
+        modal.className = "fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4";
         document.body.appendChild(modal);
     }
-
-    modal.innerHTML = `<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>`;
     modal.style.display = 'flex';
+    modal.innerHTML = `<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>`;
 
-    // Fetch the target user's detailed data
-    const targetSnap = await get(ref(db, `users/${targetUid}`));
-    const targetData = targetSnap.val();
+    // Fetch Up-to-date data
+    const snap = await get(ref(db, `users/${targetUid}`));
+    const u = snap.val();
 
-    if (targetData) {
+    if (u) {
+        const shareUrl = encodeURIComponent(`${window.location.origin}${window.location.pathname}#profile-${targetUid}`);
+        const shareText = encodeURIComponent(`Check out ${u.username}'s profile!`);
+
         modal.innerHTML = `
-            <div class="bg-zinc-900 border border-white/10 w-full max-w-md rounded-[32px] overflow-hidden relative shadow-2xl">
-                <button onclick="document.getElementById('quick-profile-modal').style.display='none'" class="absolute top-5 right-5 text-white/50 hover:text-white font-black text-xl">&times;</button>
-                <div class="h-32 bg-gradient-to-br from-zinc-800 to-black"></div>
-                <div class="px-6 pb-8 -mt-12 text-center">
-                    <img src="${targetData.avatar || communityPresets[0]}" class="w-24 h-24 rounded-3xl mx-auto border-4 border-zinc-900 object-cover shadow-2xl">
-                    <h2 class="mt-4 text-xl font-black italic text-white uppercase tracking-tighter">@${targetData.username}</h2>
-                    <p class="text-zinc-400 text-sm mt-2 italic px-4">"${targetData.bio || 'This user is part of the elite community.'}"</p>
-                    <div class="mt-6 flex justify-center gap-4">
-                        <div class="bg-white/5 p-3 rounded-2xl border border-white/5 w-24">
-                            <div class="text-[10px] text-zinc-500 uppercase font-black">Region</div>
-                            <div class="text-xs text-white font-bold">${targetData.country || 'Global'}</div>
+            <div class="bg-zinc-950 border border-white/10 w-full max-w-[420px] rounded-[40px] overflow-hidden relative shadow-2xl animate-in zoom-in duration-300">
+                <button onclick="closeQuickProfile()" class="absolute top-5 right-5 z-20 bg-black/50 text-white w-10 h-10 rounded-full border border-white/10">&times;</button>
+                
+                <div class="h-32 bg-zinc-900 relative">
+                    <img src="${u.banner || communityPresets[2]}" class="w-full h-full object-cover opacity-50">
+                    <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 to-transparent"></div>
+                </div>
+
+                <div class="px-8 pb-10 -mt-16 relative z-10 text-center">
+                    <img src="${u.avatar || communityPresets[0]}" class="w-28 h-28 rounded-[35px] border-4 border-zinc-950 object-cover mx-auto shadow-2xl">
+                    
+                    <div class="mt-4 bg-white/5 backdrop-blur-md px-4 py-1.5 rounded-2xl border border-white/10 inline-flex items-center gap-2">
+                        <h2 class="text-xl font-black italic text-white uppercase tracking-tighter">@${u.username}</h2>
+                        ${(u.isPremium || u.premium) ? '<img src="https://i.imgur.com/BoVp6Td.png" class="w-5 h-5">' : ''}
+                    </div>
+
+                    <p class="text-zinc-400 text-xs mt-4 italic leading-relaxed px-2">"${u.bio || 'Elite Member'}"</p>
+
+                    <div class="grid grid-cols-3 gap-2 mt-6">
+                        <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
+                            <p class="text-[8px] text-zinc-500 font-black uppercase">Region</p>
+                            <p class="text-[10px] text-white font-bold truncate">${u.country || 'Global'}</p>
                         </div>
-                        <div class="bg-white/5 p-3 rounded-2xl border border-white/5 w-24">
-                            <div class="text-[10px] text-zinc-500 uppercase font-black">Status</div>
-                            <div class="text-xs text-pink-500 font-bold">${targetData.isPremium ? 'PRO' : 'MEMBER'}</div>
+                        <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
+                            <p class="text-[8px] text-zinc-500 font-black uppercase">Points</p>
+                            <p class="text-[10px] text-white font-bold">${u.points || '0'}</p>
+                        </div>
+                        <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
+                            <p class="text-[8px] text-zinc-500 font-black uppercase">Level</p>
+                            <p class="text-[10px] text-pink-500 font-bold">${u.level || '1'}</p>
                         </div>
                     </div>
-                    <button onclick="window.location.href='profile.html?id=${targetUid}'" class="w-full mt-8 py-4 bg-white text-black font-black uppercase rounded-2xl hover:scale-[1.02] transition-transform">View Full Dossier</button>
+
+                    <button onclick="handleTip('${targetUid}', '${u.username}', '${u.avatar}')" 
+                        class="w-full mt-6 py-4 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase rounded-2xl shadow-lg active:scale-95 transition-all">
+                        Donate to Creator
+                    </button>
+
+                    <a href="profile.html?id=${targetUid}" class="block mt-4 text-[10px] font-black uppercase text-zinc-500 hover:text-white tracking-widest transition-colors">
+                        View Full Records &rarr;
+                    </a>
+
+                    <div class="mt-8 flex justify-center gap-5 pt-6 border-t border-white/5">
+                        <a href="https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}" target="_blank"><img src="https://img.icons8.com/ios-filled/50/ffffff/twitterx.png" class="w-4 h-4 opacity-50 hover:opacity-100"></a>
+                        <a href="https://wa.me/?text=${shareText}%20${shareUrl}" target="_blank"><img src="https://img.icons8.com/ios-filled/50/ffffff/whatsapp.png" class="w-4 h-4 opacity-50 hover:opacity-100"></a>
+                        <a href="https://www.facebook.com/sharer/sharer.php?u=${shareUrl}" target="_blank"><img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png" class="w-4 h-4 opacity-50 hover:opacity-100"></a>
+                    </div>
                 </div>
             </div>
         `;
     }
+};
+
+window.closeQuickProfile = () => {
+    toggleScroll(false);
+    document.getElementById('quick-profile-modal').style.display = 'none';
+    window.location.hash = ''; // Clear hash when closed
 };
