@@ -1,18 +1,14 @@
-import { ref, get, query, orderByChild, limitToLast, endBefore, onValue } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+import { ref, get, query, orderByChild, limitToLast, endBefore, onValue, runTransaction } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 import { db } from './firebase-config.js';
 
-// --- STATE MANAGER ---
 let lastVisibleTimestamp = null;
 let isFetching = false;
 let reachedEnd = false;
 
-/**
- * MASTER SKELETON GENERATOR
- */
+// --- 1. SKELETONS & LOADERS ---
 export const injectSkeletons = () => {
     const loader = document.getElementById('master-loader');
     if (!loader) return;
-
     loader.innerHTML = `
         <div class="max-w-6xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             ${Array(6).fill(0).map(() => `
@@ -53,6 +49,7 @@ window.signalDataReady = (type) => {
     }
 };
 
+// --- 2. UTILITIES ---
 const shuffleBatch = (array) => {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -69,15 +66,47 @@ const getRemainingTime = (deadline) => {
     return `${hours}H ${mins}M LEFT`;
 };
 
-/**
- * Main Loader - Optimized Batching
- */
+function formatCampaignText(text, limit = null) {
+    if (!text) return "";
+    let clean = text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-blue-400 hover:underline">$1</a>')
+                    .replace(/#(\w+)/g, '<span class="text-amber-500">#$1</span>');
+    if (limit && text.length > limit) return clean.substring(0, limit) + "...";
+    return clean;
+}
+
+// --- 3. SHARE SYSTEM ---
+window.shareMission = async (id, title) => {
+    const shareData = {
+        title: `Support: ${title}`,
+        text: `Check out this mission on our platform!`,
+        url: `${window.location.origin}${window.location.pathname}?mission=${id}`
+    };
+
+    try {
+        if (navigator.share) {
+            await navigator.share(shareData);
+        } else {
+            await navigator.clipboard.writeText(shareData.url);
+            if (window.notify) window.notify("Link copied to clipboard!");
+        }
+    } catch (err) {
+        console.error("Share failed", err);
+    }
+};
+
+// --- 4. VIEW TRACKER ---
+const incrementView = (campaignId) => {
+    const viewRef = ref(db, `campaigns/${campaignId}/viewsActive`);
+    runTransaction(viewRef, (currentValue) => {
+        return (currentValue || 0) + 1;
+    });
+};
+
+// --- 5. DATA LOADER ---
 window.loadCampaigns = async (isInitial = true) => {
     if (isFetching || (reachedEnd && !isInitial)) return;
-    
     const grid = document.getElementById('campaign-grid');
     if (!grid) return;
-
     isFetching = true;
 
     if (isInitial) {
@@ -117,10 +146,10 @@ window.loadCampaigns = async (isInitial = true) => {
         displayItems.forEach(c => {
             if (c.visibility === 'private') return;
             renderCampaignCard(c, grid);
+            incrementView(c.id); // Track the view
         });
 
         if (isInitial) window.signalDataReady('campaigns');
-
     } catch (e) {
         console.error("Scroll Fetch Error:", e);
         if (isInitial) window.signalDataReady('campaigns');
@@ -129,6 +158,7 @@ window.loadCampaigns = async (isInitial = true) => {
     }
 };
 
+// --- 6. RENDER ENGINE ---
 const renderCampaignCard = (c, container) => {
     const id = c.id;
     const now = Date.now();
@@ -160,10 +190,12 @@ const renderCampaignCard = (c, container) => {
         <div class="flex gap-4 items-start">
             <div class="w-16 h-16 rounded-2xl bg-zinc-800 flex-shrink-0 border border-white/10 overflow-hidden relative shadow-lg">
                 <img src="${c.imageUrl}" class="w-full h-full object-cover" loading="lazy">
+                ${c.isAiGenerated ? '<div class="absolute inset-0 bg-purple-500/10 mix-blend-overlay"></div>' : ''}
             </div>
             <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-1">
                     <h3 class="text-sm font-black uppercase truncate tracking-tight" style="color: var(--text-main)">${c.title}</h3>
+                    ${c.isAiGenerated ? '<span class="text-[7px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded-md font-black uppercase border border-purple-500/30">✨ AI</span>' : ''}
                 </div>
                 <div class="text-[11px] leading-snug" style="color: var(--text-dim)">
                     <span id="desc-short-${id}">${formatCampaignText(c.description || '', 85)}</span>
@@ -189,10 +221,14 @@ const renderCampaignCard = (c, container) => {
             <button onclick="viewCreatorProfile('${c.creator}')" class="group flex items-center gap-2">
                 <div class="relative">
                     <img src="${c.creatorAvatar || 'https://img.icons8.com/fluency/48/user-male-circle.png'}" class="w-6 h-6 rounded-full object-cover border border-white/10">
+                    ${isPro ? '<img src="https://img.icons8.com/color/48/verified-badge.png" class="absolute -right-1 -bottom-1 w-3 h-3 bg-zinc-900 rounded-full">' : ''}
                 </div>
                 <span class="text-[9px] font-black uppercase" style="color: var(--text-dim)">@${c.creatorName || 'Member'}</span>
             </button>
             <div class="flex items-center gap-2">
+                <button onclick="shareMission('${id}', '${c.title.replace(/'/g, "\\'")}')" class="p-2.5 rounded-xl border transition-all" style="background: var(--input-bg); border-color: var(--border)">
+                    <img src="https://img.icons8.com/material-outlined/24/ffffff/share.png" class="w-3.5 h-3.5 opacity-70" style="filter: var(--theme-icon-filter)">
+                </button>
                 <button onclick="handleDonateCampaign('${id}', '${c.title.replace(/'/g, "\\'")}')" class="px-5 py-2.5 bg-white text-black rounded-xl text-[10px] font-black uppercase hover:scale-105 active:scale-95 transition-all shadow-md">Donate</button>
             </div>
         </div>
@@ -201,20 +237,12 @@ const renderCampaignCard = (c, container) => {
     if(window.loadDonors) window.loadDonors(id);
 };
 
-// --- SCROLL LISTENER ---
+// --- 7. EVENT LISTENERS ---
 window.addEventListener('scroll', () => {
     if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200) {
         window.loadCampaigns(false);
     }
 });
-
-function formatCampaignText(text, limit = null) {
-    if (!text) return "";
-    let clean = text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-blue-400 hover:underline">$1</a>')
-                    .replace(/#(\w+)/g, '<span class="text-amber-500">#$1</span>');
-    if (limit && text.length > limit) return clean.substring(0, limit) + "...";
-    return clean;
-}
 
 window.toggleDesc = (id) => {
     const s = document.getElementById(`desc-short-${id}`);
@@ -239,7 +267,7 @@ window.loadDonors = (campaignId) => {
     }, { onlyOnce: true });
 };
 
-// GLOBAL TIMER LOOP
+// Timer Loop
 setInterval(() => {
     document.querySelectorAll('.countdown-timer').forEach(el => {
         const deadline = parseInt(el.getAttribute('data-deadline'));
