@@ -1,1 +1,891 @@
-hi
+<!DOCTYPE html>
+<html lang="en">
+<head> 
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body class="theme-dark">
+
+    <div id="notify-box"></div>
+
+    <nav class="glass-header flex justify-between items-center">
+        <img src="https://i.imgur.com/BoVp6Td.png" class="h-9 w-auto" alt="Logo">
+        <div class="flex items-center gap-3">
+            <div id="user-tools" class="hidden flex items-center gap-3">
+                <button onclick="openUpgradeModal()" class="bg-amber-500 text-black px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest">Upgrade</button>
+                <div onclick="openProfile()" class="flex items-center gap-2 bg-white/5 p-1 pr-3 rounded-full cursor-pointer border border-white/10">
+                    <div class="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
+                        <img id="header-pfp" class="w-full h-full object-cover hidden">
+                        <span id="header-initial" class="flex items-center justify-center h-full text-[10px] font-bold">?</span>
+                    </div>
+                    <span id="header-handle" class="text-xs font-bold truncate-name">@User</span>
+                    <img id="header-verified" src="https://img.icons8.com/color/48/verified-badge.png" class="w-4 h-4 hidden">
+                </div>
+            </div>
+            <button id="login-btn" onclick="openAuthModal()" class="bg-white text-black px-5 py-1.5 rounded-full font-bold text-xs">Login</button>
+        </div>
+    </nav>
+<div id="master-loader" class="fixed inset-0 z-[9999] transition-opacity duration-500" 
+     style="background: var(--bg); overflow-y: auto;">
+    
+
+    <div class="max-w-6xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-20">
+        <div class="skeleton-card p-5 flex flex-col gap-4">
+            <div class="flex justify-between items-center">
+                <div class="w-24 h-4 rounded-full shimmer"></div>
+                <div class="w-16 h-3 rounded-full shimmer"></div>
+            </div>
+            <div class="flex gap-4 items-start">
+                <div class="w-16 h-16 rounded-2xl shimmer flex-shrink-0"></div>
+                <div class="flex-1 space-y-3">
+                    <div class="w-3/4 h-4 rounded shimmer"></div>
+                    <div class="w-full h-3 rounded shimmer"></div>
+                </div>
+            </div>
+            <div class="p-3 rounded-2xl border space-y-3" style="background: var(--bg); border-color: var(--border);">
+                <div class="flex justify-between"><div class="w-12 h-2 shimmer"></div><div class="w-12 h-2 shimmer"></div></div>
+                <div class="w-full h-1.5 rounded-full shimmer"></div>
+            </div>
+            <div class="flex justify-between items-center border-t pt-3 mt-auto" style="border-color: var(--border)">
+                <div class="w-20 h-4 rounded-full shimmer"></div>
+                <div class="flex gap-2">
+                    <div class="w-8 h-8 rounded-xl shimmer"></div>
+                    <div class="w-20 h-8 rounded-xl shimmer"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="skeleton-card p-5 flex flex-col gap-4 hidden md:flex">
+             <div class="w-24 h-4 rounded-full shimmer"></div>
+             <div class="flex gap-4"><div class="w-16 h-16 rounded-2xl shimmer"></div><div class="flex-1 space-y-3"><div class="w-full h-4 shimmer"></div><div class="w-2/3 h-4 shimmer"></div></div></div>
+             <div class="mt-auto pt-3 border-t border-white/5 flex justify-between"><div class="w-20 h-4 shimmer"></div><div class="w-20 h-8 shimmer"></div></div>
+        </div>
+
+        <div class="skeleton-card p-5 flex flex-col gap-4 hidden lg:flex">
+             <div class="w-24 h-4 rounded-full shimmer"></div>
+             <div class="flex gap-4"><div class="w-16 h-16 rounded-2xl shimmer"></div><div class="flex-1 space-y-3"><div class="w-full h-4 shimmer"></div><div class="w-2/3 h-4 shimmer"></div></div></div>
+             <div class="mt-auto pt-3 border-t border-white/5 flex justify-between"><div class="w-20 h-4 shimmer"></div><div class="w-20 h-8 shimmer"></div></div>
+        </div>
+    </div>
+</div>
+
+    <div id="auth-modal" class="fixed inset-0 z-[110] hidden bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-zinc-900 text-white w-full max-w-[380px] rounded-[32px] p-8 border border-white/10">
+            <div class="flex gap-4 mb-6 border-b border-white/5">
+                <button onclick="setAuthTab('login')" id="tab-login" class="pb-2 text-xs font-black uppercase border-b-2 border-amber-500">Login</button>
+                <button onclick="setAuthTab('register')" id="tab-register" class="pb-2 text-xs font-black uppercase text-zinc-500">Register</button>
+            </div>
+            <div class="space-y-4">
+                <div id="reg-name-field" class="hidden">
+                    <input type="text" id="auth-username" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl outline-none" placeholder="Username">
+                </div>
+                <input type="email" id="auth-email" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl outline-none" placeholder="Email">
+                <input type="password" id="auth-pass" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl outline-none" placeholder="Password">
+                <button onclick="handleAuthSubmit()" class="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-xs">Continue</button>
+                <div class="relative py-2 text-center"><span class="text-[10px] text-zinc-600 uppercase bg-zinc-900 px-2 relative z-10">or</span><hr class="absolute top-1/2 w-full border-white/5"></div>
+                <button onclick="triggerGoogle()" class="w-full bg-zinc-800 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-white/5">
+                    <img src="https://www.google.com/favicon.ico" class="w-3 h-3"> Google
+                </button>
+            </div>
+            <button onclick="closeAuthModal()" class="w-full mt-4 text-zinc-500 text-[10px] font-bold uppercase">Cancel</button>
+        </div>
+    </div>
+
+  <div id="profile-modal" class="fixed inset-0 z-[100] hidden bg-black/90 flex items-center justify-center p-4">
+    <div class="bg-zinc-900 text-white w-full max-w-sm rounded-[32px] p-8 border border-white/10 overflow-y-auto max-h-[90vh]">
+        <div class="text-center mb-6">
+            <div class="w-20 h-20 mx-auto rounded-full border-2 border-amber-500 p-1 mb-2">
+                <img id="modal-preview-img" src="" class="w-full h-full object-cover rounded-full">
+            </div>
+            <h2 class="text-xl font-black uppercase italic">Profile</h2>
+        </div>
+        <div class="space-y-4">
+            <div>
+                <label class="text-[10px] font-bold text-zinc-500 uppercase">Page Theme</label>
+                <div class="flex gap-2 mt-1">
+                    <button id="btn-theme-dark" onclick="setTheme('theme-dark')" class="theme-btn w-full py-2 bg-zinc-800 rounded-lg text-[10px] font-bold uppercase">Dark</button>
+                    <button id="btn-theme-light" onclick="setTheme('theme-light')" class="theme-btn w-full py-2 bg-white text-black rounded-lg text-[10px] font-bold uppercase">Light</button>
+                    <button id="btn-theme-blue" onclick="setTheme('theme-blue')" class="theme-btn w-full py-2 bg-blue-900 rounded-lg text-[10px] font-bold uppercase">Blue</button>
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-zinc-500 uppercase">Username</label>
+                <input type="text" id="username-input" class="bg-white/5 border border-white/10 w-full p-3 rounded-xl mt-1 outline-none" placeholder="Username">
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-zinc-500 uppercase block mb-2">Avatars</label>
+                <div class="grid grid-cols-4 gap-2" id="avatar-grid">
+                    <div onclick="document.getElementById('pfp-upload').click()" class="relative aspect-square bg-zinc-800 rounded-xl flex items-center justify-center border-2 border-dashed border-zinc-700 hover:border-blue-500 cursor-pointer group transition-all">
+                        <i data-lucide="plus" class="w-4 h-4 text-zinc-500 group-hover:text-white"></i>
+                        <input type="file" id="pfp-upload" class="hidden" accept="image/*" onchange="previewImage(event)">
+                    </div>
+                </div>
+            </div>
+
+            <div id="premium-management-zone" class="hidden border-t border-white/5 pt-4">
+                <button onclick="window.open('https://www.paypal.com/myaccount/autopay/')" class="w-full bg-amber-500/10 border border-amber-500/20 text-amber-500 py-3 rounded-xl font-bold text-[10px] uppercase tracking-wider hover:bg-amber-500/20 transition-all">
+                    Manage / Cancel PRO
+                </button>
+            </div>
+
+            <button onclick="saveProfileChanges()" class="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl">Update Profile</button>
+            
+            <div class="flex flex-col gap-2">
+                <button onclick="handleLogout()" class="text-red-500 font-bold text-[10px] uppercase">Logout Account</button>
+                <button onclick="closeProfile()" class="text-zinc-500 text-[10px] font-bold uppercase">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="support-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md hidden p-4">
+    <div class="bg-zinc-950 border border-white/10 w-full max-w-lg rounded-[2.5rem] overflow-hidden flex flex-col shadow-[0_0_50px_rgba(37,99,235,0.15)] h-[75vh] md:h-[600px] transition-all transform">
+        
+        <div class="p-5 border-b border-white/5 flex justify-between items-center bg-white/5">
+            <div class="flex items-center gap-3">
+                <div class="relative">
+                    <div class="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.4)]">
+                        <i data-lucide="bot" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-zinc-950 rounded-full"></span>
+                </div>
+                <div>
+                    <h3 class="text-white font-black text-xs uppercase tracking-widest">Grok Core</h3>
+                    <p class="text-[8px] text-emerald-500 font-bold uppercase tracking-[0.2em]">Operational</p>
+                </div>
+            </div>
+            <button onclick="closeSupportChat()" class="p-2 hover:bg-white/10 rounded-xl transition-all text-zinc-500 hover:text-white">
+                <i data-lucide="minimize-2" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <div id="chat-messages" class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth scrollbar-hide">
+            <div class="flex gap-4 max-w-[90%]">
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
+                    <span class="text-[10px] font-black text-blue-400">G</span>
+                </div>
+                <div class="bg-white/5 border border-white/5 p-4 rounded-2xl rounded-tl-none">
+                    <p class="text-[11px] text-zinc-300 leading-relaxed font-medium">Identity verified. I am Grok, your platform navigator. How can I assist your mission today?</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-5 bg-zinc-900/20 border-t border-white/5">
+            <div class="flex gap-2 items-center bg-white/5 border border-white/10 p-2 rounded-[1.5rem] focus-within:border-blue-500/50 transition-all">
+                <input id="chat-input" type="text" placeholder="Inquire about missions, tokens, or security..." 
+                       class="flex-1 bg-transparent border-none text-[11px] text-white px-3 focus:ring-0 placeholder:text-zinc-600 font-medium"
+                       onkeydown="if(event.key === 'Enter') sendChatMessage()">
+                <button onclick="sendChatMessage()" id="chat-send-btn" class="w-10 h-10 bg-blue-600 hover:bg-blue-500 rounded-xl flex items-center justify-center transition-all active:scale-90 shadow-lg shadow-blue-600/20">
+                    <i data-lucide="arrow-up" class="w-5 h-5 text-white"></i>
+                </button>
+            </div>
+            <p class="text-center text-[7px] text-zinc-600 mt-3 uppercase font-black tracking-widest">Powered by xAI Terminal</p>
+        </div>
+    </div>
+</div>
+
+<div id="explore-modal" class="hidden fixed inset-0 z-[100] bg-[#050505] backdrop-blur-3xl font-sans overflow-hidden">
+    <div class="max-w-2xl mx-auto h-full flex flex-col">
+        
+        <div class="p-6 border-b border-white/5 flex justify-between items-center bg-black/50">
+            <div>
+                <h2 class="text-xl font-black italic tracking-tighter text-white uppercase">Network <span class="text-blue-500">Activity</span></h2>
+                <div class="flex gap-4 mt-3">
+                    <button onclick="switchHubView('top-donors')" id="btn-donors" class="hub-nav-btn active text-blue-500">TOP DONORS</button>
+                    
+                    <button onclick="switchHubView('top-earners')" id="btn-earners" class="hub-nav-btn text-zinc-500">TOP EARNERS</button>
+                    
+                    <button onclick="switchHubView('live')" id="btn-live" class="hub-nav-btn text-zinc-500">
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                            LIVE FEED
+                        </span>
+                    </button>
+                </div>
+            </div>
+            <button onclick="closeExploreModal()" class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 hover:bg-red-500/20 transition-all">
+                <span class="text-white text-xs">✕</span>
+            </button>
+        </div>
+
+        <div id="hub-content" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar"></div>
+
+        <div id="user-hub-status"></div>
+    </div>
+</div>
+<style>
+    .hub-nav-btn {
+        font-size: 9px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        padding-bottom: 4px;
+        border-bottom: 2px solid transparent;
+        transition: all 0.3s ease;
+    }
+    .hub-nav-btn.active {
+        border-bottom-color: #3b82f6;
+        color: #3b82f6 !important;
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
+</style>
+
+<div id="upgrade-modal" class="hidden fixed inset-0 z-[110] bg-black/95 flex items-center justify-center p-4">
+    <div class="bg-zinc-900 text-white w-full max-w-2xl rounded-[40px] border border-white/10 overflow-hidden flex flex-col md:flex-row max-h-[90vh] overflow-y-auto custom-scrollbar">
+        
+        <div class="md:w-1/2 bg-gradient-to-br from-amber-400 to-orange-600 p-10 text-black flex flex-col justify-between sticky top-0">
+            <div>
+                <h2 class="text-5xl font-black uppercase italic leading-none">PRO</h2>
+                <p class="font-bold text-[10px] uppercase tracking-widest mt-2">Elite Status</p>
+                
+                <div class="mt-8">
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-4xl font-black">$5.49</span>
+                        <span class="text-[10px] font-bold uppercase opacity-70">/ month</span>
+                    </div>
+                    <p class="text-[9px] font-bold uppercase tracking-tight opacity-80 mt-1">($4.99 + 10% processing fee)</p>
+                </div>
+            </div>
+            
+            <div class="bg-black/10 p-4 rounded-2xl flex items-center gap-3 mt-10">
+                <div class="w-10 h-10 rounded-full bg-zinc-900 border-2 border-black overflow-hidden flex-shrink-0">
+                    <img id="pro-pfp-preview" class="w-full h-full object-cover">
+                </div>
+                <div class="flex items-center min-w-0">
+                    <span class="font-black text-sm truncate-name" id="pro-name-preview">User</span>
+                    <img src="https://img.icons8.com/color/48/verified-badge.png" class="w-4 h-4 ml-1 flex-shrink-0">
+                </div>
+            </div>
+        </div>
+
+        <div class="md:w-1/2 p-10 bg-zinc-900">
+            <h3 class="font-black uppercase mb-6 text-sm tracking-widest text-white">Elite Perks</h3>
+            <ul class="space-y-4 mb-8 text-[11px] font-bold text-zinc-400">
+                <li class="flex items-center gap-3"><i data-lucide="shield-check" class="text-amber-500 w-4 h-4"></i> Verified Blue Badge</li>
+                <li class="flex items-center gap-3"><i data-lucide="coins" class="text-amber-500 w-4 h-4"></i> 20 Credits / Month</li>
+                <li class="flex items-center gap-3"><i data-lucide="image" class="text-amber-500 w-4 h-4"></i> Custom Profile Uploads</li>
+                <li class="flex items-center gap-3"><i data-lucide="user-cog" class="text-amber-500 w-4 h-4"></i> Unlimited Name Changes</li>
+                <li class="flex items-center gap-3"><i data-lucide="headphones" class="text-amber-500 w-4 h-4"></i> Priority 24/7 Support</li>
+            </ul>
+            
+            <div id="paypal-button-container-PRO" class="min-h-[150px]"></div>
+            
+            <button onclick="closeUpgradeModal()" class="w-full mt-4 text-[10px] font-black text-zinc-500 hover:text-white uppercase tracking-widest transition-colors">Close</button>
+        </div>
+    </div>
+</div>
+
+<div id="token-bar" class="hidden w-full backdrop-blur-xl border-b p-6" style="background-color: var(--card-bg); border-color: var(--border);">
+    <div class="max-w-md mx-auto flex flex-col items-center">
+        
+        <span class="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-1">Current Balance</span>
+        
+        <div class="flex items-center gap-3 my-2">
+            <i data-lucide="coins" class="w-6 h-6 text-amber-500"></i>
+            <span id="token-count" class="text-5xl font-black tracking-tighter" style="color: var(--text-main) !important;">0</span>
+        </div>
+        
+        <span class="text-[11px] font-bold text-amber-500/80 uppercase tracking-widest mb-6">Available Tokens</span>
+
+        <div class="grid grid-cols-2 gap-3 w-full">
+            <button onclick="openTokenModal()" class="flex items-center justify-center gap-2 py-3 bg-amber-500 hover:bg-amber-400 text-black rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span class="text-xs font-black uppercase italic">Buy Tokens</span>
+            </button>
+            
+            <button onclick="openWithdrawModal()" class="flex items-center justify-center gap-2 py-3 rounded-xl transition-all active:scale-95 border theme-light:bg-zinc-200 theme-light:text-black theme-light:border-black/10 theme-dark:bg-zinc-800 theme-dark:text-white theme-dark:border-white/5">
+                <i data-lucide="arrow-up-right" class="w-4 h-4 text-zinc-400"></i>
+                <span class="text-xs font-black uppercase italic">Withdraw</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<div id="token-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="border w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]" style="background-color: var(--card-bg); border-color: var(--border); color: var(--text-main);">
+        
+        <div class="p-6 border-b flex justify-between items-center flex-shrink-0" style="background-color: rgba(0,0,0,0.05); border-color: var(--border);">
+            <div>
+                <h2 class="text-xl font-black italic uppercase tracking-tighter" style="color: var(--text-main);">Refill Tokens</h2>
+                <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Select a one-time credit pack</p>
+            </div>
+            <button onclick="closeTokenModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-zinc-400 hover:text-white transition-colors">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto custom-scrollbar">
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <button onclick="selectPack(this, 3, 30)" class="pack-option group flex flex-col items-center p-4 border rounded-2xl transition-all active:scale-95" style="background-color: var(--input-bg); border-color: var(--border);">
+                    <span class="text-[10px] font-black text-zinc-500 uppercase mb-1">Starter</span>
+                    <span class="text-2xl font-black" style="color: var(--text-main);">30</span>
+                    <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-3">Tokens</span>
+                    <div class="w-full py-2 bg-amber-500 text-black rounded-lg text-xs font-black transition-colors">$3.00</div>
+                </button>
+
+                <button onclick="selectPack(this, 5, 50)" class="pack-option group flex flex-col items-center p-4 border rounded-2xl transition-all active:scale-95" style="background-color: var(--input-bg); border-color: var(--border);">
+                    <span class="text-[10px] font-black text-zinc-500 uppercase mb-1">Popular</span>
+                    <span class="text-2xl font-black" style="color: var(--text-main);">50</span>
+                    <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-3">Tokens</span>
+                    <div class="w-full py-2 bg-amber-500 text-black rounded-lg text-xs font-black transition-colors">$5.00</div>
+                </button>
+
+                <button onclick="selectPack(this, 10, 100)" class="pack-option group flex flex-col items-center p-4 border rounded-2xl transition-all active:scale-95" style="background-color: var(--input-bg); border-color: var(--border);">
+                    <span class="text-[10px] font-black text-zinc-500 uppercase mb-1">Pro</span>
+                    <span class="text-2xl font-black" style="color: var(--text-main);">100</span>
+                    <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-3">Tokens</span>
+                    <div class="w-full py-2 bg-amber-500 text-black rounded-lg text-xs font-black transition-colors">$10.00</div>
+                </button>
+
+                <button onclick="selectPack(this, 25, 250)" class="pack-option group flex flex-col items-center p-4 border rounded-2xl transition-all active:scale-95 relative overflow-hidden" style="background-color: var(--input-bg); border-color: var(--border);">
+                    <div class="absolute top-0 right-0 bg-amber-500 text-[8px] font-black px-2 py-0.5 text-black uppercase italic z-10">Best Value</div>
+                    <span class="text-[10px] font-black text-zinc-500 uppercase mb-1">Whale</span>
+                    <span class="text-2xl font-black" style="color: var(--text-main);">250</span>
+                    <span class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-3">Tokens</span>
+                    <div class="w-full py-2 bg-amber-500 text-black rounded-lg text-xs font-black transition-colors">$25.00</div>
+                </button>
+            </div>
+
+            <div id="paypal-tokens-container" class="min-h-[150px] pb-4"></div>
+        </div>
+    </div>
+</div>
+
+<div id="withdraw-modal" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+    <div class="border w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]" 
+         style="background-color: var(--card-bg); border-color: var(--border); color: var(--text-main);">
+        
+        <div class="p-8 pb-4 text-center relative">
+            <div class="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
+                <i data-lucide="landmark" class="w-8 h-8 text-emerald-500"></i>
+            </div>
+            <h2 class="text-2xl font-black uppercase italic tracking-tighter" style="color: var(--text-main);">Cash Out</h2>
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.2em]">Secure PayPal Payouts</p>
+        </div>
+
+        <div class="flex justify-around py-4 border-y" style="background-color: rgba(0,0,0,0.05); border-color: var(--border);">
+            <div class="text-center">
+                <span class="block text-[8px] font-black text-zinc-500 uppercase tracking-widest">Total Paid</span>
+                <span id="total-withdrawn" class="text-sm font-black text-emerald-500">$0.00</span>
+            </div>
+            <div class="w-px h-8" style="background-color: var(--border);"></div>
+            <div class="text-center">
+                <span class="block text-[8px] font-black text-zinc-500 uppercase tracking-widest">Pending</span>
+                <span id="pending-count" class="text-sm font-black text-amber-500">0</span>
+            </div>
+        </div>
+
+        <div class="p-8 overflow-y-auto custom-scrollbar space-y-6">
+            <div class="space-y-2">
+                <div class="flex justify-between items-end">
+                    <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">PayPal Recipient</label>
+                    <span class="text-[9px] text-emerald-500 font-bold uppercase">Verified Gateway</span>
+                </div>
+                <div class="relative">
+                    <i data-lucide="mail" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600"></i>
+                    <input type="email" id="withdraw-email" 
+                           class="w-full border p-4 pl-12 rounded-2xl outline-none focus:border-emerald-500/50 transition-all text-sm font-bold" 
+                           style="background-color: var(--input-bg); border-color: var(--border); color: var(--text-main);"
+                           placeholder="paypal@example.com">
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Token Amount</label>
+                <div class="relative">
+                    <i data-lucide="coins" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500"></i>
+                    <input type="number" id="withdraw-amount" 
+                           class="w-full border p-4 pl-12 rounded-2xl outline-none focus:border-amber-500/50 transition-all text-sm font-bold" 
+                           style="background-color: var(--input-bg); border-color: var(--border); color: var(--text-main);"
+                           placeholder="Min. 50">
+                </div>
+            </div>
+
+            <div class="rounded-2xl p-4 border space-y-3" style="background-color: rgba(0,0,0,0.1); border-color: var(--border);">
+                <div class="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
+                    <span class="text-zinc-500">Gross Value</span>
+                    <span id="calc-gross" style="color: var(--text-main);">$0.00</span>
+                </div>
+                <div class="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
+                    <span class="text-zinc-500">Platform Fee (30%)</span>
+                    <span id="calc-fee" class="text-red-500">-$0.00</span>
+                </div>
+                <div class="h-px" style="background-color: var(--border);"></div>
+                <div class="flex justify-between items-center font-black uppercase tracking-tighter italic">
+                    <span class="text-zinc-400 text-xs">Net Payout</span>
+                    <span id="calc-net" class="text-emerald-500 text-xl font-black">$0.00</span>
+                </div>
+            </div>
+
+            <button onclick="handleWithdrawSubmit()" 
+                    class="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all theme-light:bg-zinc-900 theme-light:text-white">
+                Confirm Payout
+            </button>
+
+            <div id="payout-history-container" class="hidden border-t pt-4" style="border-color: var(--border);">
+                <span class="text-[9px] font-black text-zinc-600 uppercase tracking-widest block mb-3 text-center">Recent Activity</span>
+                <div id="payout-history-list" class="space-y-2"></div>
+            </div>
+
+            <button onclick="closeWithdrawModal()" class="w-full text-zinc-600 text-[10px] font-black uppercase tracking-[0.2em] hover:text-white transition-colors">
+                Cancel Request
+            </button>
+        </div>
+    </div>
+</div>
+<div class="max-w-7xl mx-auto p-4 md:p-8">
+    
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        <div>
+            <h2 class="text-3xl font-black uppercase italic tracking-tighter" style="color: var(--text-main);">Discovery</h2>
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Support creators or contribute to foundations</p>
+        </div>
+
+        <div class="flex-1 max-w-md w-full">
+            <div class="relative">
+                <input type="text" id="user-search-input" oninput="searchUser()" 
+                       placeholder="SEARCH @USER, #TAGS, OR CAMPAIGNS..." 
+                       class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-xs font-black uppercase tracking-widest text-white focus:outline-none focus:border-pink-500/50 transition-all">
+                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[8px] font-black text-zinc-700 uppercase italic">Global</span>
+            </div>
+        </div>
+        
+        <div class="flex bg-zinc-900/50 p-1 rounded-2xl border border-white/5" style="background-color: var(--input-bg);">
+            <button onclick="switchView('campaigns')" id="tab-campaigns" class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-white text-black shadow-lg">Campaigns</button>
+            <button onclick="switchView('community')" id="tab-community" class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-zinc-500 hover:text-white">User Tipping</button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div id="view-campaigns" class="lg:col-span-7 space-y-6">
+            <div class="flex items-center justify-between mb-4">
+                <span class="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em]">Active Goals</span>
+                <button onclick="openCreateCampaign()" class="text-[9px] font-black text-zinc-500 hover:text-white uppercase transition-all">+ New Campaign</button>
+            </div>
+            <div id="campaign-grid" class="grid grid-cols-1 gap-6"></div>
+        </div>
+
+        <div id="view-community" class="lg:col-span-5 space-y-6">
+            <div class="flex items-center justify-between mb-4">
+                <span class="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Online Community</span>
+            </div>
+            <div id="user-feed-grid" class="grid grid-cols-1 gap-4"></div>
+        </div>
+    </div>
+</div>
+
+<div id="modern-donate-modal" class="fixed inset-0 z-[999] hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl">
+        <div class="p-8 text-center">
+            <img id="donate-target-img" src="" class="w-20 h-20 rounded-full mx-auto border-4 border-emerald-500 shadow-lg mb-4 object-cover">
+            <h2 id="donate-target-name-display" class="text-xl font-black uppercase text-white">@User</h2>
+            <p class="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-1">Support this member</p>
+
+            <div id="stats-glass-card" class="mt-6 p-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md relative overflow-hidden">
+                <div class="flex justify-around items-center">
+                    <div class="text-center">
+                        <span class="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Total Raised</span>
+                        <span id="stat-raised-val" class="text-emerald-500 font-black text-sm">0</span>
+                    </div>
+                    <div class="w-px h-6 bg-white/10"></div>
+                    <div class="text-center">
+                        <span class="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Supporters</span>
+                        <span id="stat-donors-val" class="text-amber-500 font-black text-sm">0</span>
+                    </div>
+                </div>
+
+                <div id="stats-premium-lock" class="hidden absolute inset-0 bg-black/40 backdrop-blur-md flex items-center justify-center">
+                    <div class="bg-amber-500 text-black px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-tighter flex items-center gap-1 shadow-lg shadow-amber-500/20">
+                        <i data-lucide="crown" class="w-2.5 h-2.5"></i> Premium Only
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8 space-y-4">
+                <div class="relative">
+                    <input type="number" id="donate-input-amount" placeholder="0.00" 
+                           class="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-center text-2xl font-black text-white focus:outline-none focus:border-emerald-500 transition-all">
+                    <span class="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-black text-zinc-600 uppercase">Tokens</span>
+                </div>
+                
+                <div id="fee-notice"></div>
+
+                <button id="confirm-donation-btn" class="w-full py-4 bg-emerald-500 text-black font-black uppercase rounded-2xl hover:bg-emerald-400 transition-all active:scale-95 shadow-lg shadow-emerald-500/20">
+                    Confirm Transfer
+                </button>
+                
+                <button onclick="closeDonateModal()" class="w-full py-4 text-zinc-500 text-[10px] font-black uppercase tracking-widest hover:text-white transition-all">
+                    Cancel & Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="donation-success-modal" class="hidden fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-xs rounded-[40px] overflow-hidden shadow-2xl transform transition-all scale-100">
+        <div class="bg-emerald-500 p-8 text-center relative">
+            <div class="absolute -bottom-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-emerald-500">
+                <i data-lucide="check" class="text-emerald-500 w-6 h-6"></i>
+            </div>
+            <h2 class="text-black text-2xl font-black uppercase italic tracking-tighter">Sent!</h2>
+        </div>
+        
+        <div class="p-8 pt-10 text-center">
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Transaction Complete</p>
+            <div class="flex items-center justify-center gap-2 mb-6">
+                <span id="success-net-amount" class="text-4xl font-black text-white">0</span>
+                <span class="text-xs font-bold text-emerald-500 uppercase tracking-widest mt-2">Tokens</span>
+            </div>
+
+            <div class="space-y-3 border-t border-white/5 pt-6 mb-8">
+                <div class="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                    <span class="text-zinc-500">Total Charged</span>
+                    <span id="success-gross-amount" class="text-white">0</span>
+                </div>
+                <div class="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                    <span class="text-zinc-500">Platform Fee</span>
+                    <span id="success-fee-amount" class="text-amber-500">0</span>
+                </div>
+            </div>
+
+            <button onclick="closeSuccessModal()" class="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white/10 transition-all">
+                Back to Discovery
+            </button>
+        </div>
+    </div>
+</div>
+<div id="error-modal" class="hidden fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-xs rounded-[40px] overflow-hidden shadow-2xl">
+        <div class="bg-red-500 p-8 text-center relative">
+            <div class="absolute -bottom-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-red-500">
+                <i data-lucide="shield-alert" class="text-red-500 w-6 h-6"></i>
+            </div>
+            <h2 class="text-white text-xl font-black uppercase italic tracking-tighter">Action Denied</h2>
+        </div>
+        
+        <div class="p-8 pt-10 text-center">
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-2">Security Limit Reached</p>
+            <p id="error-modal-msg" class="text-white text-sm font-bold leading-relaxed mb-8 px-2">
+                You can only withdraw earned tokens.
+            </p>
+
+            <button onclick="closeErrorModal()" class="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white/20 transition-all">
+                I Understand
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="withdraw-success-modal" class="hidden fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-xs rounded-[40px] overflow-hidden shadow-2xl">
+        <div class="bg-emerald-500 p-8 text-center relative">
+            <div class="absolute -bottom-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-emerald-500">
+                <i data-lucide="send" class="text-emerald-500 w-6 h-6"></i>
+            </div>
+            <h2 class="text-black text-xl font-black uppercase italic tracking-tighter">Request Sent</h2>
+        </div>
+        
+        <div class="p-8 pt-10 text-center">
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Estimated Arrival: 24h</p>
+            <div class="flex items-center justify-center gap-2 mb-6">
+                <span id="payout-success-usd" class="text-4xl font-black text-white">$0.00</span>
+            </div>
+
+            <p class="text-[10px] text-zinc-400 font-bold leading-relaxed mb-8 px-4 uppercase tracking-tighter">
+                Funds are being sent to your PayPal email. Check your dashboard for updates.
+            </p>
+
+            <button onclick="closeWithdrawSuccess()" class="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white/10 transition-all">
+                Perfect, Thanks!
+            </button>
+        </div>
+    </div>
+</div>
+<div id="admin-verify-modal" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center z-[200] p-4 backdrop-blur-sm">
+    <div class="bg-[#1a1a1a] border border-yellow-500/30 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+        <div class="flex items-center gap-3 mb-2 text-yellow-500">
+            <i data-lucide="shield-lock"></i>
+            <h3 class="text-xl font-bold">Vault Access</h3>
+        </div>
+        <p class="text-gray-400 text-sm mb-6">Verification required to move platform funds.</p>
+        
+        <input type="password" id="admin-secret-field" 
+               class="w-full bg-black border border-white/10 rounded-xl p-3 text-white mb-6 focus:border-yellow-500 outline-none"
+               placeholder="Enter Vercel Token...">
+        
+        <div class="flex gap-3">
+            <button id="cancel-verify-btn" class="flex-1 px-4 py-3 rounded-xl bg-white/5 text-white hover:bg-white/10 transition">Cancel</button>
+            <button id="confirm-verify-btn" class="flex-1 px-4 py-3 rounded-xl bg-yellow-600 text-white font-bold hover:bg-yellow-500 transition">Verify</button>
+        </div>
+    </div>
+</div>
+<nav class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-md z-[50]">
+    <div class="bg-black/80 backdrop-blur-2xl border border-white/10 p-2 rounded-[2.5rem] flex items-center justify-around shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+        
+        <button onclick="openSupportChat()" class="nav-item flex flex-col items-center gap-1 p-2 text-gray-400 hover:text-white transition-all">
+            <i data-lucide="message-circle" class="w-5 h-5"></i>
+            <span class="text-[9px] font-bold uppercase tracking-widest">Support</span>
+        </button>
+
+        <button onclick="openExploreModal()" class="nav-item flex flex-col items-center gap-1 p-2 text-gray-400 hover:text-white transition-all">
+            <i data-lucide="search" class="w-5 h-5"></i>
+            <span class="text-[9px] font-bold uppercase tracking-widest">Explore</span>
+        </button>
+
+        <div class="relative flex justify-center items-center px-2">
+            <div class="absolute -inset-2 bg-blue-600/20 blur-xl rounded-full pulse-slow"></div>
+            <button onclick="openCreateCampaignModal()" class="relative -top-6 bg-gradient-to-br from-blue-500 to-blue-700 p-4 rounded-2xl shadow-lg shadow-blue-900/40 border-[6px] border-[#0a0a0a] text-white transform hover:scale-110 active:scale-90 transition-all">
+                <i data-lucide="plus" class="w-8 h-8 stroke-[3px]"></i>
+            </button>
+        </div>
+
+        <button onclick="openWalletModal()" class="nav-item flex flex-col items-center gap-1 p-2 text-gray-400 hover:text-white transition-all">
+            <i data-lucide="wallet" class="w-5 h-5"></i>
+            <span class="text-[9px] font-bold uppercase tracking-widest">Wallet</span>
+        </button>
+
+        <button onclick="openAccountModal()" class="nav-item flex flex-col items-center gap-1 p-2 text-gray-400 hover:text-white transition-all">
+            <i data-lucide="user" class="w-5 h-5"></i>
+            <span class="text-[9px] font-bold uppercase tracking-widest">Account</span>
+        </button>
+    </div>
+</nav>
+
+
+
+<div id="campaign-studio-modal" class="fixed inset-0 z-[200] hidden bg-black/98 backdrop-blur-3xl overflow-y-auto selection:bg-blue-500/30">
+    <div class="max-w-5xl mx-auto p-6 md:p-12 text-white">
+        <div class="flex justify-between items-center mb-16">
+            <div class="space-y-1">
+                <h1 class="text-5xl font-black italic uppercase tracking-tighter leading-none">Campaign Studio</h1>
+                <p class="text-zinc-500 text-[10px] font-black uppercase tracking-[0.4em] ml-1">Forge your reach • Scale your vision</p>
+            </div>
+            <button onclick="closeStudio()" class="group w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-red-500/20 transition-all border border-white/5">
+                <span class="group-hover:rotate-90 transition-transform duration-300 text-2xl">✕</span>
+            </button>
+        </div>
+
+        <div class="flex gap-2 mb-12 bg-zinc-900/50 p-2 rounded-2xl border border-white/5 w-fit">
+            <button onclick="switchStudioTab('create')" id="tab-btn-create" class="px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest bg-blue-600 text-white shadow-[0_0_30px_rgba(37,99,235,0.3)]">Create</button>
+            <button onclick="switchStudioTab('manage')" id="tab-btn-manage" class="px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-all">My Campaigns</button>
+        </div>
+
+        <div id="studio-create-view" class="grid grid-cols-1 lg:grid-cols-12 gap-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+            <div class="lg:col-span-7 space-y-10">
+                <div class="group relative">
+                    <input type="text" id="cp-title" required placeholder=" " class="peer w-full bg-transparent border-b-2 border-zinc-800 p-4 pl-0 text-3xl font-bold outline-none focus:border-blue-500 transition-all">
+                    <label class="absolute left-0 top-4 text-zinc-500 text-2xl font-bold pointer-events-none transition-all peer-focus:-top-6 peer-focus:text-xs peer-focus:text-blue-500 peer-[:not(:placeholder-shown)]:-top-6 peer-[:not(:placeholder-shown)]:text-xs uppercase italic">Campaign Heading</label>
+                </div>
+
+                <div class="relative bg-zinc-900/40 rounded-[2rem] border border-white/5 p-6 focus-within:border-blue-500/50 transition-all">
+                    <div class="flex justify-between items-center mb-4">
+                        <label class="text-[10px] font-black text-zinc-500 uppercase tracking-widest">The Story</label>
+                        <button onclick="generateAIContent()" id="ai-gen-btn" class="flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-[9px] font-black uppercase text-white hover:scale-105 transition-all">
+                            <span>✨ AI Auto-Write</span>
+                        </button>
+                    </div>
+                    <textarea id="cp-desc" rows="6" placeholder="Describe your mission..." class="w-full bg-transparent outline-none text-zinc-300 font-medium leading-relaxed resize-none"></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-zinc-900/50 p-6 rounded-[2rem] border border-white/5 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-[9px] font-black text-blue-500 uppercase tracking-widest mb-1">Target Goal</h4>
+                            <input type="number" id="cp-goal" placeholder="0" class="bg-transparent w-full text-xl font-black outline-none">
+                        </div>
+                        <span class="text-zinc-600 font-black text-[10px] uppercase">Tokens</span>
+                    </div>
+
+                    <div class="bg-zinc-900/50 p-6 rounded-[2rem] border border-white/5 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Visibility</h4>
+                            <select id="cp-visibility" onchange="checkPremiumVisibility(this)" class="bg-transparent text-white font-black text-sm outline-none cursor-pointer appearance-none">
+                                <option value="public" class="bg-zinc-900">🌍 Public Feed</option>
+                                <option value="private" class="bg-zinc-900">🔒 Private (PRO)</option>
+                            </select>
+                        </div>
+                        <div id="premium-lock-icon" class="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                            <span class="text-blue-500 text-[10px]">🌐</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-zinc-900/50 p-6 rounded-[2rem] border border-white/5">
+                        <h4 class="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Category</h4>
+                        <select id="cp-category" class="w-full bg-transparent font-bold text-sm outline-none">
+                            <option value="General" class="bg-zinc-900">General</option>
+                            <option value="Medical" class="bg-zinc-900">Medical</option>
+                            <option value="Crisis" class="bg-zinc-900">Crisis</option>
+                        </select>
+                    </div>
+                    <div class="bg-zinc-900/50 p-6 rounded-[2rem] border border-white/5">
+                        <h4 class="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Duration</h4>
+                        <select id="cp-duration" class="w-full bg-transparent font-bold text-sm outline-none">
+                            <option value="7" class="bg-zinc-900">7 Days</option>
+                            <option value="30" class="bg-zinc-900">30 Days</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-5 space-y-8">
+                <div class="space-y-4">
+                    <div class="relative aspect-video rounded-[2.5rem] bg-zinc-900 overflow-hidden border border-white/10 shadow-2xl">
+                        <img id="cp-preview-img" src="https://images.hive.blog/p/NTy4GV6ooFRmaCXZ8UYgPhoud1kjiNX8QokLEZtbBKLuLWQ9yt7K3o4MTgeicR2JF9fLXTD4sRt27d8vG5aiRCoDjrf24e3CMD5msbfdUbX1MzSVDjCMsn17K2A775iLEM4LvckBAcG8CU92RjLTtvsDiS6HzSxeXpvTZjux?format=match&mode=fit" class="w-full h-full object-cover">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="flex gap-2 p-2 bg-white/5 rounded-2xl border border-white/5">
+                            <img onclick="selectPreset(this.src, this)" src="https://images.hive.blog/p/NTy4GV6ooFRmaCXZ8UYgPhoud1kjiNX8QokLEZtbBKLuLWQ9yt7K3o4MTgeicR2JF9fLXTD4sRt27d8vG5aiRCoDjrf24e3CMD5msbfdUbX1MzSVDjCMsn17K2A775iLEM4LvckBAcG8CU92RjLTtvsDiS6HzSxeXpvTZjux?format=match&mode=fit" class="preset-option w-10 h-10 rounded-lg border-2 border-blue-500 cursor-pointer object-cover">
+                        </div>
+                        <button id="upload-trigger-btn" onclick="document.getElementById('cp-image-input').click()" class="flex-1 py-4 bg-white/5 text-[9px] font-black uppercase rounded-2xl border border-white/5 hover:bg-white/10 tracking-widest">📸 Custom Upload</button>
+                        <input type="file" id="cp-image-input" class="hidden" accept="image/*" onchange="uploadCampaignImage(event)">
+                    </div>
+                </div>
+
+                <div class="p-8 bg-blue-600/5 rounded-[3rem] border border-blue-500/20 space-y-6">
+                    <div class="flex justify-between items-center">
+                        <label class="text-[10px] font-black text-blue-500 uppercase tracking-widest italic">Reach Fuel (1 Token = 3 Views)</label>
+                        <input type="number" id="reach-input-manual" value="0" class="bg-blue-500/10 border border-blue-500/30 rounded-xl px-3 py-2 text-lg w-28 text-center font-black outline-none" oninput="updateReachMath(this.value)">
+                    </div>
+                    <input type="range" id="reach-slider" min="0" max="100000" step="100" value="0" class="w-full accent-blue-500 h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer" oninput="updateReachMath(this.value)">
+                    <div class="flex justify-between pt-2">
+                        <div>
+                            <p class="text-[8px] font-black text-zinc-600 uppercase mb-1">Potential Reach</p>
+                            <h3 id="reach-display" class="text-3xl font-black tracking-tighter">0 <span class="text-xs text-zinc-500">Reach</span></h3>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[8px] font-black text-zinc-600 uppercase mb-1">Cost</p>
+                            <h3 id="cost-display" class="text-3xl font-black text-blue-500 tracking-tighter">0 <span class="text-xs text-zinc-400">Tokens</span></h3>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="createNewCampaign()" class="w-full py-6 bg-blue-600 text-white rounded-[2rem] font-black uppercase tracking-[0.4em] hover:bg-blue-500 transition-all shadow-[0_20px_50px_rgba(37,99,235,0.3)]">Launch Mission</button>
+            </div>
+        </div>
+
+        <div id="studio-manage-view" class="hidden animate-in fade-in zoom-in-95 duration-500">
+            <div id="my-campaigns-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </div>
+    </div>
+</div>
+
+<div id="boost-modal" class="fixed inset-0 z-[300] hidden bg-black/95 backdrop-blur-xl flex items-center justify-center p-6 text-white">
+    <div class="bg-zinc-900 border border-white/10 p-10 rounded-[40px] max-w-sm w-full space-y-8 shadow-2xl">
+        <div class="text-center">
+            <h3 class="text-2xl font-black uppercase italic tracking-tighter">Refuel Mission</h3>
+            <p class="text-zinc-500 text-[9px] font-black uppercase tracking-[0.3em] mt-2">1 Token = 3 Guaranteed Views</p>
+        </div>
+        <div class="space-y-4">
+            <input type="number" id="boost-modal-input" placeholder="Tokens" class="w-full bg-black/50 border border-white/10 rounded-3xl py-5 px-6 text-3xl font-black text-center outline-none focus:border-blue-500 transition-all" oninput="updateBoostLiveMath(this.value)">
+            <div class="flex justify-between items-center bg-blue-600/5 p-5 rounded-3xl border border-blue-500/20">
+                <span class="text-[9px] font-black text-blue-500 uppercase">New Reach</span>
+                <span id="boost-live-reach" class="text-xl font-black italic">0 Views</span>
+            </div>
+        </div>
+        <div class="flex flex-col gap-2">
+            <button id="confirm-boost-btn" class="w-full py-5 bg-blue-600 rounded-[2rem] font-black uppercase text-[11px] tracking-widest shadow-xl shadow-blue-600/20">Confirm Boost</button>
+            <button onclick="closeBoostModal()" class="w-full py-4 text-zinc-600 font-black uppercase text-[9px] tracking-widest">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div id="studio-success-modal" class="fixed inset-0 z-[300] hidden flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-sm rounded-[32px] p-8 text-center animate-in zoom-in-95 duration-300">
+        <div class="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_40px_rgba(37,99,235,0.4)]">
+            <span class="text-3xl text-white">🚀</span>
+        </div>
+        <h2 id="studio-success-title" class="text-2xl font-black text-white uppercase italic tracking-tighter mb-2">Mission Launched</h2>
+        <p id="studio-success-msg" class="text-zinc-400 text-xs font-medium leading-relaxed mb-8 px-4">Your campaign is now live in the global discovery feed.</p>
+        <button onclick="closeStudioSuccess()" class="w-full py-4 bg-white text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-500 hover:text-white transition-all">Continue</button>
+    </div>
+</div>
+<div id="boost-modal" class="fixed inset-0 z-[300] hidden flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-sm rounded-[2.5rem] p-8 space-y-6 animate-in zoom-in-95 duration-300">
+        <div class="text-center">
+            <h3 class="text-xl font-black text-white uppercase italic tracking-tighter">Add Ad-Fuel</h3>
+            <p class="text-zinc-500 text-[10px] font-black uppercase tracking-widest mt-1">Refuel your reach (1:3)</p>
+        </div>
+        <div class="space-y-4">
+            <input type="number" id="boost-modal-input" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 text-center text-2xl font-black text-white outline-none focus:border-blue-500" value="100" oninput="document.getElementById('boost-modal-slider').value = this.value">
+            <input type="range" id="boost-modal-slider" min="10" max="5000" step="10" class="w-full accent-blue-500" oninput="document.getElementById('boost-modal-input').value = this.value">
+        </div>
+        <div class="flex gap-3">
+            <button onclick="closeBoostModal()" class="flex-1 py-4 text-zinc-500 text-[10px] font-black uppercase tracking-widest">Cancel</button>
+            <button id="confirm-boost-btn" class="flex-1 py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">Confirm Boost</button>
+        </div>
+    </div>
+</div>
+
+<div id="delete-modal" class="fixed inset-0 z-[300] hidden flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-sm rounded-[2.5rem] p-8 text-center animate-in zoom-in-95 duration-300">
+        <div class="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">🗑️</div>
+        <h3 class="text-xl font-black text-white uppercase italic tracking-tighter mb-2">Delete Campaign?</h3>
+        <p class="text-zinc-500 text-[10px] font-black uppercase leading-relaxed mb-8">This will permanently remove your mission and exhaust all remaining ad budget.</p>
+        <div class="flex gap-3">
+            <button onclick="closeDeleteModal()" class="flex-1 py-4 text-zinc-500 text-[10px] font-black uppercase tracking-widest">Keep It</button>
+            <button id="confirm-delete-btn" class="flex-1 py-4 bg-red-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest">Delete Forever</button>
+        </div>
+    </div>
+</div>
+<div id="upload-spinner-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+    <div class="bg-zinc-900 border border-white/10 p-8 rounded-[32px] flex flex-col items-center text-center max-w-xs shadow-2xl">
+        <div class="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mb-4"></div>
+        <h3 class="text-white font-black text-[10px] uppercase tracking-[0.2em] italic mb-2">Syncing Pulse</h3>
+        <p class="text-zinc-500 text-[9px] font-bold leading-relaxed uppercase tracking-tighter">
+            Establishing secure uplink to cloud storage. Please do not close the window.
+        </p>
+    </div>
+</div>
+<div id="wallet-modal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+    
+    <div class="bg-[#0a0a0a] w-full max-w-md rounded-[2.5rem] border border-white/10 p-6 shadow-2xl relative animate-in slide-in-from-bottom duration-300">
+        
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-sm font-black uppercase tracking-widest text-white italic">Financial Hub</h2>
+            <button onclick="closeWalletModal()" class="p-2 bg-white/5 rounded-full text-zinc-500 hover:text-white">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <div class="flex justify-around py-6 bg-black/40 rounded-3xl mb-4 border border-white/5">
+            <div class="text-center">
+                <p class="text-[8px] text-zinc-500 font-black uppercase">Tokens (Purchased)</p>
+                <p id="wallet-purchased-bal" class="text-xl font-black text-white italic">0</p>
+            </div>
+            <div class="w-[1px] bg-white/10 h-10 my-auto"></div>
+            <div class="text-center">
+                <p class="text-[8px] text-zinc-500 font-black uppercase text-emerald-500">Withdrawable (Earned)</p>
+                <p id="wallet-earned-bal" class="text-xl font-black text-emerald-400 italic">0</p>
+            </div>
+        </div>
+
+        <div class="flex gap-4 mb-4 border-b border-white/5">
+            <button id="tab-btn-received" 
+                    class="wallet-tab-btn pb-2 text-[10px] font-black uppercase transition-all" 
+                    onclick="switchWalletTab('received')">Received</button>
+            <button id="tab-btn-purchased" 
+                    class="wallet-tab-btn pb-2 text-[10px] font-black uppercase text-zinc-500 transition-all" 
+                    onclick="switchWalletTab('purchased')">History</button>
+        </div>
+
+        <div id="wallet-history-content" class="max-h-[300px] overflow-y-auto space-y-2">
+            </div>
+        </div>
+</div>
+    <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
+
+    <script type="module" src="./firebase-config.js"></script>
+    <script type="module" src="script.js"></script>
+
+</body>
+</html>
+
