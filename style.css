@@ -1,6 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap');
 
-body { font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.3s ease; overflow-x: hidden; }
+/* Fix for White Stripes during scrolling */
+html {
+    background-color: #050505; /* Default dark background */
+}
 
 /* Variable Definitions */
 :root {
@@ -31,11 +34,19 @@ body.theme-blue {
 }
 
 /* Global Apply */
-body { background-color: var(--bg); color: var(--text-main); }
+body { 
+    font-family: 'Plus Jakarta Sans', sans-serif; 
+    background-color: var(--bg); 
+    color: var(--text-main);
+    transition: background-color 0.3s ease, color 0.3s ease; 
+    overflow-x: hidden; 
+    margin: 0;
+}
 
 .glass-header {
     position: sticky; top: 0; z-index: 50;
     backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     background: var(--input-bg);
     border-bottom: 1px solid var(--border);
     padding: 0.6rem 1.2rem;
@@ -49,11 +60,7 @@ body { background-color: var(--bg); color: var(--text-main); }
 }
 
 /* Specific ID Fixes */
-#token-count, 
-#calc-gross, 
-#pro-name-preview, 
-#withdraw-modal h2, 
-#token-modal h2,
+#token-count, #calc-gross, #pro-name-preview, #withdraw-modal h2, #token-modal h2,
 .pack-option span:not(.text-amber-500) {
     color: var(--text-main) !important;
 }
@@ -76,79 +83,46 @@ body.theme-light button.bg-zinc-800 {
 .premium-tag { background: #F59E0B; color: black; font-size: 8px; font-weight: 900; padding: 2px 5px; border-radius: 4px; position: absolute; top: 4px; right: 4px; }
 .theme-btn.active { outline: 2px solid #F59E0B; outline-offset: 2px; }
 
-#notify-box { position: fixed; top: 80px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
-.toast { background: #F59E0B; color: black; padding: 12px 20px; border-radius: 12px; font-weight: 800; transform: translateX(120%); transition: 0.4s; }
-.toast.show { transform: translateX(0); }
-
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 
-.stop-scrolling {
-    height: 100vh;
-    overflow: hidden;
-}
+.stop-scrolling { height: 100vh; overflow: hidden; }
 
 /* Vault Access Master Overlay */
 #admin-verify-modal {
-    position: fixed; 
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 9999; 
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(8px);
-    padding: 1rem;
+    position: fixed; inset: 0; width: 100%; height: 100%; z-index: 9999; 
+    display: flex; align-items: center; justify-content: center;
+    background-color: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); padding: 1rem;
 }
-
-#admin-verify-modal.hidden {
-    display: none !important;
-}
-
-#admin-verify-modal:not(.hidden) > div {
-    animation: modalPop 0.3s ease-out;
-}
+#admin-verify-modal.hidden { display: none !important; }
+#admin-verify-modal:not(.hidden) > div { animation: modalPop 0.3s ease-out; }
 
 @keyframes modalPop {
     from { transform: scale(0.9); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
 }
 
-
-    @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
-    }
-
-    .skeleton-item {
-        background: linear-gradient(90deg, #18181b 25%, #27272a 50%, #18181b 75%);
-        background-size: 200% 100%;
-        animation: shimmer 1.5s infinite linear;
-    }
-
-    #master-loader {
-        position: fixed;
-        top: 72px; /* Adjust to match your header height */
-        left: 0; right: 0; bottom: 0;
-        background: black;
-        z-index: 40;
-        transition: opacity 0.6s ease, visibility 0.6s;
-    }
-
-    .loader-fade-out {
-        opacity: 0;
-        visibility: hidden;
-    }
-
-
-.hide-loader {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.5s ease;
+/* Animations & Skeletons */
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
 }
-/* Optimized Theme-Aware Skeleton */
+
+@keyframes shimmer-swipe {
+    100% { transform: translateX(100%); }
+}
+
+@keyframes shimmer-pulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.skeleton-item {
+    background: linear-gradient(90deg, #18181b 25%, #27272a 50%, #18181b 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+}
+
 .skeleton-card {
     background-color: var(--card-bg);
     border: 1px solid var(--border);
@@ -161,7 +135,6 @@ body.theme-light button.bg-zinc-800 {
     overflow: hidden;
 }
 
-/* The Shimmer Effect */
 .shimmer {
     position: relative;
     overflow: hidden;
@@ -173,89 +146,51 @@ body.theme-light button.bg-zinc-800 {
     position: absolute;
     inset: 0;
     transform: translateX(-100%);
-    background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 255, 255, 0.05),
-        transparent
-    );
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
     animation: shimmer-swipe 1.5s infinite;
 }
 
-/* Light mode needs a darker shimmer for visibility */
 body.theme-light .shimmer::after {
-    background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(0, 0, 0, 0.05),
-        transparent
-    );
+    background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.05), transparent);
 }
 
-@keyframes shimmer-swipe {
-    100% { transform: translateX(100%); }
+/* Loader Styles */
+#master-loader {
+    position: fixed; top: 72px; left: 0; right: 0; bottom: 0;
+    background: var(--bg);
+    z-index: 40;
+    transition: opacity 0.6s ease, visibility 0.6s;
 }
-        /* This ensures the loader matches your app's CSS variables instantly */
-        #master-loader .skeleton-card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 32px;
-        }
 
-        #master-loader .shimmer {
-            background: linear-gradient(90deg, var(--input-bg) 25%, var(--border) 50%, var(--input-bg) 75%);
-            background-size: 200% 100%;
-            animation: shimmer-pulse 1.5s infinite linear;
-        }
+#master-loader .shimmer {
+    background: linear-gradient(90deg, var(--input-bg) 25%, var(--border) 50%, var(--input-bg) 75%);
+    background-size: 200% 100%;
+    animation: shimmer-pulse 1.5s infinite linear;
+}
 
-        @keyframes shimmer-pulse {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
+.loader-fade-out { opacity: 0 !important; pointer-events: none !important; visibility: hidden; }
+.hide-loader { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
 
-        .loader-fade-out { 
-            opacity: 0 !important; 
-            pointer-events: none !important; 
-        }
-/* Container to hold the toasts */
+/* Notification System (iOS Style) */
 #notify-box {
-    position: fixed;
-    top: 20px;
-    left: 50%;
+    position: fixed; top: 20px; left: 50%;
     transform: translateX(-50%);
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    pointer-events: none;
-    width: 100%;
+    z-index: 9999; display: flex; flex-direction: column;
+    align-items: center; pointer-events: none; width: 100%;
 }
 
-/* The Toast itself */
 .toast {
-    background: rgba(28, 28, 30, 0.8); /* iOS Dark Mode Grey */
+    background: rgba(28, 28, 30, 0.8);
     backdrop-filter: blur(15px) saturate(180%);
     -webkit-backdrop-filter: blur(15px) saturate(180%);
     color: white;
-    padding: 12px 24px;
-    border-radius: 24px; /* Pill shape */
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: -0.2px;
-    margin-bottom: 10px;
+    padding: 12px 24px; border-radius: 24px;
+    font-size: 13px; font-weight: 600;
+    letter-spacing: -0.2px; margin-bottom: 10px;
     border: 0.5px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    
-    /* Animation States */
-    opacity: 0;
-    transform: translateY(-20px) scale(0.9);
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Spring bounce */
+    opacity: 0; transform: translateY(-20px) scale(0.9);
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-/* When the 'show' class is added via your JS */
-.toast.show {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    pointer-events: auto;
-}
+.toast.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
