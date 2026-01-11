@@ -1,91 +1,74 @@
-// account.js
-import { ref, get, update } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+import { ref, get, query, orderByChild, equalTo, limitToLast } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 import { auth, db } from './firebase-config.js';
 
-// Configuration for this specific view
-const AVATAR_PRESETS = [
-    "https://img.pikbest.com/origin/10/25/30/74apIkbEsT5qB.jpg!w700wp",
-    "https://thumbs.dreamstime.com/b/cool-neon-party-wolf-headphones-black-background-colorful-illustration-music-theme-modern-portrait-bright-vibrant-385601082.jpg",
-    "https://wallpapers.com/images/hd/gaming-profile-pictures-tt8bbzdcf6zibhoi.jpg"
-];
-
-// --- UNIQUE FUNCTION FOR BOTTOM NAV ---
-window.openAccountModal = async () => {
+window.openMyAccount = async () => {
     const user = auth.currentUser;
     if (!user) return window.openAuthModal();
 
     const modal = document.getElementById('profile-modal');
-    if (!modal) return;
-
     modal.classList.remove('hidden');
 
     try {
-        const snap = await get(ref(db, `users/${user.uid}`));
-        const data = snap.val() || {};
+        // 1. Fetch User Stats
+        const userSnap = await get(ref(db, `users/${user.uid}`));
+        const userData = userSnap.val() || {};
 
-        // Populate the specific fields in this modal
-        const mainImg = document.getElementById('profile-main-img');
-        const nameInput = document.getElementById('username-input');
-        const handleDisplay = document.getElementById('profile-handle-display');
+        // 2. Update Basic Info
+        document.getElementById('profile-main-img').src = userData.avatar || 'https://via.placeholder.com/150';
+        document.getElementById('profile-handle-display').innerText = `@${userData.username || 'User'}`;
 
-        if (mainImg) mainImg.src = data.avatar || AVATAR_PRESETS[0];
-        if (nameInput) nameInput.value = data.username || "";
-        if (handleDisplay) handleDisplay.innerText = `@${data.username || 'User'}`;
+        // 3. Fetch Transaction History (Sent & Received)
+        // We query the 'donations' node for any records involving this user
+        const logsSnap = await get(ref(db, `logs/${user.uid}`)); 
+        const logs = logsSnap.val() || {};
 
-        renderNavProfileGrid(data.avatar);
-        
-        if (window.lucide) lucide.createIcons();
+        renderActivityFeed(logs);
+
     } catch (err) {
-        console.error("Nav Profile Sync Error:", err);
+        console.error("Account Load Error:", err);
     }
 };
 
-const renderNavProfileGrid = (currentAvatar) => {
-    const grid = document.getElementById('avatar-grid');
-    if (!grid) return;
+const renderActivityFeed = (logs) => {
+    const container = document.getElementById('manage-subscription-btn'); // Using your existing ID for the list
+    container.classList.remove('hidden');
+    container.innerHTML = `<h4 class="text-[10px] font-black text-zinc-500 uppercase mb-3">Activity History</h4>`;
 
-    // Preserve the upload button, clear the rest
-    const uploadBtn = grid.querySelector('div[onclick*="pfp-upload"]');
-    grid.innerHTML = '';
-    if (uploadBtn) grid.appendChild(uploadBtn);
+    const items = Object.values(logs).reverse(); // Newest first
 
-    AVATAR_PRESETS.forEach(url => {
-        const item = document.createElement('div');
-        const active = url === currentAvatar;
+    if (items.length === 0) {
+        container.innerHTML += `<p class="text-[9px] text-zinc-600 uppercase font-bold">No transactions found</p>`;
+        return;
+    }
+
+    items.forEach(log => {
+        const isReceived = log.type === 'received';
+        const div = document.createElement('div');
+        div.className = "flex justify-between items-center p-3 mb-2 bg-white/5 rounded-xl border border-white/5";
         
-        item.className = `relative aspect-square rounded-xl overflow-hidden cursor-pointer border-2 transition-all hover:scale-105 ${
-            active ? 'border-amber-500 shadow-lg shadow-amber-500/20' : 'border-white/5'
-        }`;
-        item.innerHTML = `<img src="${url}" class="w-full h-full object-cover">`;
-        
-        item.onclick = () => {
-            window.tempNavAvatar = url; // Unique temp variable
-            document.getElementById('profile-main-img').src = url;
-            grid.querySelectorAll('.aspect-square').forEach(el => el.classList.remove('border-amber-500', 'shadow-lg'));
-            item.classList.add('border-amber-500', 'shadow-lg');
-        };
-        grid.appendChild(item);
+        div.innerHTML = `
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center ${isReceived ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}">
+                    <i data-lucide="${isReceived ? 'arrow-down-left' : 'arrow-up-right'}" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black uppercase text-white">${isReceived ? 'Received from' : 'Sent to'} ${log.targetName}</p>
+                    <p class="text-[8px] font-bold text-zinc-500 uppercase">${new Date(log.timestamp).toLocaleDateString()}</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-xs font-black ${isReceived ? 'text-emerald-500' : 'text-white'}">
+                    ${isReceived ? '+' : '-'}${log.amount} 
+                </p>
+                <p class="text-[7px] font-black text-zinc-600 uppercase">Tokens</p>
+            </div>
+        `;
+        container.appendChild(div);
     });
+
+    if (window.lucide) lucide.createIcons();
 };
 
-window.saveNavProfileChanges = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    const newName = document.getElementById('username-input').value.trim().replace('@', '');
-    const updates = {};
-
-    if (window.tempNavAvatar) updates.avatar = window.tempNavAvatar;
-    if (newName) {
-        updates.username = newName;
-        updates.usernameLower = newName.toLowerCase();
-    }
-
-    try {
-        await update(ref(db, `users/${user.uid}`), updates);
-        window.notify?.("Account Updated Successfully");
-        window.closeProfile();
-    } catch (e) {
-        window.notify?.("Error updating account");
-    }
+window.closeProfile = () => {
+    document.getElementById('profile-modal').classList.add('hidden');
 };
