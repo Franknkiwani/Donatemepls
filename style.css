@@ -1,9 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap');
 
-/* Fix for White Stripes during scrolling */
-html {
-    background-color: #050505; /* Default dark background */
-}
+/* THE CANVAS FIX: 
+   Syncs the browser's base layer color to your specific theme backgrounds.
+   This kills the "white sneak-in" during fast scrolls.
+*/
+html { background-color: #050505; transition: background-color 0.3s ease; }
+html:has(body.theme-light) { background-color: #f4f4f5; }
+html:has(body.theme-blue) { background-color: #020617; }
 
 /* Variable Definitions */
 :root {
@@ -41,6 +44,16 @@ body {
     transition: background-color 0.3s ease, color 0.3s ease; 
     overflow-x: hidden; 
     margin: 0;
+    min-height: 100vh;
+}
+
+/* SCROLL-UP OPTIMIZATION:
+   Add this class to your post card containers.
+   It tells the browser not to "forget" the layout when off-screen.
+*/
+.post-container-item {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 500px; /* Adjust 500px to your avg post height */
 }
 
 .glass-header {
@@ -194,8 +207,3 @@ body.theme-light .shimmer::after {
 }
 
 .toast.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
-/* This targets the canvas specifically for each theme */
-html:has(body.theme-light) { background-color: #f4f4f5; }
-html:has(body.theme-blue) { background-color: #020617; }
-html:has(body) { background-color: #050505; } /* Default */
-
