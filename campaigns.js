@@ -17,16 +17,16 @@ const studioReport = (type, msg, customTitle = "Studio Success") => {
             titleEl.innerText = customTitle;
             msgEl.innerText = msg;
             modal.classList.remove('hidden');
-        } else { notify("✅ " + msg); }
+        } else { window.notify ? window.notify("✅ " + msg) : alert(msg); }
     } else {
         if(window.showErrorModal) { window.showErrorModal(msg); } 
-        else { notify("❌ " + msg); }
+        else { window.notify ? window.notify("❌ " + msg) : alert(msg); }
     }
 };
 
+// --- 3. UI Logic Functions ---
 window.closeStudioSuccess = () => document.getElementById('studio-success-modal').classList.add('hidden');
 
-// --- 3. UI Reset & Reach Math ---
 window.resetStudioData = () => {
     ['cp-title', 'cp-desc', 'cp-goal', 'reach-input-manual', 'reach-slider'].forEach(id => {
         const el = document.getElementById(id);
@@ -36,7 +36,7 @@ window.resetStudioData = () => {
     const preview = document.getElementById('cp-preview-img');
     if(preview) {
         preview.src = selectedCampaignImg;
-        preview.classList.remove('animate-pulse', 'blur-sm');
+        preview.classList.remove('animate-pulse', 'blur-md', 'brightness-50');
     }
     contentIsAiFlag = false; 
     window.updateReachMath(0);
@@ -50,8 +50,10 @@ window.updateReachMath = (val) => {
     if(slider) slider.value = tokens;
     if(input) input.value = tokens;
     
-    document.getElementById('reach-display').innerHTML = `${views.toLocaleString()} <span class="text-xs text-zinc-500 font-black">Reach</span>`;
-    document.getElementById('cost-display').innerHTML = `${tokens.toLocaleString()} <span class="text-xs text-zinc-500 font-black">Tokens</span>`;
+    const rd = document.getElementById('reach-display');
+    const cd = document.getElementById('cost-display');
+    if(rd) rd.innerHTML = `${views.toLocaleString()} <span class="text-xs text-zinc-500 font-black">Reach</span>`;
+    if(cd) cd.innerHTML = `${tokens.toLocaleString()} <span class="text-xs text-zinc-500 font-black">Tokens</span>`;
 };
 
 // --- 4. AI & Image Handling ---
@@ -74,14 +76,10 @@ window.uploadCampaignImage = async (event) => {
         const data = await response.json();
         if (data.success) {
             selectedCampaignImg = data.data.link;
-            const tempImg = new Image();
-            tempImg.onload = () => {
-                if(previewImg) {
-                    previewImg.src = selectedCampaignImg;
-                    previewImg.classList.remove('animate-pulse', 'blur-md', 'brightness-50');
-                }
-            };
-            tempImg.src = selectedCampaignImg;
+            if(previewImg) {
+                previewImg.src = selectedCampaignImg;
+                previewImg.classList.remove('animate-pulse', 'blur-md', 'brightness-50');
+            }
         } else { throw new Error("Imgur Reject"); }
     } catch (err) {
         if(previewImg) previewImg.classList.remove('animate-pulse', 'blur-md', 'brightness-50');
@@ -96,6 +94,7 @@ window.generateAIContent = async () => {
     const descField = document.getElementById('cp-desc');
     const aiBtn = document.getElementById('ai-gen-btn');
     if (!title || title.length < 5) return studioReport('error', "Enter a heading first!");
+    
     aiBtn.innerText = "✨ Thinking..."; aiBtn.disabled = true;
     try {
         const response = await fetch('/api/generate', { 
@@ -106,7 +105,7 @@ window.generateAIContent = async () => {
         if (data.text) {
             descField.value = data.text;
             contentIsAiFlag = true; 
-            notify("✨ Description Generated!");
+            if(window.notify) window.notify("✨ Description Generated!");
         }
     } catch (err) { studioReport('error', "AI Bridge failed."); }
     finally { aiBtn.innerText = "✨ AI Auto-Write"; aiBtn.disabled = false; }
@@ -120,17 +119,23 @@ window.selectPreset = (url, el) => {
     el.classList.replace('border-transparent', 'border-blue-500');
 };
 
-// --- 5. Tab & Lifecycle ---
+// --- 5. Modal Lifecycle ---
 window.openCreateCampaignModal = () => {
-    document.getElementById('campaign-studio-modal').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-    window.switchStudioTab('create');
+    const modal = document.getElementById('campaign-studio-modal');
+    if(modal) {
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        window.switchStudioTab('create');
+    }
 };
 
 window.closeStudio = () => {
-    document.getElementById('campaign-studio-modal').classList.add('hidden');
-    document.body.style.overflow = '';
-    window.resetStudioData(); 
+    const modal = document.getElementById('campaign-studio-modal');
+    if(modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+        window.resetStudioData(); 
+    }
 };
 
 window.switchStudioTab = (tab) => {
@@ -138,6 +143,7 @@ window.switchStudioTab = (tab) => {
     const manageView = document.getElementById('studio-manage-view');
     const createBtn = document.getElementById('tab-btn-create');
     const manageBtn = document.getElementById('tab-btn-manage');
+    
     const activeClass = "px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest bg-blue-600 text-white transition-all";
     const idleClass = "px-10 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest text-zinc-500 transition-all";
 
@@ -155,33 +161,23 @@ window.switchStudioTab = (tab) => {
     }
 };
 
-// --- 6. Premium Check & Creation ---
-window.checkPremiumVisibility = async (el) => {
-    const user = auth.currentUser;
-    if (!user) return;
-    try {
-        const userSnap = await get(ref(db, `users/${user.uid}`));
-        const isPremium = userSnap.val()?.isPremium || false;
-        if (el.value === 'private' && !isPremium) {
-            studioReport('error', "Private Campaigns are for Premium Members only!");
-            el.value = 'public';
-        }
-    } catch(e) { console.error(e); }
-};
-
+// --- 6. Database Actions ---
 window.createNewCampaign = async () => {
     const user = auth.currentUser;
     if (!user) return studioReport('error', "Login first");
+    
     const title = document.getElementById('cp-title').value.trim();
     const desc = document.getElementById('cp-desc').value.trim();
     const goal = parseInt(document.getElementById('cp-goal').value);
     const boostBudget = parseInt(document.getElementById('reach-slider').value) || 0;
+    
     if (!title || !desc || isNaN(goal)) return studioReport('error', "Fill all fields");
 
     try {
         const userRef = ref(db, `users/${user.uid}`);
         const userSnap = await get(userRef);
         const userData = userSnap.val();
+        
         if ((userData?.tokens || 0) < boostBudget) throw new Error("Not enough tokens!");
         
         const newRef = push(ref(db, 'campaigns'));
@@ -189,27 +185,27 @@ window.createNewCampaign = async () => {
             id: newRef.key,
             creator: user.uid,
             creatorName: userData?.username || "Member",
+            creatorAvatar: userData?.avatar || "",
             title, description: desc, goal, raised: 0,
             imageUrl: selectedCampaignImg, 
             tokensBudget: boostBudget,
             viewsActive: 0,
             status: 'active',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            deadline: Date.now() + (7 * 24 * 60 * 60 * 1000) // Default 7 days
         });
+
         if (boostBudget > 0) {
             await update(userRef, { tokens: (userData.tokens || 0) - boostBudget });
         }
+        
         window.closeStudio();
         studioReport('success', `Mission Live!`, "Launch Success");
+        
+        // Refresh grid if loadCampaigns exists in script.js
+        if(window.loadCampaigns) window.loadCampaigns(true);
+        
     } catch (e) { studioReport('error', e.message); }
-};
-
-// --- 7. Management & Boost ---
-window.updateBoostLiveMath = (val) => {
-    const tokens = parseInt(val) || 0;
-    const views = tokens * 3;
-    const display = document.getElementById('boost-live-reach');
-    if(display) display.innerText = `${views.toLocaleString()} Views`;
 };
 
 window.loadMyCampaigns = () => {
@@ -221,6 +217,7 @@ window.loadMyCampaigns = () => {
         container.innerHTML = '';
         const data = snap.val();
         if(!data) return;
+        
         Object.values(data).filter(c => c.creator === user.uid).forEach(c => {
             const div = document.createElement('div');
             div.className = "bg-white/5 border border-white/10 p-6 rounded-[32px] mb-4 space-y-4";
@@ -232,7 +229,7 @@ window.loadMyCampaigns = () => {
                     </div>
                     <button onclick="handleDeleteRequest('${c.id}')" class="text-red-500">✕</button>
                 </div>
-                <button onclick="handleBoostRequest('${c.id}')" class="w-full py-3 bg-blue-600 rounded-2xl text-[10px] text-white">⚡ Add Reach Boost</button>
+                <button onclick="handleBoostRequest('${c.id}')" class="w-full py-3 bg-blue-600 rounded-2xl text-[10px] text-white font-black uppercase">⚡ Add Reach Boost</button>
             `;
             container.appendChild(div);
         });
@@ -258,8 +255,9 @@ window.handleBoostRequest = (id) => {
         const cSnap = await get(campRef);
         await update(campRef, { tokensBudget: (cSnap.val().tokensBudget || 0) + amount });
         modal.classList.add('hidden');
+        if(window.notify) window.notify("⚡ Boost Applied!");
     };
 };
 
-window.closeDeleteModal = () => document.getElementById('delete-modal').classList.add('hidden');
-window.closeBoostModal = () => document.getElementById('boost-modal').classList.add('hidden');
+// Final Bridge Initialization
+console.log("🚀 Studio Engine: Connected and Ready.");
