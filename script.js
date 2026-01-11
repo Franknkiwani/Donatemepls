@@ -146,30 +146,18 @@ const syncScrollLock = () => {
         });
     }
 
-// 1. BOOTSTRAP: Start loading data immediately for everyone (Guest or User)
+// --- MASTER DATA SYNC (WITH SKELETON AUTO-EXIT & BUFFER) ---
 let syncReady = { user: false, campaigns: false, buffer: false };
 
-// Start the 3-second minimum buffer timer
+// 1. Start the 3-second minimum buffer timer immediately
 setTimeout(() => { 
     syncReady.buffer = true; 
     checkReady(); 
 }, 3000);
 
-if (typeof loadCampaigns === 'function') {
-    loadCampaigns().then(() => {
-        syncReady.campaigns = true;
-        checkReady();
-    });
-}
-
-if (typeof loadUserFeed === 'function') loadUserFeed();
-if (typeof switchView === 'function') switchView('campaigns');
-
-// Master Ready Check
+// Global Ready Check
 function checkReady() {
-    // Only hide skeleton if User (if logged in), Campaigns, and the 3s Buffer are all done
     if (syncReady.campaigns && syncReady.buffer) {
-        // If logged in, we also wait for syncReady.user. If guest, we ignore it.
         const isGuest = !auth.currentUser;
         if (isGuest || syncReady.user) {
             const loader = document.getElementById('master-loader');
@@ -181,42 +169,46 @@ function checkReady() {
     }
 }
 
-// --- MASTER AUTH & DATA SYNC ---
 onAuthStateChanged(auth, async (user) => {
+    // START LOADING CONTENT FOR EVERYONE (GUEST OR USER)
+    if (typeof loadCampaigns === 'function') {
+        loadCampaigns().then(() => {
+            setTimeout(() => { syncReady.campaigns = true; checkReady(); }, 500);
+        });
+    }
+    if (typeof loadUserFeed === 'function') loadUserFeed();
+    if (typeof switchView === 'function') switchView('campaigns');
+
     if (user) {
         const isAdmin = user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1";
-
-        // 1. USER DATA LISTENER & BAN GUARD
+        
+        // 1. USER DATA LISTENER
         onValue(ref(db, `users/${user.uid}`), (s) => {
             const d = s.val() || {};
 
             // --- THE NUCLEAR BAN GUARD ---
             if (d.banned) {
-                document.body.innerHTML = ''; // Wipe everything immediately
-                document.body.style.backgroundColor = 'black';
+                // Instantly wipe the site so they see NOTHING but the ban model
                 document.body.innerHTML = `
-                    <div class="h-screen bg-black flex flex-col items-center justify-center text-center p-6 font-sans">
-                        <div class="p-8 border border-red-500/30 bg-red-500/5 rounded-[40px] max-w-sm">
+                    <div class="h-screen bg-black flex flex-col items-center justify-center text-center p-6 font-sans overflow-hidden">
+                        <div class="p-8 border border-red-500/30 bg-red-500/5 rounded-[40px] max-w-sm animate-in fade-in zoom-in duration-500">
                             <h1 class="text-red-600 text-5xl font-black mb-4 italic tracking-tighter">ACCESS REVOKED</h1>
                             <p class="text-zinc-500 text-[10px] uppercase tracking-[0.2em] font-bold mb-6">Security Protocol 403: UID Blacklisted</p>
                             <p class="text-white/80 text-xs font-medium leading-relaxed mb-8">
-                                This account has been permanently suspended for platform abuse or reaching maximum security strikes.
+                                This account has been permanently suspended for platform abuse or unusual behavior detected by AI security.
                             </p>
-                            <div class="flex flex-col gap-4">
-                                <a href="mailto:support@yourdomain.com" class="inline-block w-full py-4 px-6 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[11px] uppercase rounded-full transition-all no-underline">
-                                    Appeal Suspension
-                                </a>
-                                <button onclick="auth.signOut().then(()=>location.reload())" class="text-zinc-600 text-[9px] font-black uppercase tracking-widest">Sign Out</button>
+                            <div class="flex flex-col gap-3">
+                                <a href="/support" class="w-full py-4 bg-emerald-500 text-black font-black text-[11px] uppercase rounded-full no-underline">Appeal via Grok AI</a>
+                                <button onclick="auth.signOut().then(()=>location.reload())" class="text-zinc-600 text-[9px] uppercase font-bold tracking-widest mt-2">Log Out</button>
                             </div>
-                            <p class="mt-8 text-[8px] text-zinc-600 uppercase font-bold tracking-widest">Case ID: ${user.uid}</p>
                         </div>
                     </div>`;
                 return;
             }
 
-            // Sync User UI Elements
+            // Sync User Details
             const name = d.username || "User";
-            const avatar = d.avatar || "https://img.icons8.com/fluency/48/user-male-circle.png";
+            const avatar = d.avatar || presets[0];
 
             document.getElementById('header-handle') && (document.getElementById('header-handle').innerText = isAdmin ? `👑 @${name}` : `@${name}`);
             if(document.getElementById('header-pfp')) {
@@ -224,56 +216,69 @@ onAuthStateChanged(auth, async (user) => {
                 document.getElementById('header-pfp').classList.remove('hidden');
                 document.getElementById('header-initial')?.classList.add('hidden');
             }
-            
-            // Token Sync
+
+            // --- TOKEN SYNC (ORIGINAL SIZE PRESERVED) ---
             const tokenElement = document.getElementById('token-count');
             if(tokenElement) {
                 tokenElement.innerText = (d.tokens || 0).toLocaleString();
-                if(isAdmin) tokenElement.className = "text-amber-500 font-black";
+                if(isAdmin) tokenElement.classList.add('text-amber-500');
             }
 
-            // Premium UI State
+            // AI/Grok Security Logger (Triggers on Whale activity)
+            if(d.tokens > 10000) window.logSecurityAction('WHALE_SYNC', { tokens: d.tokens, user: name });
+
+            // UI Adjustments
             const isPro = d.isPremium || isAdmin;
             document.getElementById('header-verified')?.classList.toggle('hidden', !isPro);
-            document.getElementById('premium-management-zone')?.classList.toggle('hidden', !d.isPremium);
             document.querySelector('button[onclick="openUpgradeModal()"]')?.classList.toggle('hidden', isPro);
 
-            // Flag as ready for skeleton exit
             syncReady.user = true;
             checkReady();
         });
 
-        // 2. UI Visibility for Logged In
+        // Show Logged-in UI
         ['user-tools', 'token-bar'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
         document.getElementById('login-btn')?.classList.add('hidden');
-
-        // 3. User-Specific Listeners (Payouts & Presence)
         if (typeof setupPresence === 'function') setupPresence(user.uid);
-        
+
+        // Payout History Listener
         onValue(ref(db, `payouts`), (snapshot) => {
             const historyList = document.getElementById('payout-history-list');
             if(!historyList) return;
             historyList.innerHTML = '';
             let totalPaid = 0;
-            
             Object.values(snapshot.val() || {}).filter(p => p.uid === user.uid).forEach(p => {
-                if (p.status === 'completed' || p.status === 'paid') totalPaid += (p.netAmount || 0);
+                if (p.status === 'paid' || p.status === 'completed') totalPaid += (p.netAmount || 0);
                 const div = document.createElement('div');
                 div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 mb-2";
-                div.innerHTML = `<div><p class="text-[10px] font-black">$${p.netAmount.toFixed(2)}</p><p class="text-[8px] opacity-40">${new Date(p.timestamp).toLocaleDateString()}</p></div><span class="text-[8px] font-black uppercase ${p.status === 'paid' ? 'text-emerald-500' : 'text-amber-500'}">${p.status}</span>`;
+                div.innerHTML = `<div class="flex flex-col"><span class="text-[9px] font-black text-white uppercase">$${p.netAmount.toFixed(2)}</span></div><span class="text-[8px] font-black uppercase ${p.status === 'paid' ? 'text-emerald-500' : 'text-amber-500'}">${p.status}</span>`;
                 historyList.appendChild(div);
             });
-            document.getElementById('total-withdrawn') && (document.getElementById('total-withdrawn').innerText = `$${totalPaid.toFixed(2)}`);
+            if(document.getElementById('total-withdrawn')) document.getElementById('total-withdrawn').innerText = `$${totalPaid.toFixed(2)}`;
         });
 
     } else {
-        // GUEST MODE: Hide user tools, show login
+        // GUEST FLOW
         ['user-tools', 'token-bar'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
         document.getElementById('login-btn')?.classList.remove('hidden');
-        // Check ready now because syncReady.user will never be true for a guest
         checkReady(); 
     }
 });
+
+// --- GROK AI SECURITY ACTION LOGGER (VERCEL ROUTE) ---
+window.logSecurityAction = async (actionType, metadata = {}) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+        const idToken = await user.getIdToken();
+        await fetch('/api/security-audit', { // Your Vercel endpoint
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken, actionType, metadata, timestamp: Date.now() })
+        });
+    } catch (e) { console.warn("AI Logging offline"); }
+};
+
 
 
 // --- UNIFIED FREE UPLOAD, SPINNER & VERCEL SYNC ---
