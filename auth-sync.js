@@ -1,18 +1,68 @@
 /**
  * AUTH-SYNC.JS 
- * Complete Standalone Authentication & Data Sync Module
+ * Complete Standalone Authentication, Data Sync & Upgrade Module
  */
 
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
-import { ref, onValue } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+import { ref, onValue, update } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 import { auth, db } from './firebase-config.js';
 
-// --- GLOBAL SETTINGS ---
+// --- GLOBAL SETTINGS & UPGRADE CONFIG ---
+const PLAN_ID = 'P-47S21200XM2944742NFPLPEA';
 const presets = window.presets || [
     "https://img.pikbest.com/origin/10/25/30/74apIkbEsT5qB.jpg!w700wp",
     "https://thumbs.dreamstime.com/b/cool-neon-party-wolf-headphones-black-background-colorful-illustration-music-theme-modern-portrait-bright-vibrant-385601082.jpg",
     "https://wallpapers.com/images/hd/gaming-profile-pictures-tt8bbzdcf6zibhoi.jpg"
 ];
+
+// --- UPGRADE MODAL & PAYPAL ENGINE ---
+window.openUpgradeModal = () => {
+    const modal = document.getElementById('upgrade-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        // Delay to ensure container is visible before rendering
+        setTimeout(initUpgradePayPal, 200);
+    }
+};
+
+window.closeUpgradeModal = () => {
+    document.getElementById('upgrade-modal')?.classList.add('hidden');
+};
+
+function initUpgradePayPal() {
+    const target = document.getElementById(`paypal-button-container-${PLAN_ID}`) || 
+                   document.getElementById('paypal-button-container-PRO');
+    
+    // Safety check: ensure paypal exists, target exists, and is empty (prevents duplicates)
+    if (!window.paypal || !target || target.hasChildNodes()) return;
+
+    window.paypal.Buttons({
+        style: { shape: 'pill', color: 'gold', layout: 'vertical', label: 'subscribe' },
+        createSubscription: (data, actions) => {
+            return actions.subscription.create({ 
+                plan_id: PLAN_ID, 
+                custom_id: auth.currentUser?.uid 
+            });
+        },
+        onApprove: async (data) => {
+            try {
+                const user = auth.currentUser;
+                if(!user) return;
+
+                // 1. Permanent Database Upgrade
+                await update(ref(db, `users/${user.uid}`), { 
+                    isPremium: true, 
+                    tokens: 20 
+                });
+                
+                if(typeof window.notify === 'function') window.notify("Welcome to PRO!"); 
+                window.closeUpgradeModal();
+            } catch (err) {
+                console.error("Upgrade Sync Error:", err);
+            }
+        }
+    }).render(target);
+}
 
 // --- AUTH LISTENER ---
 onAuthStateChanged(auth, async (user) => {
@@ -71,8 +121,11 @@ onAuthStateChanged(auth, async (user) => {
 
             const isPro = d.isPremium || isAdmin;
             if(document.getElementById('header-verified')) document.getElementById('header-verified').classList.toggle('hidden', !isPro);
-            const upgradeBtn = document.querySelector('button[onclick="openUpgradeModal()"]');
-            if(upgradeBtn) upgradeBtn.classList.toggle('hidden', isPro);
+            
+            // Toggle all upgrade buttons across the UI
+            document.querySelectorAll('button[onclick="openUpgradeModal()"]').forEach(btn => {
+                btn.classList.toggle('hidden', isPro);
+            });
 
             // Signal Loader
             if(window.syncReady) window.syncReady.user = true;
