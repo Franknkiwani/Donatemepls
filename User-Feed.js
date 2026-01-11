@@ -9,19 +9,11 @@ const communityPresets = [
 
 let activeListeners = [];
 
-const notify = (msg) => {
-    if (window.showErrorModal) window.showErrorModal(msg);
-    else if (window.notify) window.notify(msg);
-    else alert(msg);
-};
-
-// --- UTILITY: LOCK SCROLL ---
 const toggleScroll = (lock) => {
     document.body.style.overflow = lock ? 'hidden' : '';
 };
 
-// --- DEEP LINKING LOGIC ---
-// If someone visits yoursite.com/#profile-123, it opens that profile automatically
+// --- DEEP LINKING AUTO-LOADER ---
 window.addEventListener('load', () => {
     const hash = window.location.hash;
     if (hash.startsWith('#profile-')) {
@@ -57,7 +49,7 @@ window.loadUserFeed = async () => {
             card.id = `user-card-${uid}`;
             feedGrid.appendChild(card);
 
-            // Interval Banner
+            // 1. INTERVAL BANNERS (3, 8, 16)
             if (userPos === 3 || userPos === 8 || userPos === 16) {
                 const banner = document.createElement('div');
                 banner.className = "col-span-full my-6 overflow-hidden rounded-[24px] border border-white/10 shadow-2xl";
@@ -65,46 +57,78 @@ window.loadUserFeed = async () => {
                 feedGrid.appendChild(banner);
             }
 
+            // 2. LIVE LISTENER (Restored full data display)
             const unsubscribe = onValue(ref(db, `users/${uid}`), (userSnap) => {
                 const u = userSnap.val();
                 if (!u) return;
 
                 const isPro = u.isPremium || u.premium || false;
                 const isAdmin = uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1";
+                const shareUrl = encodeURIComponent(`${window.location.origin}${window.location.pathname}#profile-${uid}`);
+                const shareText = encodeURIComponent(`Check out @${u.username}!`);
 
-                card.className = `p-5 rounded-[28px] border transition-all duration-500 hover:translate-y-[-4px] ${
-                    isPro ? 'border-pink-500/40 bg-pink-500/5' : 'border-white/5 bg-zinc-900/40'
+                card.className = `p-5 rounded-[28px] border relative transition-all duration-500 hover:translate-y-[-4px] ${
+                    isPro ? 'border-pink-500/40 bg-pink-500/5 shadow-[0_10px_30px_rgba(236,72,153,0.05)]' : 'border-white/5 bg-zinc-900/40'
                 }`;
 
                 card.innerHTML = `
                     <div class="flex items-start gap-4">
-                        <div onclick="window.openQuickProfile('${uid}')" class="relative w-14 h-14 rounded-2xl border-2 ${isPro ? 'border-pink-500' : 'border-zinc-800'} p-0.5 flex-shrink-0 cursor-pointer overflow-hidden">
+                        <div onclick="window.openQuickProfile('${uid}')" class="relative w-14 h-14 rounded-2xl border-2 ${isPro ? 'border-pink-500 animate-pulse' : 'border-zinc-800'} p-0.5 flex-shrink-0 cursor-pointer overflow-hidden shadow-lg">
                             <img src="${u.avatar || communityPresets[0]}" class="w-full h-full object-cover rounded-xl" loading="lazy">
                         </div>
+
                         <div class="flex-1 min-w-0">
-                            <div class="bg-white/5 backdrop-blur-md px-2 py-0.5 rounded-lg border border-white/10 inline-flex items-center gap-1.5 mb-1 max-w-full">
-                                <span class="font-black text-[10px] text-white uppercase italic truncate pr-1">@${u.username || 'User'}</span>
-                                ${isPro ? '<img src="https://img.icons8.com/color/48/verified-badge.png" class="w-3 h-3">' : ''}
-                                ${(isPro || isAdmin) ? '<img src="https://i.imgur.com/BoVp6Td.png" class="w-4 h-4">' : ''}
+                            <div class="flex justify-between items-center gap-1 mb-1">
+                                <div class="bg-white/5 backdrop-blur-md px-2 py-0.5 rounded-lg border border-white/10 inline-flex items-center gap-1.5 max-w-full">
+                                    <span class="font-black text-[10px] text-white uppercase italic truncate pr-1">@${u.username || 'User'}</span>
+                                    ${isPro ? '<img src="https://img.icons8.com/color/48/verified-badge.png" class="w-3 h-3">' : ''}
+                                    ${(isPro || isAdmin) ? '<img src="https://i.imgur.com/BoVp6Td.png" class="w-4 h-4">' : ''}
+                                    ${isAdmin ? '<span class="text-[7px] bg-amber-500 text-black px-1 rounded-sm font-black">STAFF</span>' : ''}
+                                </div>
+                                <span class="text-xs flex-shrink-0">${u.mood === 'happy' ? '😊' : u.mood === 'sad' ? '😔' : '😐'}</span>
                             </div>
-                            <p class="text-[9px] text-zinc-400 italic line-clamp-1 mb-2">"${u.bio || '...'}"</p>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button onclick="handleTip('${uid}', '${u.username}', '${u.avatar}')" class="py-2 ${isPro ? 'bg-pink-600' : 'bg-emerald-500'} text-black text-[9px] font-black uppercase rounded-lg">Donate</button>
-                                <button onclick="window.openQuickProfile('${uid}')" class="py-2 bg-white/5 text-white text-[9px] font-black uppercase rounded-lg">Profile</button>
+                            
+                            <p class="text-[10px] text-zinc-400 italic line-clamp-1 mb-2 px-1">
+                                ${u.bio || 'Sharing the energy on the platform!'}
+                            </p>
+
+                            <div class="flex items-center justify-between mt-1 px-1">
+                                <span class="text-[8px] bg-black/40 px-2 py-0.5 rounded-full text-zinc-500 font-bold uppercase border border-white/5">
+                                    ${u.country || 'Global'}
+                                </span>
+                                <div class="flex items-center gap-2.5">
+                                    <a href="https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}" target="_blank" class="opacity-40 hover:opacity-100 transition-opacity">
+                                        <img src="https://img.icons8.com/ios-filled/50/ffffff/twitterx.png" class="w-3 h-3">
+                                    </a>
+                                    <a href="https://wa.me/?text=${shareText}%20${shareUrl}" target="_blank" class="opacity-40 hover:opacity-100 transition-opacity">
+                                        <img src="https://img.icons8.com/ios-filled/50/ffffff/whatsapp.png" class="w-3 h-3">
+                                    </a>
+                                </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 mt-4">
+                        <button onclick="handleTip('${uid}', '${u.username}', '${u.avatar}')" 
+                            class="py-2.5 ${isPro ? 'bg-pink-600' : 'bg-emerald-500'} text-black text-[9px] font-black uppercase rounded-xl shadow-md active:scale-95 transition-all">
+                            Donate
+                        </button>
+                        <button onclick="window.openQuickProfile('${uid}')" 
+                            class="py-2.5 bg-white/5 hover:bg-white/10 text-white text-[9px] font-black uppercase rounded-xl border border-white/10 transition-all">
+                            Profile
+                        </button>
                     </div>
                 `;
             });
             activeListeners.push(unsubscribe);
         });
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Feed Error:", e); }
 };
 
 // --- QUICK PROFILE MODAL LOGIC ---
 window.openQuickProfile = async (targetUid) => {
-    toggleScroll(true); // Stop background scroll
-    window.location.hash = `profile-${targetUid}`; // Update URL for sharing
+    toggleScroll(true);
+    window.location.hash = `profile-${targetUid}`;
 
     let modal = document.getElementById('quick-profile-modal');
     if (!modal) {
@@ -116,17 +140,16 @@ window.openQuickProfile = async (targetUid) => {
     modal.style.display = 'flex';
     modal.innerHTML = `<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>`;
 
-    // Fetch Up-to-date data
     const snap = await get(ref(db, `users/${targetUid}`));
     const u = snap.val();
 
     if (u) {
         const shareUrl = encodeURIComponent(`${window.location.origin}${window.location.pathname}#profile-${targetUid}`);
-        const shareText = encodeURIComponent(`Check out ${u.username}'s profile!`);
+        const shareText = encodeURIComponent(`Check out @${u.username}'s profile!`);
 
         modal.innerHTML = `
             <div class="bg-zinc-950 border border-white/10 w-full max-w-[420px] rounded-[40px] overflow-hidden relative shadow-2xl animate-in zoom-in duration-300">
-                <button onclick="closeQuickProfile()" class="absolute top-5 right-5 z-20 bg-black/50 text-white w-10 h-10 rounded-full border border-white/10">&times;</button>
+                <button onclick="closeQuickProfile()" class="absolute top-5 right-5 z-20 bg-black/50 text-white w-10 h-10 rounded-full border border-white/10 hover:bg-white hover:text-black transition-all">&times;</button>
                 
                 <div class="h-32 bg-zinc-900 relative">
                     <img src="${u.banner || communityPresets[2]}" class="w-full h-full object-cover opacity-50">
@@ -149,8 +172,8 @@ window.openQuickProfile = async (targetUid) => {
                             <p class="text-[10px] text-white font-bold truncate">${u.country || 'Global'}</p>
                         </div>
                         <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
-                            <p class="text-[8px] text-zinc-500 font-black uppercase">Points</p>
-                            <p class="text-[10px] text-white font-bold">${u.points || '0'}</p>
+                            <p class="text-[8px] text-zinc-500 font-black uppercase">Tokens</p>
+                            <p class="text-[10px] text-white font-bold">${u.tokens || '0'}</p>
                         </div>
                         <div class="bg-white/5 p-3 rounded-2xl border border-white/5">
                             <p class="text-[8px] text-zinc-500 font-black uppercase">Level</p>
@@ -163,14 +186,14 @@ window.openQuickProfile = async (targetUid) => {
                         Donate to Creator
                     </button>
 
-                    <a href="profile.html?id=${targetUid}" class="block mt-4 text-[10px] font-black uppercase text-zinc-500 hover:text-white tracking-widest transition-colors">
-                        View Full Records &rarr;
+                    <a href="profile.html?id=${targetUid}" class="block mt-5 text-[10px] font-black uppercase text-zinc-500 hover:text-white tracking-[3px] transition-colors">
+                        View Full Dossier &rarr;
                     </a>
 
-                    <div class="mt-8 flex justify-center gap-5 pt-6 border-t border-white/5">
-                        <a href="https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}" target="_blank"><img src="https://img.icons8.com/ios-filled/50/ffffff/twitterx.png" class="w-4 h-4 opacity-50 hover:opacity-100"></a>
-                        <a href="https://wa.me/?text=${shareText}%20${shareUrl}" target="_blank"><img src="https://img.icons8.com/ios-filled/50/ffffff/whatsapp.png" class="w-4 h-4 opacity-50 hover:opacity-100"></a>
-                        <a href="https://www.facebook.com/sharer/sharer.php?u=${shareUrl}" target="_blank"><img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png" class="w-4 h-4 opacity-50 hover:opacity-100"></a>
+                    <div class="mt-8 flex justify-center gap-6 pt-6 border-t border-white/5">
+                        <a href="https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}" target="_blank"><img src="https://img.icons8.com/ios-filled/50/ffffff/twitterx.png" class="w-4 h-4 opacity-50 hover:opacity-100 transition-all"></a>
+                        <a href="https://wa.me/?text=${shareText}%20${shareUrl}" target="_blank"><img src="https://img.icons8.com/ios-filled/50/ffffff/whatsapp.png" class="w-4 h-4 opacity-50 hover:opacity-100 transition-all"></a>
+                        <a href="https://www.facebook.com/sharer/sharer.php?u=${shareUrl}" target="_blank"><img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png" class="w-4 h-4 opacity-50 hover:opacity-100 transition-all"></a>
                     </div>
                 </div>
             </div>
@@ -181,5 +204,5 @@ window.openQuickProfile = async (targetUid) => {
 window.closeQuickProfile = () => {
     toggleScroll(false);
     document.getElementById('quick-profile-modal').style.display = 'none';
-    window.location.hash = ''; // Clear hash when closed
+    window.location.hash = ''; 
 };
