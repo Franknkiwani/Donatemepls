@@ -12,6 +12,7 @@ import './transactions.js';
 import './User-Feed.js';
 import './campaigns-feed.js';
 import './security-guard.js';
+import './auth-sync.js';
 
     import { 
         ref, update, onValue, get, set, push,
