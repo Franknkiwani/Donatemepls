@@ -1,50 +1,53 @@
-import { ref, get, query, orderByChild, equalTo, limitToLast } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+import { ref, get } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 import { auth, db } from './firebase-config.js';
 
+// --- OPEN MY ACCOUNT MODAL ---
 window.openMyAccount = async () => {
     const user = auth.currentUser;
-    if (!user) return window.openAuthModal();
+    if (!user) return typeof window.openAuthModal === 'function' ? window.openAuthModal() : console.log("Auth modal missing");
 
-    const modal = document.getElementById('profile-modal');
-    modal.classList.remove('hidden');
+    const modal = document.getElementById('myaccount-modal');
+    if (modal) modal.classList.remove('hidden');
 
     try {
-        // 1. Fetch User Stats
+        // 1. Fetch User Data
         const userSnap = await get(ref(db, `users/${user.uid}`));
         const userData = userSnap.val() || {};
 
-        // 2. Update Basic Info
-        document.getElementById('profile-main-img').src = userData.avatar || 'https://via.placeholder.com/150';
-        document.getElementById('profile-handle-display').innerText = `@${userData.username || 'User'}`;
+        // 2. Update UI Elements
+        const pfp = document.getElementById('myaccount-pfp-display');
+        const handle = document.getElementById('myaccount-handle-display');
+        
+        if (pfp) pfp.src = userData.avatar || 'https://via.placeholder.com/150';
+        if (handle) handle.innerText = `@${userData.username || 'User'}`;
 
-        // 3. Fetch Transaction History (Sent & Received)
-        // We query the 'donations' node for any records involving this user
+        // 3. Fetch logs for Activity Feed
         const logsSnap = await get(ref(db, `logs/${user.uid}`)); 
-        const logs = logsSnap.val() || {};
-
-        renderActivityFeed(logs);
+        renderMyAccountActivity(logsSnap.val() || {});
 
     } catch (err) {
-        console.error("Account Load Error:", err);
+        console.error("MyAccount Load Error:", err);
     }
 };
 
-const renderActivityFeed = (logs) => {
-    const container = document.getElementById('manage-subscription-btn'); // Using your existing ID for the list
-    container.classList.remove('hidden');
-    container.innerHTML = `<h4 class="text-[10px] font-black text-zinc-500 uppercase mb-3">Activity History</h4>`;
+// --- RENDER ACTIVITY FEED ---
+const renderMyAccountActivity = (logs) => {
+    const container = document.getElementById('myaccount-activity-container');
+    if (!container) return;
 
-    const items = Object.values(logs).reverse(); // Newest first
+    container.innerHTML = `<h4 class="text-[10px] font-black text-zinc-500 uppercase mb-3 italic">Transaction Activity</h4>`;
+
+    const items = Object.values(logs).reverse(); // Most recent first
 
     if (items.length === 0) {
-        container.innerHTML += `<p class="text-[9px] text-zinc-600 uppercase font-bold">No transactions found</p>`;
+        container.innerHTML += `<p class="text-[9px] text-zinc-600 uppercase font-bold py-4 text-center">No transactions found</p>`;
         return;
     }
 
     items.forEach(log => {
         const isReceived = log.type === 'received';
         const div = document.createElement('div');
-        div.className = "flex justify-between items-center p-3 mb-2 bg-white/5 rounded-xl border border-white/5";
+        div.className = "flex justify-between items-center p-3 mb-2 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors";
         
         div.innerHTML = `
             <div class="flex items-center gap-3">
@@ -52,8 +55,8 @@ const renderActivityFeed = (logs) => {
                     <i data-lucide="${isReceived ? 'arrow-down-left' : 'arrow-up-right'}" class="w-4 h-4"></i>
                 </div>
                 <div>
-                    <p class="text-[10px] font-black uppercase text-white">${isReceived ? 'Received from' : 'Sent to'} ${log.targetName}</p>
-                    <p class="text-[8px] font-bold text-zinc-500 uppercase">${new Date(log.timestamp).toLocaleDateString()}</p>
+                    <p class="text-[10px] font-black uppercase text-white leading-tight">${isReceived ? 'From' : 'To'} ${log.targetName || 'System'}</p>
+                    <p class="text-[7px] font-bold text-zinc-500 uppercase tracking-tighter">${new Date(log.timestamp).toLocaleDateString()}</p>
                 </div>
             </div>
             <div class="text-right">
@@ -69,6 +72,6 @@ const renderActivityFeed = (logs) => {
     if (window.lucide) lucide.createIcons();
 };
 
-window.closeProfile = () => {
-    document.getElementById('profile-modal').classList.add('hidden');
+window.closeMyAccount = () => {
+    document.getElementById('myaccount-modal')?.classList.add('hidden');
 };
