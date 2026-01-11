@@ -207,3 +207,28 @@ body.theme-light .shimmer::after {
 }
 
 .toast.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+/* Fixed Loader Styles */
+#master-loader {
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    right: 0; 
+    bottom: 0;
+    background: var(--bg); /* Matches theme background */
+    z-index: 9999; /* Higher than nav (50) */
+    display: flex;
+    flex-direction: column;
+    transition: opacity 0.6s ease, visibility 0.6s;
+}
+
+/* Ensure the skeleton content doesn't start under the nav bar */
+#master-loader .max-w-6xl {
+    margin-top: 80px; /* Pushes skeleton cards down below where the nav would be */
+}
+
+.loader-fade-out { 
+    opacity: 0 !important; 
+    visibility: hidden !important; 
+    pointer-events: none !important; 
+}
+
