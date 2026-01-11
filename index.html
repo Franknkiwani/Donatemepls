@@ -881,16 +881,20 @@
             </div>
         </div>
 </div>
-<div id="error-modal" class="hidden fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4">
-    <div class="bg-zinc-900 border border-red-500/50 p-6 rounded-[32px] max-w-xs text-center">
-        <h2 class="text-red-500 font-black uppercase italic tracking-tighter text-2xl">Bot Detected</h2>
-        <p id="error-msg" class="text-zinc-400 text-xs mt-2 mb-6"></p>
-        <button onclick="document.getElementById('error-modal').classList.add('hidden')" 
-                class="w-full py-3 bg-zinc-800 text-white font-black uppercase text-[10px] rounded-xl">
-            I am Human
+<div id="guard-modal" class="hidden fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-zinc-900 border border-red-500/50 p-8 rounded-[32px] max-w-xs text-center shadow-2xl">
+        <div class="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i data-lucide="shield-alert" class="text-red-500 w-6 h-6"></i>
+        </div>
+        <h2 class="text-red-500 font-black uppercase italic tracking-tighter text-2xl">Security Trigger</h2>
+        <p id="guard-msg" class="text-zinc-400 text-xs mt-2 mb-6 leading-relaxed"></p>
+        <button onclick="document.getElementById('guard-modal').classList.add('hidden')" 
+                class="w-full py-3 bg-white text-black font-black uppercase text-[10px] rounded-xl hover:bg-red-500 hover:text-white transition-colors">
+            Verify Humanity
         </button>
     </div>
 </div>
+
 
     <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
 
