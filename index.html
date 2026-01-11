@@ -96,48 +96,50 @@
         </div>
     </div>
 
-  <div id="profile-modal" class="fixed inset-0 z-[100] hidden bg-black/90 flex items-center justify-center p-4">
-    <div class="bg-zinc-900 text-white w-full max-w-sm rounded-[32px] p-8 border border-white/10 overflow-y-auto max-h-[90vh]">
+<div id="profile-modal" class="fixed inset-0 z-[100] hidden bg-black/90 flex items-center justify-center p-4">
+    <div class="bg-zinc-900 text-white w-full max-w-sm rounded-[32px] p-8 border border-white/10 overflow-y-auto max-h-[90vh] custom-scrollbar">
+        
         <div class="text-center mb-6">
             <div class="w-20 h-20 mx-auto rounded-full border-2 border-amber-500 p-1 mb-2">
-                <img id="modal-preview-img" src="" class="w-full h-full object-cover rounded-full">
+                <img id="profile-main-img" src="" class="w-full h-full object-cover rounded-full">
             </div>
             <h2 class="text-xl font-black uppercase italic">Profile</h2>
+            <p id="header-handle" class="text-[10px] font-bold text-zinc-500 mt-1 uppercase tracking-widest"></p>
         </div>
+
         <div class="space-y-4">
             <div>
                 <label class="text-[10px] font-bold text-zinc-500 uppercase">Page Theme</label>
                 <div class="flex gap-2 mt-1">
-                    <button id="btn-theme-dark" onclick="setTheme('theme-dark')" class="theme-btn w-full py-2 bg-zinc-800 rounded-lg text-[10px] font-bold uppercase">Dark</button>
+                    <button id="btn-theme-dark" onclick="setTheme('theme-dark')" class="theme-btn w-full py-2 bg-zinc-800 rounded-lg text-[10px] font-bold uppercase border border-white/5">Dark</button>
                     <button id="btn-theme-light" onclick="setTheme('theme-light')" class="theme-btn w-full py-2 bg-white text-black rounded-lg text-[10px] font-bold uppercase">Light</button>
-                    <button id="btn-theme-blue" onclick="setTheme('theme-blue')" class="theme-btn w-full py-2 bg-blue-900 rounded-lg text-[10px] font-bold uppercase">Blue</button>
+                    <button id="btn-theme-blue" onclick="setTheme('theme-blue')" class="theme-btn w-full py-2 bg-blue-900 rounded-lg text-[10px] font-bold uppercase border border-white/5">Blue</button>
                 </div>
             </div>
+
             <div>
                 <label class="text-[10px] font-bold text-zinc-500 uppercase">Username</label>
-                <input type="text" id="username-input" class="bg-white/5 border border-white/10 w-full p-3 rounded-xl mt-1 outline-none" placeholder="Username">
+                <input type="text" id="username-input" class="bg-white/5 border border-white/10 w-full p-3 rounded-xl mt-1 outline-none focus:border-amber-500/50 transition-colors" placeholder="Username">
             </div>
+
             <div>
-                <label class="text-[10px] font-bold text-zinc-500 uppercase block mb-2">Avatars</label>
+                <label class="text-[10px] font-bold text-zinc-500 uppercase block mb-2">Change Avatar</label>
                 <div class="grid grid-cols-4 gap-2" id="avatar-grid">
-                    <div onclick="document.getElementById('pfp-upload').click()" class="relative aspect-square bg-zinc-800 rounded-xl flex items-center justify-center border-2 border-dashed border-zinc-700 hover:border-blue-500 cursor-pointer group transition-all">
+                    <div onclick="document.getElementById('pfp-upload').click()" class="relative aspect-square bg-zinc-800 rounded-xl flex items-center justify-center border-2 border-dashed border-zinc-700 hover:border-amber-500 cursor-pointer group transition-all">
                         <i data-lucide="plus" class="w-4 h-4 text-zinc-500 group-hover:text-white"></i>
-                        <input type="file" id="pfp-upload" class="hidden" accept="image/*" onchange="previewImage(event)">
+                        <input type="file" id="pfp-upload" class="hidden" accept="image/*">
                     </div>
+                    </div>
+            </div>
+
+            <div id="manage-subscription-btn" class="hidden border-t border-white/5 pt-4">
                 </div>
-            </div>
 
-            <div id="premium-management-zone" class="hidden border-t border-white/5 pt-4">
-                <button onclick="window.open('https://www.paypal.com/myaccount/autopay/')" class="w-full bg-amber-500/10 border border-amber-500/20 text-amber-500 py-3 rounded-xl font-bold text-[10px] uppercase tracking-wider hover:bg-amber-500/20 transition-all">
-                    Manage / Cancel PRO
-                </button>
-            </div>
-
-            <button onclick="saveProfileChanges()" class="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl">Update Profile</button>
+            <button onclick="saveProfileChanges()" class="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-zinc-200 transition-colors">Update Profile</button>
             
-            <div class="flex flex-col gap-2">
-                <button onclick="handleLogout()" class="text-red-500 font-bold text-[10px] uppercase">Logout Account</button>
-                <button onclick="closeProfile()" class="text-zinc-500 text-[10px] font-bold uppercase">Cancel</button>
+            <div class="flex flex-col gap-2 pt-2">
+                <button onclick="handleLogout()" class="text-red-500 font-bold text-[10px] uppercase hover:opacity-70 transition-opacity">Logout Account</button>
+                <button onclick="closeProfile()" class="text-zinc-500 text-[10px] font-bold uppercase hover:text-white transition-colors">Cancel</button>
             </div>
         </div>
     </div>
@@ -257,10 +259,10 @@
             
             <div class="bg-black/10 p-4 rounded-2xl flex items-center gap-3 mt-10">
                 <div class="w-10 h-10 rounded-full bg-zinc-900 border-2 border-black overflow-hidden flex-shrink-0">
-                    <img id="pro-pfp-preview" class="w-full h-full object-cover">
+                    <img id="upgrade-pfp-preview" class="w-full h-full object-cover">
                 </div>
                 <div class="flex items-center min-w-0">
-                    <span class="font-black text-sm truncate-name" id="pro-name-preview">User</span>
+                    <span class="font-black text-sm truncate-name" id="upgrade-username-preview">User</span>
                     <img src="https://img.icons8.com/color/48/verified-badge.png" class="w-4 h-4 ml-1 flex-shrink-0">
                 </div>
             </div>
@@ -277,11 +279,14 @@
             </ul>
             
             <div id="paypal-button-container-PRO" class="min-h-[150px]"></div>
+
+            <div id="manage-subscription-btn" class="hidden my-4"></div>
             
             <button onclick="closeUpgradeModal()" class="w-full mt-4 text-[10px] font-black text-zinc-500 hover:text-white uppercase tracking-widest transition-colors">Close</button>
         </div>
     </div>
 </div>
+
 
 <div id="token-bar" class="hidden w-full backdrop-blur-xl border-b p-6" style="background-color: var(--card-bg); border-color: var(--border);">
     <div class="max-w-md mx-auto flex flex-col items-center">
@@ -308,7 +313,6 @@
         </div>
     </div>
 </div>
-
 
 <div id="token-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
     <div class="border w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]" style="background-color: var(--card-bg); border-color: var(--border); color: var(--text-main);">
