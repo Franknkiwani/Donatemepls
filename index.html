@@ -881,6 +881,17 @@
             </div>
         </div>
 </div>
+<div id="error-modal" class="hidden fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4">
+    <div class="bg-zinc-900 border border-red-500/50 p-6 rounded-[32px] max-w-xs text-center">
+        <h2 class="text-red-500 font-black uppercase italic tracking-tighter text-2xl">Bot Detected</h2>
+        <p id="error-msg" class="text-zinc-400 text-xs mt-2 mb-6"></p>
+        <button onclick="document.getElementById('error-modal').classList.add('hidden')" 
+                class="w-full py-3 bg-zinc-800 text-white font-black uppercase text-[10px] rounded-xl">
+            I am Human
+        </button>
+    </div>
+</div>
+
     <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
 
     <script type="module" src="./firebase-config.js"></script>
