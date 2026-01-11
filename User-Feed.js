@@ -226,75 +226,128 @@ window.closeQuickProfile = () => {
     window.history.replaceState(null, null, ' '); 
 };
 
-// --- REQUEST SYSTEM ---
-window.openRequestPanel = (targetUid, username) => {
-    const overlay = document.createElement('div');
-    overlay.id = 'request-panel-overlay';
-    overlay.className = "fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300";
-    
-    overlay.innerHTML = `
-        <div class="bg-zinc-900 border border-white/10 w-full max-w-[400px] rounded-[35px] p-8 shadow-2xl relative">
-            <h3 class="text-white font-black uppercase tracking-widest text-lg mb-2 italic">Send Request</h3>
-            <p class="text-zinc-500 text-[10px] uppercase font-bold mb-6">Recipient: <span class="text-pink-500">@${username}</span></p>
-            
-            <textarea id="request-message" 
-                placeholder="What would you like to request? (e.g. Collaboration, Shoutout, Custom Work)" 
-                class="w-full h-32 bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-sm focus:outline-none focus:border-pink-500/50 transition-all resize-none mb-6"
-            ></textarea>
+// --- MODERN TOKEN REQUEST SYSTEM & NOTIFICATIONS ---
 
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="document.getElementById('request-panel-overlay').remove()" 
-                    class="py-4 bg-white/5 text-zinc-400 text-[10px] font-black uppercase rounded-2xl hover:bg-white/10 transition-all">
-                    Cancel
-                </button>
-                <button onclick="submitRequest('${targetUid}')" 
-                    id="submit-req-btn"
-                    class="py-4 bg-emerald-500 text-black text-[10px] font-black uppercase rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all">
-                    Send Request
+// 1. UNIQUE FLOATING MODAL ENGINE (Replaces simple alerts)
+window.showCustomAlert = (title, message, type = "success") => {
+    const oldAlert = document.getElementById('modern-alert-box');
+    if (oldAlert) oldAlert.remove();
+
+    const alertBox = document.createElement('div');
+    alertBox.id = 'modern-alert-box';
+    const colors = {
+        success: 'from-emerald-500 to-teal-600 shadow-emerald-900/20',
+        error: 'from-red-500 to-rose-600 shadow-red-900/20',
+        warning: 'from-amber-500 to-orange-600 shadow-orange-900/20'
+    };
+
+    alertBox.className = "fixed bottom-10 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-[380px] animate-in slide-in-from-bottom-10 fade-in duration-500";
+    alertBox.innerHTML = `
+        <div class="bg-zinc-950 border border-white/10 rounded-3xl p-1 shadow-2xl overflow-hidden">
+            <div class="bg-gradient-to-r ${colors[type]} p-5 rounded-[22px] flex items-center gap-4">
+                <div class="bg-black/20 backdrop-blur-md rounded-full p-2 flex-shrink-0">
+                    <img src="https://img.icons8.com/ios-filled/50/ffffff/${type === 'success' ? 'ok' : 'error'}.png" class="w-4 h-4">
+                </div>
+                <div class="flex-1">
+                    <h4 class="text-white font-black uppercase text-[10px] tracking-widest leading-none">${title}</h4>
+                    <p class="text-white/90 text-[11px] font-medium leading-tight mt-1">${message}</p>
+                </div>
+                <button onclick="this.parentElement.parentElement.parentElement.remove()" class="text-white/40 hover:text-white transition-colors">
+                    <img src="https://img.icons8.com/ios-glyphs/30/ffffff/multiply.png" class="w-4 h-4">
                 </button>
             </div>
         </div>
     `;
+    document.body.appendChild(alertBox);
+    setTimeout(() => { if (alertBox) { alertBox.remove(); }}, 6000);
+};
+
+// 2. THE REQUEST PANEL UI
+window.openRequestPanel = (targetUid, username) => {
+    const overlay = document.createElement('div');
+    overlay.id = 'request-panel-overlay';
+    overlay.className = "fixed inset-0 z-[110] bg-black/60 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-500";
     
+    overlay.innerHTML = `
+        <div class="bg-zinc-950 border border-white/10 w-full max-w-[420px] rounded-[48px] p-8 shadow-[0_50px_100px_rgba(0,0,0,0.8)] relative overflow-hidden transform transition-all scale-in-center">
+            
+            <div class="relative z-10 text-center mb-8">
+                <div class="w-14 h-14 bg-gradient-to-tr from-pink-500 to-violet-600 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg rotate-3">
+                    <img src="https://img.icons8.com/fluency/48/token.png" class="w-8 h-8">
+                </div>
+                <h3 class="text-white font-black uppercase tracking-[3px] text-xl italic leading-none">Token Request</h3>
+                <p class="text-zinc-500 text-[10px] uppercase font-bold tracking-widest mt-2">Send to <span class="text-pink-500">@${username}</span></p>
+            </div>
+            
+            <div class="space-y-5 relative z-10">
+                <div>
+                    <label class="text-[9px] font-black text-zinc-600 uppercase ml-4 mb-2 block tracking-widest">Amount of Tokens</label>
+                    <div class="relative">
+                        <input type="number" id="req-token-amount" placeholder="0" 
+                            class="w-full bg-white/[0.03] border border-white/5 rounded-[24px] py-5 px-6 text-emerald-400 font-black text-3xl focus:outline-none focus:border-emerald-500/40 transition-all placeholder:opacity-20">
+                        <span class="absolute right-6 top-1/2 -translate-y-1/2 text-zinc-600 font-black italic text-[10px] uppercase tracking-widest">Tokens</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[9px] font-black text-zinc-600 uppercase ml-4 mb-2 block tracking-widest">Request Details</label>
+                    <textarea id="req-description" 
+                        placeholder="What are these tokens for? Explain your request..." 
+                        class="w-full h-32 bg-white/[0.03] border border-white/5 rounded-[24px] p-6 text-white text-sm focus:outline-none focus:border-pink-500/40 transition-all resize-none placeholder:opacity-30 leading-relaxed"></textarea>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mt-10 relative z-10">
+                <button onclick="document.getElementById('request-panel-overlay').remove()" 
+                    class="py-5 bg-zinc-900 text-zinc-500 text-[10px] font-black uppercase rounded-[24px] border border-white/5 hover:text-white transition-all">
+                    Cancel
+                </button>
+                <button onclick="submitRequest('${targetUid}', '${username}')" 
+                    id="submit-req-btn"
+                    class="py-5 bg-pink-600 text-white text-[10px] font-black uppercase rounded-[24px] shadow-[0_20px_40px_rgba(219,39,119,0.25)] hover:bg-pink-500 active:scale-95 transition-all">
+                    Send to @${username}
+                </button>
+            </div>
+        </div>
+    `;
     document.body.appendChild(overlay);
 };
 
-window.submitRequest = async (targetUid) => {
-    const msgInput = document.getElementById('request-message');
-    const msg = msgInput.value.trim();
+// 3. THE DATABASE SUBMISSION LOGIC
+window.submitRequest = async (targetUid, username) => {
+    const amount = document.getElementById('req-token-amount').value.trim();
+    const desc = document.getElementById('req-description').value.trim();
     const btn = document.getElementById('submit-req-btn');
     const user = auth.currentUser;
 
-    if (!user) {
-        notify("You must be logged in to send requests!");
-        return;
-    }
-
-    if (msg.length < 5) {
-        notify("Please enter a more detailed message.");
-        return;
-    }
+    if (!user) return showCustomAlert("Error", "Please login to send requests!", "error");
+    if (!amount || amount <= 0) return showCustomAlert("Invalid Amount", "Please enter how many tokens you are requesting.", "warning");
+    if (desc.length < 5) return showCustomAlert("Details Needed", "Please provide a description for the user.", "warning");
 
     btn.disabled = true;
-    btn.innerText = "Processing...";
-    btn.classList.add('opacity-50');
+    btn.innerHTML = `<span class="animate-pulse">Sending...</span>`;
 
     try {
         await push(ref(db, `requests/${targetUid}`), {
             senderUid: user.uid,
-            senderName: user.displayName || "Anonymous",
-            message: msg,
+            senderName: user.displayName || "Elite Member",
+            tokenAmount: amount,
+            description: desc,
             timestamp: serverTimestamp(),
-            status: 'unread'
+            status: 'pending'
         });
 
-        notify("Request sent successfully!");
+        showCustomAlert(
+            "Request Sent!", 
+            `Successfully sent to @${username}. Check your account for a reply soon!`, 
+            "success"
+        );
+        
         document.getElementById('request-panel-overlay').remove();
-    } catch (error) {
-        console.error("Request Error:", error);
-        notify("Failed to send request. Try again.");
+    } catch (e) {
+        console.error(e);
+        showCustomAlert("System Error", "Failed to reach database. Try again.", "error");
         btn.disabled = false;
-        btn.innerText = "Send Request";
-        btn.classList.remove('opacity-50');
+        btn.innerText = `Send to @${username}`;
     }
 };
