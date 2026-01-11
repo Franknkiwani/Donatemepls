@@ -15,12 +15,12 @@ const presets = window.presets || [
     "https://wallpapers.com/images/hd/gaming-profile-pictures-tt8bbzdcf6zibhoi.jpg"
 ];
 
-// --- UPGRADE MODAL & PAYPAL ENGINE ---
+// --- UPGRADE MODAL ENGINE & PAYPAL ---
 window.openUpgradeModal = () => {
     const modal = document.getElementById('upgrade-modal');
     if (modal) {
         modal.classList.remove('hidden');
-        // Delay to ensure container is visible before rendering
+        // Ensure PayPal button renders once modal is visible
         setTimeout(initUpgradePayPal, 200);
     }
 };
@@ -33,7 +33,7 @@ function initUpgradePayPal() {
     const target = document.getElementById(`paypal-button-container-${PLAN_ID}`) || 
                    document.getElementById('paypal-button-container-PRO');
     
-    // Safety check: ensure paypal exists, target exists, and is empty (prevents duplicates)
+    // Prevent rendering duplicates
     if (!window.paypal || !target || target.hasChildNodes()) return;
 
     window.paypal.Buttons({
@@ -54,6 +54,14 @@ function initUpgradePayPal() {
                     isPremium: true, 
                     tokens: 20 
                 });
+
+                // 2. Vercel Security Action Logger
+                if (typeof window.logSecurityAction === 'function') {
+                    await window.logSecurityAction('SUBSCRIPTION_SUCCESS', {
+                        subID: data.subscriptionID,
+                        plan: PLAN_ID
+                    });
+                }
                 
                 if(typeof window.notify === 'function') window.notify("Welcome to PRO!"); 
                 window.closeUpgradeModal();
@@ -64,10 +72,10 @@ function initUpgradePayPal() {
     }).render(target);
 }
 
-// --- AUTH LISTENER ---
+// --- MASTER AUTH & DATA SYNC LISTENER ---
 onAuthStateChanged(auth, async (user) => {
     
-    // 1. Initial Load for All Views
+    // Initial Load Logic
     if (typeof window.loadCampaigns === 'function') {
         window.loadCampaigns().then(() => {
             setTimeout(() => { 
@@ -86,7 +94,7 @@ onAuthStateChanged(auth, async (user) => {
         onValue(ref(db, `users/${user.uid}`), (s) => {
             const d = s.val() || {};
 
-            // Security: Ban Check
+            // 1. Security: Ban Check
             if (d.banned) {
                 const ts = Date.now();
                 const rawHash = btoa(`${user.uid}|${ts}|${d.banReason || "SECURITY"}`).replace(/=/g, '');
@@ -94,25 +102,27 @@ onAuthStateChanged(auth, async (user) => {
                 return;
             }
 
-            // Identity Sync
+            // 2. Identity Sync (UI & Upgrade Modal Previews)
             const name = d.username || "User";
             const avatar = d.avatar || presets[0];
 
-            // UI Updates (Usernames)
+            // Name updates
             document.querySelectorAll('.user-name-display').forEach(el => el.innerText = name);
+            if(document.getElementById('upgrade-username-preview')) document.getElementById('upgrade-username-preview').innerText = name;
+            
             const handleEl = document.getElementById('header-handle');
             if(handleEl) handleEl.innerText = isAdmin ? `👑 @${name}` : `@${name}`;
             if(document.getElementById('username-input')) document.getElementById('username-input').value = name;
 
-            // UI Updates (Avatars)
-            const pfpTargets = ['header-pfp', 'modal-preview-img', 'profile-main-img'];
+            // Avatar updates
+            const pfpTargets = ['header-pfp', 'modal-preview-img', 'profile-main-img', 'upgrade-pfp-preview'];
             pfpTargets.forEach(id => {
                 const img = document.getElementById(id);
                 if(img) { img.src = avatar; img.classList.remove('hidden'); }
             });
             document.getElementById('header-initial')?.classList.add('hidden');
 
-            // Tokens & Pro Status
+            // 3. Tokens & Pro Status
             const tokenElement = document.getElementById('token-count');
             if(tokenElement) {
                 tokenElement.innerText = (d.tokens || 0).toLocaleString();
@@ -122,10 +132,25 @@ onAuthStateChanged(auth, async (user) => {
             const isPro = d.isPremium || isAdmin;
             if(document.getElementById('header-verified')) document.getElementById('header-verified').classList.toggle('hidden', !isPro);
             
-            // Toggle all upgrade buttons across the UI
-            document.querySelectorAll('button[onclick="openUpgradeModal()"]').forEach(btn => {
-                btn.classList.toggle('hidden', isPro);
-            });
+            // 4. Manage/Cancel Subscription Logic
+            const upgradeBtn = document.querySelector('button[onclick="openUpgradeModal()"]');
+            const manageBtn = document.getElementById('manage-subscription-btn');
+
+            if (isPro && !isAdmin) {
+                if(upgradeBtn) upgradeBtn.classList.add('hidden');
+                if(manageBtn) {
+                    manageBtn.classList.remove('hidden');
+                    manageBtn.innerHTML = `
+                        <a href="https://www.paypal.com/myaccount/autopay/" target="_blank" 
+                           class="flex items-center gap-1.5 px-4 py-2 bg-white/5 rounded-lg border border-white/10 text-[10px] font-black text-amber-500 uppercase hover:bg-amber-500/10 transition-all">
+                           <i data-lucide="settings-2" class="w-3 h-3"></i> Manage / Cancel PRO
+                        </a>`;
+                    if(window.lucide) lucide.createIcons();
+                }
+            } else {
+                if(upgradeBtn) upgradeBtn.classList.toggle('hidden', isPro);
+                if(manageBtn) manageBtn.classList.add('hidden');
+            }
 
             // Signal Loader
             if(window.syncReady) window.syncReady.user = true;
@@ -139,16 +164,12 @@ onAuthStateChanged(auth, async (user) => {
             
             historyList.innerHTML = '';
             let totalPaid = 0;
-            let totalPending = 0;
-
             const userPayouts = Object.values(snapshot.val() || {}).filter(p => p.uid === user.uid);
             
             userPayouts.forEach(p => {
                 const amount = parseFloat(p.netAmount || 0);
                 const isFinal = p.status === 'paid' || p.status === 'completed';
-                
                 if (isFinal) totalPaid += amount;
-                else totalPending += amount;
 
                 const div = document.createElement('div');
                 div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 mb-2";
@@ -164,7 +185,6 @@ onAuthStateChanged(auth, async (user) => {
             });
 
             if(document.getElementById('total-withdrawn')) document.getElementById('total-withdrawn').innerText = `$${totalPaid.toFixed(2)}`;
-            if(document.getElementById('total-pending')) document.getElementById('total-pending').innerText = `$${totalPending.toFixed(2)}`;
         });
 
         // Toggle UI
