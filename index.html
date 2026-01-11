@@ -899,6 +899,37 @@
         </button>
     </div>
 </div>
+<div id="wallet-modal" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+    <div class="bg-zinc-900 border border-white/10 w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col">
+        
+        <div class="p-8 pb-4 text-center">
+            <div class="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-amber-500/20">
+                <i data-lucide="wallet" class="w-8 h-8 text-amber-500"></i>
+            </div>
+            <h2 class="text-2xl font-black uppercase italic tracking-tighter text-white">My Wallet</h2>
+            <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.2em]">Manage your assets</p>
+        </div>
+
+        <div class="px-8 py-6">
+            <div class="bg-black/40 border border-white/5 rounded-3xl p-6 text-center">
+                <span class="block text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-2">Available Tokens</span>
+                <div class="flex items-center justify-center gap-2">
+                    <i data-lucide="coins" class="w-5 h-5 text-amber-500"></i>
+                    <span id="wallet-purchased-bal" class="text-4xl font-black text-white italic">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-8 pt-0 space-y-3">
+            <button onclick="openTokenModal()" class="w-full bg-amber-500 text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-amber-500/20 active:scale-95 transition-all">
+                Add Tokens
+            </button>
+            <button onclick="closeWalletModal()" class="w-full text-zinc-500 text-[10px] font-black uppercase tracking-widest hover:text-white transition-colors">
+                Back to Dashboard
+            </button>
+        </div>
+    </div>
+</div>
 
 
     <script src="https://www.paypal.com/sdk/js?client-id=AdgA3AUZB2ZRXP35bjUJ31sk4kPTYKDvLn-NrpzQtFH1SzipPFFSCncRMu2FW_1YmsfnNuJift92GNpK&currency=USD&vault=true"></script>
