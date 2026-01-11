@@ -1,3 +1,4 @@
+
     // 1. Importing tools from Google
     import { 
         onAuthStateChanged, signInWithPopup, GoogleAuthProvider, 
@@ -156,108 +157,52 @@ setTimeout(() => {
     checkReady(); 
 }, 3000);
 
-// Global Ready Check
+// --- BULLETPROOF MASTER DATA SYNC & ICON VERIFICATION ---
 function checkReady() {
     if (syncReady.campaigns && syncReady.buffer) {
         const isGuest = !auth.currentUser;
+        
+        // Only proceed if it's a guest OR if the logged-in user data is fully synced
         if (isGuest || syncReady.user) {
             const loader = document.getElementById('master-loader');
+            
             if (loader) {
-                loader.classList.add('loader-fade-out');
-                setTimeout(() => loader.remove(), 600);
+                let retryCount = 0;
+                
+                // ICON RETRY LOOP: Ensures icons are rendered under the loader before showing UI
+                const forceIcons = setInterval(() => {
+                    if (window.lucide) {
+                        // Attempt to paint icons
+                        lucide.createIcons();
+                        
+                        // Verification check
+                        const remainingIcons = document.querySelectorAll('i[data-lucide]').length;
+                        const renderedSVGs = document.querySelectorAll('nav svg').length;
+
+                        // SUCCESS CONDITION: No empty <i> tags left OR at least one SVG is found
+                        // We also stop after 10 attempts (1 second) so the loader never gets stuck
+                        if (remainingIcons === 0 || renderedSVGs > 0 || retryCount > 10) {
+                            clearInterval(forceIcons);
+                            
+                            // 1. Start the visual fade out
+                            loader.classList.add('loader-fade-out');
+                            
+                            // 2. Remove loader from the DOM once transition finishes
+                            setTimeout(() => {
+                                if (loader.parentNode) {
+                                    loader.remove();
+                                }
+                            }, 600);
+                        }
+                    }
+                    retryCount++;
+                }, 100); // Check every 100ms
             }
         }
     }
 }
 
-onAuthStateChanged(auth, async (user) => {
-    // START LOADING CONTENT FOR EVERYONE (GUEST OR USER)
-    if (typeof loadCampaigns === 'function') {
-        loadCampaigns().then(() => {
-            setTimeout(() => { syncReady.campaigns = true; checkReady(); }, 500);
-        });
-    }
-    if (typeof loadUserFeed === 'function') loadUserFeed();
-    if (typeof switchView === 'function') switchView('campaigns');
 
-    if (user) {
-        const isAdmin = user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1";
-        
-        // 1. USER DATA LISTENER
-        onValue(ref(db, `users/${user.uid}`), (s) => {
-            const d = s.val() || {};
-
-            // --- NEW REDIRECT BAN GUARD ---
-            if (d.banned) {
-                const ts = Date.now();
-                const reason = d.banReason || "SECURITY_VIOLATION";
-                // Generate long security hash: UID + Time + Reason
-                const rawHash = btoa(`${user.uid}|${ts}|${reason}`).replace(/=/g, '');
-                const securityCode = `SEC-0x${rawHash.toUpperCase()}`;
-                
-                // Redirect to banned page with info
-                window.location.href = `/bannedaccount/${user.uid}?code=${securityCode}&ref=${encodeURIComponent(window.location.pathname)}`;
-                return; // Stop sync logic here
-            }
-
-            // Sync User Details
-            const name = d.username || "User";
-            const avatar = d.avatar || presets[0];
-
-            document.getElementById('header-handle') && (document.getElementById('header-handle').innerText = isAdmin ? `👑 @${name}` : `@${name}`);
-            if(document.getElementById('header-pfp')) {
-                document.getElementById('header-pfp').src = avatar;
-                document.getElementById('header-pfp').classList.remove('hidden');
-                document.getElementById('header-initial')?.classList.add('hidden');
-            }
-
-            // --- TOKEN SYNC (ORIGINAL SIZE PRESERVED) ---
-            const tokenElement = document.getElementById('token-count');
-            if(tokenElement) {
-                tokenElement.innerText = (d.tokens || 0).toLocaleString();
-                if(isAdmin) tokenElement.classList.add('text-amber-500');
-            }
-
-            // AI/Grok Security Logger (Triggers on Whale activity)
-            if(d.tokens > 10000) window.logSecurityAction('WHALE_SYNC', { tokens: d.tokens, user: name });
-
-            // UI Adjustments
-            const isPro = d.isPremium || isAdmin;
-            document.getElementById('header-verified')?.classList.toggle('hidden', !isPro);
-            document.querySelector('button[onclick="openUpgradeModal()"]')?.classList.toggle('hidden', isPro);
-
-            syncReady.user = true;
-            checkReady();
-        });
-
-        // Show Logged-in UI
-        ['user-tools', 'token-bar'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
-        document.getElementById('login-btn')?.classList.add('hidden');
-        if (typeof setupPresence === 'function') setupPresence(user.uid);
-
-        // Payout History Listener
-        onValue(ref(db, `payouts`), (snapshot) => {
-            const historyList = document.getElementById('payout-history-list');
-            if(!historyList) return;
-            historyList.innerHTML = '';
-            let totalPaid = 0;
-            Object.values(snapshot.val() || {}).filter(p => p.uid === user.uid).forEach(p => {
-                if (p.status === 'paid' || p.status === 'completed') totalPaid += (p.netAmount || 0);
-                const div = document.createElement('div');
-                div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 mb-2";
-                div.innerHTML = `<div class="flex flex-col"><span class="text-[9px] font-black text-white uppercase">$${p.netAmount.toFixed(2)}</span></div><span class="text-[8px] font-black uppercase ${p.status === 'paid' ? 'text-emerald-500' : 'text-amber-500'}">${p.status}</span>`;
-                historyList.appendChild(div);
-            });
-            if(document.getElementById('total-withdrawn')) document.getElementById('total-withdrawn').innerText = `$${totalPaid.toFixed(2)}`;
-        });
-
-    } else {
-        // GUEST FLOW
-        ['user-tools', 'token-bar'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
-        document.getElementById('login-btn')?.classList.remove('hidden');
-        checkReady(); 
-    }
-});
 
 // --- GROK AI SECURITY ACTION LOGGER (VERCEL ROUTE) ---
 window.logSecurityAction = async (actionType, metadata = {}) => {
