@@ -1,100 +1,91 @@
 // account.js
-import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+import { ref, get, update } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 import { auth, db } from './firebase-config.js';
 
-// --- CONFIG ---
-const presets = [
+// Configuration for this specific view
+const AVATAR_PRESETS = [
     "https://img.pikbest.com/origin/10/25/30/74apIkbEsT5qB.jpg!w700wp",
     "https://thumbs.dreamstime.com/b/cool-neon-party-wolf-headphones-black-background-colorful-illustration-music-theme-modern-portrait-bright-vibrant-385601082.jpg",
     "https://wallpapers.com/images/hd/gaming-profile-pictures-tt8bbzdcf6zibhoi.jpg"
 ];
 
-// --- CORE FUNCTIONS ---
-
+// --- UNIQUE FUNCTION FOR BOTTOM NAV ---
 window.openAccountModal = async () => {
     const user = auth.currentUser;
     if (!user) return window.openAuthModal();
 
     const modal = document.getElementById('profile-modal');
+    if (!modal) return;
+
     modal.classList.remove('hidden');
-    
-    // Sync UI with DB
-    const snap = await get(ref(db, `users/${user.uid}`));
-    const data = snap.val() || {};
 
-    document.getElementById('profile-main-img').src = data.avatar || presets[0];
-    document.getElementById('username-input').value = data.username || "";
-    
-    renderPresets(data.avatar);
-    if (window.lucide) window.lucide.createIcons();
+    try {
+        const snap = await get(ref(db, `users/${user.uid}`));
+        const data = snap.val() || {};
+
+        // Populate the specific fields in this modal
+        const mainImg = document.getElementById('profile-main-img');
+        const nameInput = document.getElementById('username-input');
+        const handleDisplay = document.getElementById('profile-handle-display');
+
+        if (mainImg) mainImg.src = data.avatar || AVATAR_PRESETS[0];
+        if (nameInput) nameInput.value = data.username || "";
+        if (handleDisplay) handleDisplay.innerText = `@${data.username || 'User'}`;
+
+        renderNavProfileGrid(data.avatar);
+        
+        if (window.lucide) lucide.createIcons();
+    } catch (err) {
+        console.error("Nav Profile Sync Error:", err);
+    }
 };
 
-window.closeProfile = () => {
-    document.getElementById('profile-modal').classList.add('hidden');
-};
-
-const renderPresets = (currentAvatar) => {
+const renderNavProfileGrid = (currentAvatar) => {
     const grid = document.getElementById('avatar-grid');
     if (!grid) return;
 
-    // Keep the upload button (first child), clear others
+    // Preserve the upload button, clear the rest
     const uploadBtn = grid.querySelector('div[onclick*="pfp-upload"]');
     grid.innerHTML = '';
     if (uploadBtn) grid.appendChild(uploadBtn);
 
-    presets.forEach(url => {
-        const div = document.createElement('div');
-        const isSelected = url === currentAvatar;
+    AVATAR_PRESETS.forEach(url => {
+        const item = document.createElement('div');
+        const active = url === currentAvatar;
         
-        div.className = `relative aspect-square rounded-xl overflow-hidden cursor-pointer border-2 transition-all hover:scale-105 ${isSelected ? 'border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'border-white/5'}`;
-        div.innerHTML = `<img src="${url}" class="w-full h-full object-cover">`;
+        item.className = `relative aspect-square rounded-xl overflow-hidden cursor-pointer border-2 transition-all hover:scale-105 ${
+            active ? 'border-amber-500 shadow-lg shadow-amber-500/20' : 'border-white/5'
+        }`;
+        item.innerHTML = `<img src="${url}" class="w-full h-full object-cover">`;
         
-        div.onclick = () => {
-            window.tempAvatar = url;
+        item.onclick = () => {
+            window.tempNavAvatar = url; // Unique temp variable
             document.getElementById('profile-main-img').src = url;
-            grid.querySelectorAll('.aspect-square').forEach(el => el.classList.remove('border-amber-500', 'shadow-[0_0_15px_rgba(245,158,11,0.3)]'));
-            div.classList.add('border-amber-500', 'shadow-[0_0_15px_rgba(245,158,11,0.3)]');
+            grid.querySelectorAll('.aspect-square').forEach(el => el.classList.remove('border-amber-500', 'shadow-lg'));
+            item.classList.add('border-amber-500', 'shadow-lg');
         };
-        grid.appendChild(div);
+        grid.appendChild(item);
     });
 };
 
-window.saveProfileChanges = async () => {
+window.saveNavProfileChanges = async () => {
     const user = auth.currentUser;
     if (!user) return;
 
     const newName = document.getElementById('username-input').value.trim().replace('@', '');
-    const snap = await get(ref(db, `users/${user.uid}`));
-    const data = snap.val() || {};
-    
-    let updates = {};
+    const updates = {};
 
-    if (window.tempAvatar) updates.avatar = window.tempAvatar;
-
-    if (newName && newName !== data.username) {
-        if (newName.length < 3) return window.notify("Name too short!");
-        
-        const now = Date.now();
-        const oneWeek = 7 * 24 * 60 * 60 * 1000;
-        let history = (data.nameChanges || []).filter(ts => (now - ts) < oneWeek);
-
-        if (!data.isPremium && history.length >= 2) {
-            return window.notify("Free limit: 2 names per week");
-        }
-
+    if (window.tempNavAvatar) updates.avatar = window.tempNavAvatar;
+    if (newName) {
         updates.username = newName;
         updates.usernameLower = newName.toLowerCase();
-        history.push(now);
-        updates.nameChanges = history;
     }
-
-    if (Object.keys(updates).length === 0) return window.closeProfile();
 
     try {
         await update(ref(db, `users/${user.uid}`), updates);
-        window.notify("Profile Updated");
+        window.notify?.("Account Updated Successfully");
         window.closeProfile();
     } catch (e) {
-        window.notify("Update failed");
+        window.notify?.("Error updating account");
     }
 };
