@@ -194,3 +194,8 @@ body.theme-light .shimmer::after {
 }
 
 .toast.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+/* This targets the canvas specifically for each theme */
+html:has(body.theme-light) { background-color: #f4f4f5; }
+html:has(body.theme-blue) { background-color: #020617; }
+html:has(body) { background-color: #050505; } /* Default */
+
