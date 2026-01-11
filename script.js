@@ -146,30 +146,54 @@ const syncScrollLock = () => {
         });
     }
 
-// --- MASTER DATA SYNC (WITH SKELETON AUTO-EXIT) ---
-onAuthStateChanged(auth, (user) => {
+// 1. BOOTSTRAP: Start loading data immediately for everyone (Guest or User)
+let syncReady = { user: false, campaigns: false, buffer: false };
+
+// Start the 3-second minimum buffer timer
+setTimeout(() => { 
+    syncReady.buffer = true; 
+    checkReady(); 
+}, 3000);
+
+if (typeof loadCampaigns === 'function') {
+    loadCampaigns().then(() => {
+        syncReady.campaigns = true;
+        checkReady();
+    });
+}
+
+if (typeof loadUserFeed === 'function') loadUserFeed();
+if (typeof switchView === 'function') switchView('campaigns');
+
+// Master Ready Check
+function checkReady() {
+    // Only hide skeleton if User (if logged in), Campaigns, and the 3s Buffer are all done
+    if (syncReady.campaigns && syncReady.buffer) {
+        // If logged in, we also wait for syncReady.user. If guest, we ignore it.
+        const isGuest = !auth.currentUser;
+        if (isGuest || syncReady.user) {
+            const loader = document.getElementById('master-loader');
+            if (loader) {
+                loader.classList.add('loader-fade-out');
+                setTimeout(() => loader.remove(), 600);
+            }
+        }
+    }
+}
+
+// --- MASTER AUTH & DATA SYNC ---
+onAuthStateChanged(auth, async (user) => {
     if (user) {
         const isAdmin = user.uid === "4xEDAzSt5javvSnW5mws2Ma8i8n1";
-        
-        // Track readiness for skeleton exit
-        let syncReady = { user: false, campaigns: false };
-        const checkReady = () => {
-            if (syncReady.user && syncReady.campaigns) {
-                const loader = document.getElementById('master-loader'); // Use your loader's ID
-                if (loader) {
-                    loader.classList.add('loader-fade-out');
-                    setTimeout(() => loader.remove(), 600);
-                }
-            }
-        };
 
-        // 1. User Data Listener & UI Sync
+        // 1. USER DATA LISTENER & BAN GUARD
         onValue(ref(db, `users/${user.uid}`), (s) => {
             const d = s.val() || {};
 
-            // --- THE BAN GUARD ---
+            // --- THE NUCLEAR BAN GUARD ---
             if (d.banned) {
-                document.getElementById('master-loader')?.remove(); // Kill loader if banned
+                document.body.innerHTML = ''; // Wipe everything immediately
+                document.body.style.backgroundColor = 'black';
                 document.body.innerHTML = `
                     <div class="h-screen bg-black flex flex-col items-center justify-center text-center p-6 font-sans">
                         <div class="p-8 border border-red-500/30 bg-red-500/5 rounded-[40px] max-w-sm">
@@ -178,125 +202,79 @@ onAuthStateChanged(auth, (user) => {
                             <p class="text-white/80 text-xs font-medium leading-relaxed mb-8">
                                 This account has been permanently suspended for platform abuse or reaching maximum security strikes.
                             </p>
-                            <a href="/support" class="inline-block w-full py-4 px-6 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[11px] uppercase rounded-full transition-all transform hover:scale-105 no-underline">
-                                Appeal Suspension
-                            </a>
-                            <p class="mt-4 text-[8px] text-zinc-600 uppercase font-bold tracking-widest">Case ID: ${user.uid.substring(0, 10)}</p>
+                            <div class="flex flex-col gap-4">
+                                <a href="mailto:support@yourdomain.com" class="inline-block w-full py-4 px-6 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[11px] uppercase rounded-full transition-all no-underline">
+                                    Appeal Suspension
+                                </a>
+                                <button onclick="auth.signOut().then(()=>location.reload())" class="text-zinc-600 text-[9px] font-black uppercase tracking-widest">Sign Out</button>
+                            </div>
+                            <p class="mt-8 text-[8px] text-zinc-600 uppercase font-bold tracking-widest">Case ID: ${user.uid}</p>
                         </div>
                     </div>`;
                 return;
             }
 
+            // Sync User UI Elements
             const name = d.username || "User";
-            const avatar = d.avatar || presets[0];
+            const avatar = d.avatar || "https://img.icons8.com/fluency/48/user-male-circle.png";
 
-            // Update Header & Modals
-            const hHandle = document.getElementById('header-handle');
-            const hPfp = document.getElementById('header-pfp');
-            const hInit = document.getElementById('header-initial');
-            const uInput = document.getElementById('username-input');
-            const mPreview = document.getElementById('modal-preview-img');
-            const mInit = document.getElementById('modal-preview-initial'); 
-            const proPfp = document.getElementById('pro-pfp-preview');      
-            const proName = document.getElementById('pro-name-preview');
-
-            if(hHandle) hHandle.innerText = isAdmin ? `👑 @${name}` : `@${name}`;
-            if(hPfp) { hPfp.src = avatar; hPfp.classList.remove('hidden'); }
-            if(hInit) hInit.classList.add('hidden');
-            if(uInput) uInput.value = name;
-            if(mPreview) { mPreview.src = avatar; mPreview.classList.remove('hidden'); }
-            if(mInit) mInit.classList.add('hidden'); 
-            if(proPfp) { proPfp.src = avatar; proPfp.classList.remove('hidden'); }
-            if(proName) proName.innerText = name;
-
-            // Tokens & Security
+            document.getElementById('header-handle') && (document.getElementById('header-handle').innerText = isAdmin ? `👑 @${name}` : `@${name}`);
+            if(document.getElementById('header-pfp')) {
+                document.getElementById('header-pfp').src = avatar;
+                document.getElementById('header-pfp').classList.remove('hidden');
+                document.getElementById('header-initial')?.classList.add('hidden');
+            }
+            
+            // Token Sync
             const tokenElement = document.getElementById('token-count');
             if(tokenElement) {
-                tokenElement.innerText = d.tokens || 0;
-                if(isAdmin) tokenElement.classList.add('text-amber-500');
-            }
-            if(d.tokens > 10000) window.logSecurityAction('WHALE_ACCOUNT_SYNC', { tokens: d.tokens, user: name });
-
-            // Premium Logic
-            const hVerified = document.getElementById('header-verified');
-            const mgmtZone = document.getElementById('premium-management-zone');
-            const upgradeNavBtn = document.querySelector('button[onclick="openUpgradeModal()"]');
-            if(d.isPremium || isAdmin) {
-                if(hVerified) hVerified.classList.remove('hidden');
-                if(mgmtZone && d.isPremium) mgmtZone.classList.remove('hidden');
-                if(upgradeNavBtn) upgradeNavBtn.classList.add('hidden');
-            } else {
-                if(hVerified) hVerified.classList.add('hidden');
-                if(mgmtZone) mgmtZone.classList.add('hidden');
-                if(upgradeNavBtn) upgradeNavBtn.classList.remove('hidden');
+                tokenElement.innerText = (d.tokens || 0).toLocaleString();
+                if(isAdmin) tokenElement.className = "text-amber-500 font-black";
             }
 
+            // Premium UI State
+            const isPro = d.isPremium || isAdmin;
+            document.getElementById('header-verified')?.classList.toggle('hidden', !isPro);
+            document.getElementById('premium-management-zone')?.classList.toggle('hidden', !d.isPremium);
+            document.querySelector('button[onclick="openUpgradeModal()"]')?.classList.toggle('hidden', isPro);
+
+            // Flag as ready for skeleton exit
             syncReady.user = true;
             checkReady();
         });
 
-        // 2. Initial UI Visibility
+        // 2. UI Visibility for Logged In
         ['user-tools', 'token-bar'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
         document.getElementById('login-btn')?.classList.add('hidden');
 
-        // 3. Community Loaders
+        // 3. User-Specific Listeners (Payouts & Presence)
         if (typeof setupPresence === 'function') setupPresence(user.uid);
-        if (typeof loadUserFeed === 'function') loadUserFeed();
-        if (typeof loadCampaigns === 'function') {
-            loadCampaigns();
-            // Assuming loadCampaigns fetches data, we trigger readiness after a slight delay
-            // or you can move this line inside your loadCampaigns success callback
-            setTimeout(() => { syncReady.campaigns = true; checkReady(); }, 800);
-        }
-        if (typeof switchView === 'function') switchView('campaigns');
-
-        // 4. Payout Listener (History)
+        
         onValue(ref(db, `payouts`), (snapshot) => {
-            const allPayouts = snapshot.val() || {};
             const historyList = document.getElementById('payout-history-list');
-            const historyContainer = document.getElementById('payout-history-container');
-            if(historyList) historyList.innerHTML = '';
-
-            let totalPaid = 0; let pendingCount = 0; let hasHistory = false;
-            Object.values(allPayouts).filter(p => p.uid === user.uid).sort((a,b) => b.timestamp - a.timestamp).forEach(p => {
-                hasHistory = true; 
+            if(!historyList) return;
+            historyList.innerHTML = '';
+            let totalPaid = 0;
+            
+            Object.values(snapshot.val() || {}).filter(p => p.uid === user.uid).forEach(p => {
                 if (p.status === 'completed' || p.status === 'paid') totalPaid += (p.netAmount || 0);
-                if (p.status === 'pending') pendingCount++;
-                if(historyList) {
-                    const div = document.createElement('div');
-                    div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 mb-2";
-                    const statusColor = (p.status === 'completed' || p.status === 'paid') ? 'text-emerald-500' : 'text-amber-500';
-                    div.innerHTML = `<div class="flex flex-col"><span class="text-[9px] font-black text-white uppercase">$${p.netAmount.toFixed(2)}</span><span class="text-[8px] text-zinc-500">${new Date(p.timestamp).toLocaleDateString()}</span></div><span class="text-[8px] font-black uppercase ${statusColor}">${p.status}</span>`;
-                    historyList.appendChild(div);
-                }
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 mb-2";
+                div.innerHTML = `<div><p class="text-[10px] font-black">$${p.netAmount.toFixed(2)}</p><p class="text-[8px] opacity-40">${new Date(p.timestamp).toLocaleDateString()}</p></div><span class="text-[8px] font-black uppercase ${p.status === 'paid' ? 'text-emerald-500' : 'text-amber-500'}">${p.status}</span>`;
+                historyList.appendChild(div);
             });
-            if(hasHistory && historyContainer) historyContainer.classList.remove('hidden');
-            if(document.getElementById('total-withdrawn')) document.getElementById('total-withdrawn').innerText = `$${totalPaid.toFixed(2)}`;
-            if(document.getElementById('pending-count')) document.getElementById('pending-count').innerText = pendingCount;
+            document.getElementById('total-withdrawn') && (document.getElementById('total-withdrawn').innerText = `$${totalPaid.toFixed(2)}`);
         });
 
-        // 5. Security Action Logger
-        let actionCount = 0;
-        window.logSecurityAction = async (actionType, metadata = {}) => {
-            actionCount++;
-            const isHighValue = (metadata.amount && metadata.amount > 1000) || (metadata.tokens && metadata.tokens > 5000);
-            if (isHighValue || actionCount > 15 || actionType === 'ADMIN_ACTION') {
-                try {
-                    const idToken = await user.getIdToken();
-                    await fetch('/api/security-audit', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ idToken, actionType, metadata, severity: isHighValue ? 'high' : 'info' })
-                    });
-                    if(actionCount > 15) actionCount = 0; 
-                } catch (e) { console.error("Audit Fail"); }
-            }
-        };
     } else {
-        // If logged out, remove loader immediately to show landing/login
-        document.getElementById('master-loader')?.remove();
+        // GUEST MODE: Hide user tools, show login
+        ['user-tools', 'token-bar'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+        document.getElementById('login-btn')?.classList.remove('hidden');
+        // Check ready now because syncReady.user will never be true for a guest
+        checkReady(); 
     }
 });
+
 
 // --- UNIFIED FREE UPLOAD, SPINNER & VERCEL SYNC ---
 
