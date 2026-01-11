@@ -6,7 +6,7 @@
     import './wallet.js';
    import './chat.js';
 import './modal-controls.js';
-
+import './hub.js';
     import { 
         ref, update, onValue, get, set, push,
         query, orderByChild, limitToLast, endBefore 
