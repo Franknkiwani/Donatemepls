@@ -51,46 +51,6 @@ const syncScrollLock = () => {
     };
     setTheme(localStorage.getItem('user-theme') || 'theme-dark');
 
-    // --- MODAL CONTROLS ---
-    window.openAuthModal = () => document.getElementById('auth-modal').classList.remove('hidden');
-    window.closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
-    
-    window.openProfile = () => {
-        document.getElementById('profile-modal').classList.remove('hidden');
-        document.body.classList.add('stop-scrolling');
-    };
-
-    window.closeProfile = () => {
-        document.getElementById('profile-modal').classList.add('hidden');
-        document.body.classList.remove('stop-scrolling');
-    };
-
-    window.openUpgradeModal = () => {
-        document.getElementById('upgrade-modal').classList.remove('hidden');
-        setTimeout(initPayPal, 100);
-    };
-    
-    window.closeUpgradeModal = () => document.getElementById('upgrade-modal').classList.add('hidden');
-
-    // --- TOKEN MODAL LOGIC ---
-    window.openTokenModal = () => {
-        document.getElementById('token-modal').classList.remove('hidden');
-        // Using the same class for consistency
-        document.body.classList.add('stop-scrolling'); 
-    };
-
-    window.closeTokenModal = () => {
-        document.getElementById('token-modal').classList.add('hidden');
-        document.body.classList.remove('stop-scrolling'); 
-        document.getElementById('paypal-tokens-container').innerHTML = ''; 
-    };
-
-    window.selectPack = (btn, amount, tokens) => {
-        document.querySelectorAll('.pack-option').forEach(el => el.classList.remove('border-amber-500', 'bg-amber-500/10'));
-        btn.classList.add('border-amber-500', 'bg-amber-500/10');
-        window.buyPack(amount, tokens);
-    };
-
 
     // --- AUTH LOGIC ---
     window.authTab = 'login';
@@ -471,46 +431,6 @@ window.requestAdminSecret = () => {
     });
 };
 
-// Modal Controllers
-window.showErrorModal = (msg) => {
-    const msgEl = document.getElementById('error-modal-msg');
-    if(msgEl) msgEl.innerText = msg;
-    document.getElementById('error-modal').classList.remove('hidden');
-    document.body.classList.add('stop-scrolling');
-    if (window.lucide) lucide.createIcons();
-};
-
-window.closeErrorModal = () => {
-    document.getElementById('error-modal').classList.add('hidden');
-    document.body.classList.remove('stop-scrolling');
-};
-
-window.showWithdrawSuccess = (usdAmount) => {
-    const usdEl = document.getElementById('payout-success-usd');
-    if(usdEl) usdEl.innerText = `$${usdAmount.toFixed(2)}`;
-    document.getElementById('withdraw-success-modal').classList.remove('hidden');
-    document.body.classList.add('stop-scrolling');
-    if (typeof confetti === 'function') confetti();
-    if (window.lucide) lucide.createIcons();
-};
-
-window.closeWithdrawSuccess = () => {
-    document.getElementById('withdraw-success-modal').classList.add('hidden');
-    document.body.classList.remove('stop-scrolling');
-};
-
-window.openWithdrawModal = () => {
-    document.getElementById('withdraw-modal').classList.remove('hidden');
-    document.body.classList.add('stop-scrolling');
-};
-
-window.closeWithdrawModal = () => {
-    document.getElementById('withdraw-modal').classList.add('hidden');
-    document.body.classList.remove('stop-scrolling');
-    document.getElementById('withdraw-amount').value = '';
-    document.getElementById('withdraw-email').value = '';
-};
-
 // Real-time Math for UI
 document.getElementById('withdraw-amount')?.addEventListener('input', (e) => {
     const tokens = parseInt(e.target.value) || 0;
@@ -655,16 +575,6 @@ window.searchUser = () => {
     });
 };
 
-// --- 2. MODAL CONTROLS ---
-window.closeDonateModal = () => {
-    document.getElementById('modern-donate-modal')?.classList.add('hidden');
-    document.body.classList.remove('stop-scrolling');
-};
-
-window.closeCreateModal = () => {
-    document.getElementById('create-campaign-modal')?.classList.add('hidden');
-    document.body.classList.remove('stop-scrolling');
-};
 
 document.getElementById('donate-input-amount')?.addEventListener('input', (e) => {
     const amount = parseInt(e.target.value) || 0;
@@ -1197,71 +1107,6 @@ switchView('campaigns');
 const cBtn = document.getElementById('confirm-donation-btn');
 if(cBtn) cBtn.onclick = window.confirmDonation;
 
-// --- . control models fotter---
-const toggleScrollLock = (isLocked) => {
-    if (isLocked) {
-        document.body.classList.add('stop-scrolling');
-    } else {
-        document.body.classList.remove('stop-scrolling');
-    }
-};
-
-window.openSupportChat = () => {
-    const el = document.getElementById('support-modal');
-    if(el) {
-        el.classList.remove('hidden');
-        toggleScrollLock(true);
-        if(window.lucide) lucide.createIcons();
-    }
-};
-
-window.closeSupportChat = () => {
-    document.getElementById('support-modal').classList.add('hidden');
-    toggleScrollLock(false);
-};
-
-window.openExploreModal = () => {
-    const el = document.getElementById('explore-modal');
-    if(el) {
-        el.classList.remove('hidden');
-        toggleScrollLock(true);
-        window.switchHubView('top-donors');
-    }
-};
-
-window.closeExploreModal = () => {
-    document.getElementById('explore-modal').classList.add('hidden');
-    toggleScrollLock(false);
-};
-
-window.openWalletModal = () => {
-    const el = document.getElementById('wallet-modal');
-    if(el) {
-        el.classList.remove('hidden');
-        const bal = document.getElementById('token-count')?.innerText || "0";
-        const walletDisplay = document.getElementById('wallet-token-count');
-        if(walletDisplay) walletDisplay.innerText = bal;
-        toggleScrollLock(true);
-    }
-};
-
-window.closeWalletModal = () => {
-    document.getElementById('wallet-modal').classList.add('hidden');
-    toggleScrollLock(false);
-};
-
-window.openAccountModal = () => {
-    const el = document.getElementById('account-modal');
-    if(el) {
-        el.classList.remove('hidden');
-        toggleScrollLock(true);
-    }
-};
-
-window.closeAccountModal = () => {
-    document.getElementById('account-modal').classList.add('hidden');
-    toggleScrollLock(false);
-};
 
 // --- HUB ENGINE ---
 
