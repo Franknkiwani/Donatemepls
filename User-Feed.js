@@ -1,7 +1,16 @@
-Import { ref, onValue, get, query, limitToLast } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+// 1. IMPORT CONFIGURATION
+import { 
+    ref, 
+    onValue, 
+    get, 
+    query, 
+    limitToLast, 
+    push, 
+    serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 import { auth, db } from './firebase-config.js';
-import { ref, onValue, get, query, limitToLast, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 
+// 2. CONSTANTS & UTILITIES
 const communityPresets = [
     "https://img.pikbest.com/origin/10/25/30/74apIkbEsT5qB.jpg!w700wp",
     "https://thumbs.dreamstime.com/b/cool-neon-party-wolf-headphones-black-background-colorful-illustration-music-theme-modern-portrait-bright-vibrant-385601082.jpg",
@@ -33,6 +42,7 @@ window.loadUserFeed = async () => {
     const feedGrid = document.getElementById('user-feed-grid');
     if (!feedGrid) return;
 
+    // Clean up old listeners to prevent memory leaks
     activeListeners.forEach(unsub => unsub());
     activeListeners = [];
 
@@ -55,7 +65,7 @@ window.loadUserFeed = async () => {
             card.id = `user-card-${uid}`;
             feedGrid.appendChild(card);
 
-            // Banners at 3, 8, 16
+            // Ad/Banner Injections at slots 3, 8, 16
             if (userPos === 3 || userPos === 8 || userPos === 16) {
                 const banner = document.createElement('div');
                 banner.className = "col-span-full my-6 overflow-hidden rounded-[28px] border border-white/10 shadow-2xl";
@@ -213,17 +223,17 @@ window.openQuickProfile = async (targetUid) => {
 window.closeQuickProfile = () => {
     toggleScroll(false);
     document.getElementById('quick-profile-modal').style.display = 'none';
-    window.history.replaceState(null, null, ' '); // Clears hash without jump
+    window.history.replaceState(null, null, ' '); 
 };
+
 // --- REQUEST SYSTEM ---
 window.openRequestPanel = (targetUid, username) => {
-    // Create overlay
     const overlay = document.createElement('div');
     overlay.id = 'request-panel-overlay';
     overlay.className = "fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300";
     
     overlay.innerHTML = `
-        <div class="bg-zinc-900 border border-white/10 w-full max-w-[400px] rounded-[35px] p-8 shadow-2xl relative scale-in-center">
+        <div class="bg-zinc-900 border border-white/10 w-full max-w-[400px] rounded-[35px] p-8 shadow-2xl relative">
             <h3 class="text-white font-black uppercase tracking-widest text-lg mb-2 italic">Send Request</h3>
             <p class="text-zinc-500 text-[10px] uppercase font-bold mb-6">Recipient: <span class="text-pink-500">@${username}</span></p>
             
@@ -265,13 +275,11 @@ window.submitRequest = async (targetUid) => {
         return;
     }
 
-    // UI Feedback
     btn.disabled = true;
     btn.innerText = "Processing...";
     btn.classList.add('opacity-50');
 
     try {
-        // Push request to a dedicated 'requests' node organized by the receiver's UID
         await push(ref(db, `requests/${targetUid}`), {
             senderUid: user.uid,
             senderName: user.displayName || "Anonymous",
