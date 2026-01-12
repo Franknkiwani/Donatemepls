@@ -14,6 +14,7 @@ import './campaigns-feed.js';
 import './security-guard.js';
 import './auth-sync.js';
 import './account.js';
+import './donation-client.js';
     import { 
         ref, update, onValue, get, set, push,
         query, orderByChild, limitToLast, endBefore 
@@ -502,18 +503,6 @@ window.searchUser = () => {
         card.classList.toggle('hidden', !(handle.includes(query) || email.includes(query)));
     });
 };
-
-
-document.getElementById('donate-input-amount')?.addEventListener('input', (e) => {
-    const amount = parseInt(e.target.value) || 0;
-    const net = Math.floor(amount * 0.7);
-    const notice = document.getElementById('fee-notice');
-    if(notice) {
-        notice.innerText = amount > 0 ? `Recipient receives: ${net} (30% fee applied)` : '';
-        notice.className = "text-[10px] font-bold text-pink-500 mt-2 italic";
-    }
-});
-
 
 // --- 3. VIEW SWITCHER ---
 window.switchView = (view) => {
