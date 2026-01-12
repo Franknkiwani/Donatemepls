@@ -1,7 +1,7 @@
 import admin from 'firebase-admin';
-import Groq from 'groq-sdk'; // Use the official Groq SDK
+import Groq from 'groq-sdk';
 
-// 1. Initialize Firebase
+// Initialize Firebase
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
@@ -9,52 +9,53 @@ if (!admin.apps.length) {
   });
 }
 const db = admin.database();
-
-// 2. Initialize Groq Client
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).send('Use POST');
-  const { image } = req.body; // Base64 from frontend
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  
+  const { image } = req.body; 
 
   try {
-    // 3. Upload to Imgur (Same logic as before)
-    const imgurFormData = new FormData();
-    imgurFormData.append('image', image);
-    const imgurRes = await fetch("https://api.imgur.com/3/image", {
-      method: "POST",
-      headers: { Authorization: `Client-ID ${process.env.IMGUR_CLIENT_ID}` },
-      body: imgurFormData
-    });
-    const imgurData = await imgurRes.json();
-    const imageUrl = imgurData.data.link;
-
-    // 4. Call GROQ Vision with Llama 3.2
+    // VISION MODEL: Llama 3.2 90B is required for images
     const chatCompletion = await groq.chat.completions.create({
-      model: "llama-3.2-11b-vision-preview", // Specified Vision model
+      model: "llama-3.2-90b-vision-preview", 
       messages: [
         {
           role: "user",
           content: [
-            { type: "text", text: "Analyze this DLS 26 team screenshot. List players and estimate total account value in USD." },
-            { type: "image_url", image_url: { url: imageUrl } }
+            { type: "text", text: "Identify all DLS 26 players in this image. Calculate the total account value if legendary players are worth $2 each. Format as: Value: [Amount] | Key Players: [Names]" },
+            { 
+              type: "image_url", 
+              image_url: { 
+                url: `data:image/jpeg;base64,${image}` 
+              } 
+            }
           ]
         }
       ],
-      temperature: 0.2
+      temperature: 0.1, // Low temp for factual accuracy
     });
 
     const aiText = chatCompletion.choices[0].message.content;
 
-    // 5. Save to Firebase
+    // Save to Firebase
     const reportRef = db.ref('audit_reports').push();
     const reportId = reportRef.key;
-    await reportRef.set({ reportId, imageUrl, analysis: aiText, timestamp: Date.now() });
+    await reportRef.set({
+      reportId,
+      analysis: aiText,
+      timestamp: Date.now()
+    });
 
-    return res.status(200).json({ success: true, reportId });
+    return res.status(200).json({ success: true, reportId, analysis: aiText });
 
   } catch (err) {
-    console.error("Audit Failed:", err.message);
-    return res.status(500).json({ error: "Groq Vision Connection Failed" });
+    // EXTREMELY IMPORTANT: This returns the REAL error message to your toast
+    console.error("Groq Error:", err);
+    return res.status(500).json({ 
+      error: err.message || "Unknown Groq Error",
+      tip: "Ensure model 'llama-3.2-90b-vision-preview' is active in your Groq tier."
+    });
   }
 }
