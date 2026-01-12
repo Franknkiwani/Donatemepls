@@ -1,116 +1,113 @@
 import { ref, get } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 import { db, auth } from './firebase-config.js';
 
-/**
- * 1. THE BRIDGE: Connects Feed Buttons to the Modal
- * Attached to window so onclick="handleTip" works
- */
+// --- 1. THE BRIDGES ---
+// Called from the User Feed
 window.handleTip = (uid, name, avatar) => {
-    // We pass 'user' as the default type from the user feed
     window.openDonateDossier(uid, name, avatar, 'user');
 };
 
-/**
- * 2. MODAL CONTROLLER: Opens and populates the modal
- */
+// Called from the Campaign Grid
+window.handleCampaignDonate = (id, title, image) => {
+    window.openDonateDossier(id, title, image, 'campaign');
+};
+
+// --- 2. MODAL CONTROLLER ---
 window.openDonateDossier = async (targetId, name, avatar, type) => {
     const modal = document.getElementById('modern-donate-modal');
     if (!modal) return;
 
+    // Show Modal
     modal.classList.remove('hidden');
     modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden'; // Lock scroll
+    document.body.style.overflow = 'hidden';
 
-    // Set temporary data while we fetch
-    document.getElementById('donate-target-name').innerText = `@${name}`;
+    // Set Initial UI (Fast)
+    document.getElementById('donate-target-name').innerText = type === 'campaign' ? name : `@${name}`;
     document.getElementById('donate-target-img').src = avatar || 'https://img.icons8.com/fluency/96/user-male-circle.png';
-    
-    // Reset input and notice
-    const amountInput = document.getElementById('donate-input-amount');
-    const notice = document.getElementById('fee-notice');
-    if(amountInput) amountInput.value = '';
-    if(notice) notice.innerText = '';
-
-    // LIVE FEE CALCULATION (Moved here from main script)
-    if (amountInput) {
-        amountInput.oninput = (e) => {
-            const amount = parseInt(e.target.value) || 0;
-            const net = Math.floor(amount * 0.7); // 70% to recipient
-            if(notice) {
-                notice.innerText = amount > 0 ? `Recipient receives: ${net} (30% fee applied)` : '';
-                notice.className = "text-[10px] font-bold text-emerald-500 mt-2 italic";
-            }
-        };
-    }
+    document.getElementById('donate-target-bio').innerText = "Establishing secure link...";
+    document.getElementById('donate-stat-raised').innerText = "0 TKN";
+    document.getElementById('donate-stat-donors').innerText = "0";
 
     try {
+        // Determine Data Path
         const path = type === 'campaign' ? `campaigns/${targetId}` : `users/${targetId}`;
         const snap = await get(ref(db, path));
         const data = snap.val() || {};
 
-        document.getElementById('donate-target-bio').innerText = data.bio || data.description || "Active Member";
+        // Update Bio/Description
+        const bioText = type === 'campaign' ? data.description : data.bio;
+        document.getElementById('donate-target-bio').innerText = bioText || (type === 'campaign' ? "No description provided." : "Active Member");
+
+        // Update Raised Amount
+        // Campaigns use 'raised', Users use 'totalReceivedTokens'
+        const raisedVal = type === 'campaign' ? (data.raised || 0) : (data.totalReceivedTokens || 0);
+        document.getElementById('donate-stat-raised').innerText = `${Number(raisedVal).toLocaleString()} TKN`;
+
+        // Update Supporter/Donor Count
+        // Check for 'donorCount' or the length of a 'donors' object
+        let donorCount = 0;
+        if (data.donorCount) {
+            donorCount = data.donorCount;
+        } else if (data.donors) {
+            donorCount = Object.keys(data.donors).length;
+        }
+        document.getElementById('donate-stat-donors').innerText = donorCount.toLocaleString();
         
-        const raised = type === 'campaign' ? (data.raised || 0) : (data.totalReceivedTokens || 0);
-        document.getElementById('donate-stat-raised').innerText = `${raised.toLocaleString()} TKN`;
-        
-        // Connect the "Confirm" button
+        // Refresh Lucide icons if any were injected
+        if (window.lucide) window.lucide.createIcons();
+
+        // Bind the Payment Button
         document.getElementById('confirm-donation-btn').onclick = () => window.executeTransmission(targetId, type);
-    } catch (e) { 
-        console.error("Fetch error:", e); 
+
+    } catch (e) {
+        console.error("Dossier Load Error:", e);
+        document.getElementById('donate-target-bio').innerText = "Error loading target data.";
     }
 };
 
-/**
- * 3. API TRANSMITTER: Sends the data to Vercel
- */
+// --- 3. API TRANSMITTER ---
 window.executeTransmission = async (targetId, type) => {
     const amountInput = document.getElementById('donate-input-amount');
-    const amount = amountInput ? amountInput.value : 0;
+    const amount = amountInput ? parseInt(amountInput.value) : 0;
     const btn = document.getElementById('confirm-donation-btn');
 
-    if (!amount || amount <= 0) {
-        if(window.notify) window.notify("Please enter a valid amount");
-        else alert("Enter amount");
-        return;
-    }
+    if (!amount || amount <= 0) return alert("Please enter a valid amount");
 
     btn.disabled = true;
     const originalText = btn.innerText;
     btn.innerText = "TRANSMITTING...";
 
     try {
-        const user = auth.currentUser;
-        if (!user) throw new Error("Please login to donate");
-
-        const idToken = await user.getIdToken();
+        const idToken = await auth.currentUser.getIdToken();
         
-        // CALL VERCEL
         const response = await fetch('/api/donate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idToken, targetId, amount: parseInt(amount), type })
+            body: JSON.stringify({ idToken, targetId, amount, type })
         });
 
         const res = await response.json();
 
         if (res.success) {
-            if(window.showCustomAlert) {
-                window.showCustomAlert("Success", `Sent ${res.netSent} tokens!`, "success");
-            } else {
-                alert("Success!");
-            }
+            window.closeDonateModal();
             
-            // Close modal and refresh after short delay
-            setTimeout(() => {
-                window.closeDonateModal();
-                location.reload(); 
-            }, 1500);
+            // Show Success Modal
+            const successModal = document.getElementById('donation-success-modal');
+            if (successModal) {
+                document.getElementById('success-net-amount').innerText = res.netSent || (amount * 0.7);
+                document.getElementById('success-gross-amount').innerText = amount;
+                document.getElementById('success-fee-amount').innerText = (amount - (res.netSent || amount * 0.7)).toFixed(0);
+                successModal.classList.remove('hidden');
+                successModal.style.display = 'flex';
+            }
         } else {
-            throw new Error(res.error || "Transaction failed");
+            alert(res.error || "Transaction failed");
+            btn.disabled = false;
+            btn.innerText = originalText;
         }
     } catch (err) {
-        if(window.showCustomAlert) window.showCustomAlert("Error", err.message, "error");
-        else alert(err.message);
+        alert("Server connection error");
         btn.disabled = false;
         btn.innerText = originalText;
     }
@@ -118,6 +115,14 @@ window.executeTransmission = async (targetId, type) => {
 
 window.closeDonateModal = () => {
     const modal = document.getElementById('modern-donate-modal');
-    if(modal) modal.classList.add('hidden');
-    document.body.style.overflow = ''; // Unlock scroll
+    if(modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    }
+    document.body.style.overflow = '';
+};
+
+window.closeSuccessModal = () => {
+    document.getElementById('donation-success-modal').classList.add('hidden');
+    location.reload(); 
 };
