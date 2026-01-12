@@ -22,7 +22,7 @@ export default async function handler(req, res) {
         const decodedToken = await auth.verifyIdToken(idToken);
         const senderUid = decodedToken.uid; 
 
-        // --- 1. FETCH SENDER DATA DYNAMICALLY ---
+        // --- 1. SENDER DATA ---
         const senderRef = db.ref(`users/${senderUid}`);
         const snap = await senderRef.get();
         const userData = snap.val() || {};
@@ -30,7 +30,6 @@ export default async function handler(req, res) {
         if (!userData.username) return res.status(404).json({ error: "Sender profile not found" });
         if (userData.banned || userData.isBanned) return res.status(403).json({ error: "ACCOUNT_BANNED" });
         
-        // Dynamic fetch of premium status
         const senderIsPremium = userData.isPremium || userData.premium || false;
 
         // --- 2. ADMIN VAULT VERIFICATION ---
@@ -52,7 +51,7 @@ export default async function handler(req, res) {
             currentStrikes = 0;
         }
 
-        // --- 4. FIND RECIPIENT & PREP LIVE FEED DATA ---
+        // --- 4. FIND RECIPIENT ---
         let recipientOwnerUid = targetId;
         let recipientDisplayName = "User";
         let recipientDisplayAvatar = "";
@@ -64,11 +63,11 @@ export default async function handler(req, res) {
             
             recipientOwnerUid = campData.creator;
             recipientDisplayName = campData.title || "Mission";
-            recipientDisplayAvatar = campData.image || "";
+            recipientDisplayAvatar = campData.imageUrl || "";
         } else {
             const recSnap = await db.ref(`users/${targetId}`).get();
             const recData = recSnap.val() || {};
-            recipientDisplayName = recData.username || "Ghost_Signal";
+            recipientDisplayName = recData.username || "Member";
             recipientDisplayAvatar = recData.avatar || "";
         }
 
@@ -93,13 +92,14 @@ export default async function handler(req, res) {
         updates[`users/${senderUid}/tokens`] = ServerValue.increment(-amount);
         updates[`users/${senderUid}/totalDonated`] = ServerValue.increment(amount);
 
-        // RECIPIENT UPDATES
+        // RECIPIENT UPDATES (Aligned with your profile keys)
         updates[`users/${recipientOwnerUid}/tokens`] = ServerValue.increment(netAmount);
+        updates[`users/${recipientOwnerUid}/totalReceivedTokens`] = ServerValue.increment(netAmount);
         updates[`users/${recipientOwnerUid}/totalEarned`] = ServerValue.increment(netAmount);
-        updates[`users/${recipientOwnerUid}/totalRaised`] = ServerValue.increment(netAmount);
         updates[`users/${recipientOwnerUid}/donorCount`] = ServerValue.increment(1);
+        updates[`users/${recipientOwnerUid}/reputation`] = ServerValue.increment(1); // Building Trust
 
-        // Campaign Specific
+        // Campaign Specific Logic
         if (type === 'campaign') {
             updates[`campaigns/${targetId}/raised`] = ServerValue.increment(netAmount);
             updates[`campaigns/${targetId}/donorsCount`] = ServerValue.increment(1);
@@ -111,19 +111,19 @@ export default async function handler(req, res) {
                 avatar: userData.avatar || '',
                 amount: netAmount,
                 timestamp: ServerValue.TIMESTAMP,
-                isPremium: senderIsPremium // Log premium status for campaign list
+                isPremium: senderIsPremium 
             };
         }
 
-        // --- 7. THE VAULT (Admin Fee) ---
+        // --- 7. ADMIN VAULT ---
         updates[`users/${BLOCKED_ADMIN_UID}/tokens`] = ServerValue.increment(feeAmount);
 
-        // --- 8. GLOBAL LIVE FEED LOG ---
+        // --- 8. GLOBAL LIVE FEED ---
         const liveLogId = db.ref('donations').push().key;
         updates[`donations/${liveLogId}`] = {
             fromName: userData.username,
             fromAvatar: userData.avatar || "",
-            fromIsPremium: senderIsPremium, // Fetched dynamically from DB
+            fromIsPremium: senderIsPremium,
             toName: recipientDisplayName,
             toAvatar: recipientDisplayAvatar,
             amount: amount,
@@ -131,7 +131,6 @@ export default async function handler(req, res) {
             type: type
         };
 
-        // EXECUTE ALL CHANGES ATOMICALLY
         await db.ref().update(updates);
 
         return res.status(200).json({ 
