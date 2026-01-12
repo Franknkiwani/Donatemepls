@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DLS Market | AI Account Auditor & Valuation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0f172a; color: white; }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .dls-gradient { background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); }
+        .glow { box-shadow: 0 0 20px rgba(37, 99, 235, 0.3); }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-950">
+
+    <nav class="p-6 flex justify-between items-center border-b border-white/10">
+        <div class="text-2xl font-black tracking-tighter text-blue-500">DLS<span class="text-white">MARKET</span></div>
+        <div class="space-x-6 text-sm font-medium text-gray-400">
+            <a href="#" class="hover:text-white transition">How it works</a>
+            <a href="#" class="hover:text-white transition">Anti-Scam Guide</a>
+            <button class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition">Login</button>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto pt-20 px-6 text-center">
+        <h1 class="text-5xl md:text-7xl font-black mb-6 leading-tight">
+            Stop Scams. Know your <span class="text-blue-500">Team Value.</span>
+        </h1>
+        <p class="text-gray-400 text-lg mb-12 max-w-2xl mx-auto">
+            Upload your DLS 26 team screenshot. Our AI (Grok) audits your players, identifies rare legacy cards, and gives you a certified market price.
+        </p>
+
+        <div id="drop-zone" class="glass rounded-3xl p-12 mb-12 border-2 border-dashed border-blue-500/30 hover:border-blue-500 transition cursor-pointer relative overflow-hidden">
+            <input type="file" id="file-input" class="hidden" accept="image/*">
+            <div id="upload-content">
+                <div class="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                </div>
+                <h3 class="text-xl font-bold mb-2">Drop Team Management Screenshot</h3>
+                <p class="text-gray-500">Supports JPG, PNG (Max 10MB)</p>
+            </div>
+            
+            <div id="loading" class="hidden py-8">
+                <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <p class="text-blue-400 font-bold">Grok is auditing your squad...</p>
+            </div>
+        </div>
+
+        <div class="text-left">
+            <h4 class="text-sm font-bold uppercase tracking-widest text-gray-500 mb-6 flex items-center">
+                <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                Recent Verified Reports
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="recent-feed">
+                <div class="glass p-4 rounded-xl text-sm">
+                    <div class="flex justify-between mb-2">
+                        <span class="font-bold text-blue-400">Value: $42.50</span>
+                        <span class="text-gray-500 text-xs">2m ago</span>
+                    </div>
+                    <p class="text-gray-300">Maxed Haaland + 94 Messi</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const uploadContent = document.getElementById('upload-content');
+        const loading = document.getElementById('loading');
+
+        dropZone.onclick = () => fileInput.click();
+
+        fileInput.onchange = (e) => handleUpload(e.target.files[0]);
+
+        async function handleUpload(file) {
+            if (!file) return;
+            
+            // UI Switch
+            uploadContent.classList.add('hidden');
+            loading.classList.remove('hidden');
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                const base64 = reader.result.split(',')[1];
+                
+                try {
+                    // This calls your Vercel Function
+                    const res = await fetch('/api/audit', {
+                        method: 'POST',
+                        body: JSON.stringify({ image: base64 }),
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const data = await res.json();
+                    
+                    // Redirect to the report page created in Firebase
+                    window.location.href = `/report/${data.reportId}`;
+                } catch (err) {
+                    alert("Audit failed. Please try again.");
+                    loading.classList.add('hidden');
+                    uploadContent.classList.remove('hidden');
+                }
+            };
+        }
+    </script>
+</body>
+</html>
