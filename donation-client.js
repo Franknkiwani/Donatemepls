@@ -1,21 +1,23 @@
 import { ref, get } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 import { db, auth } from './firebase-config.js';
 
-// --- 1. THE BRIDGES ---
-// Called from the User Feed
-window.handleTip = (uid, name, avatar) => {
-    window.openDonateDossier(uid, name, avatar, 'user');
+// --- 1. THE BRIDGES (Connecting to your other scripts) ---
+
+// Matches handleDonateCampaign(id, title) in your campaign.js
+window.handleDonateCampaign = (id, title) => {
+    // We pass an empty string for avatar; the fetch logic below will grab the real imageUrl from DB
+    window.openDonateDossier(id, title, '', 'campaign');
 };
 
-// Called from the Campaign Grid
-window.handleCampaignDonate = (id, title, image) => {
-    window.openDonateDossier(id, title, image, 'campaign');
+// Matches handleTip(uid, name, avatar) in your user feed
+window.handleTip = (uid, name, avatar) => {
+    window.openDonateDossier(uid, name, avatar, 'user');
 };
 
 // --- 2. MODAL CONTROLLER ---
 window.openDonateDossier = async (targetId, name, avatar, type) => {
     const modal = document.getElementById('modern-donate-modal');
-    if (!modal) return;
+    if (!modal) return console.error("Modal #modern-donate-modal not found in HTML");
 
     // Show Modal
     modal.classList.remove('hidden');
@@ -40,22 +42,17 @@ window.openDonateDossier = async (targetId, name, avatar, type) => {
         document.getElementById('donate-target-bio').innerText = bioText || (type === 'campaign' ? "No description provided." : "Active Member");
 
         // Update Raised Amount
-        // Campaigns use 'raised', Users use 'totalReceivedTokens'
         const raisedVal = type === 'campaign' ? (data.raised || 0) : (data.totalReceivedTokens || 0);
         document.getElementById('donate-stat-raised').innerText = `${Number(raisedVal).toLocaleString()} TKN`;
 
         // Update Supporter/Donor Count
-        // Check for 'donorCount' or the length of a 'donors' object
-        let donorCount = 0;
-        if (data.donorCount) {
-            donorCount = data.donorCount;
-        } else if (data.donors) {
-            donorCount = Object.keys(data.donors).length;
-        }
+        let donorCount = data.donorCount || (data.donors ? Object.keys(data.donors).length : 0);
         document.getElementById('donate-stat-donors').innerText = donorCount.toLocaleString();
         
-        // Refresh Lucide icons if any were injected
-        if (window.lucide) window.lucide.createIcons();
+        // If it's a campaign and we didn't have an image, use the one from DB
+        if (type === 'campaign' && data.imageUrl) {
+            document.getElementById('donate-target-img').src = data.imageUrl;
+        }
 
         // Bind the Payment Button
         document.getElementById('confirm-donation-btn').onclick = () => window.executeTransmission(targetId, type);
@@ -79,7 +76,10 @@ window.executeTransmission = async (targetId, type) => {
     btn.innerText = "TRANSMITTING...";
 
     try {
-        const idToken = await auth.currentUser.getIdToken();
+        const user = auth.currentUser;
+        if (!user) throw new Error("Please log in first");
+        
+        const idToken = await user.getIdToken();
         
         const response = await fetch('/api/donate', {
             method: 'POST',
@@ -92,7 +92,6 @@ window.executeTransmission = async (targetId, type) => {
         if (res.success) {
             window.closeDonateModal();
             
-            // Show Success Modal
             const successModal = document.getElementById('donation-success-modal');
             if (successModal) {
                 document.getElementById('success-net-amount').innerText = res.netSent || (amount * 0.7);
@@ -107,12 +106,13 @@ window.executeTransmission = async (targetId, type) => {
             btn.innerText = originalText;
         }
     } catch (err) {
-        alert("Server connection error");
+        alert(err.message || "Server connection error");
         btn.disabled = false;
         btn.innerText = originalText;
     }
 };
 
+// --- 4. CLOSING LOGIC ---
 window.closeDonateModal = () => {
     const modal = document.getElementById('modern-donate-modal');
     if(modal) {
@@ -123,6 +123,31 @@ window.closeDonateModal = () => {
 };
 
 window.closeSuccessModal = () => {
-    document.getElementById('donation-success-modal').classList.add('hidden');
+    const successModal = document.getElementById('donation-success-modal');
+    if(successModal) {
+        successModal.classList.add('hidden');
+        successModal.style.display = 'none';
+    }
     location.reload(); 
 };
+
+// --- 5. EVENT LISTENERS FOR CLOSABILITY ---
+
+// Close on Backdrop Click
+window.addEventListener('click', (e) => {
+    const donateModal = document.getElementById('modern-donate-modal');
+    const successModal = document.getElementById('donation-success-modal');
+    
+    if (e.target === donateModal) window.closeDonateModal();
+    if (e.target === successModal) window.closeSuccessModal();
+});
+
+// Close on Escape Key
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        window.closeDonateModal();
+        // We don't reload on escape for success modal to avoid accidental refreshes
+        const successModal = document.getElementById('donation-success-modal');
+        if (successModal) successModal.classList.add('hidden');
+    }
+});
