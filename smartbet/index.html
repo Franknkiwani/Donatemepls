@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Smart Bet Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #050505; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .glass-card { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; }
+        .neon-text { color: #00ffa3; text-shadow: 0 0 10px rgba(0,255,163,0.3); }
+        .ai-badge { background: linear-gradient(90deg, #00ffa3, #00d1ff); color: #000; font-weight: 800; font-size: 0.7rem; padding: 2px 8px; border-radius: 5px; }
+        .odds-pill { background: rgba(0, 255, 163, 0.1); border: 1px solid #00ffa3; color: #00ffa3; border-radius: 8px; font-weight: bold; }
+    </style>
+</head>
+<body class="p-4 pb-20">
+
+    <header class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-black italic tracking-tighter">SMART<span class="neon-text">BET</span></h1>
+            <p class="text-gray-500 text-xs uppercase tracking-widest">Daily Strategic Picks</p>
+        </div>
+        <div class="h-10 w-10 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700">
+            <span class="text-xs">AI</span>
+        </div>
+    </header>
+
+    <div id="fixtures-container" class="space-y-4">
+        <div class="text-center py-10 text-gray-600">Scanning Top 5 Leagues...</div>
+    </div>
+
+    <nav class="fixed bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur-md border-t border-white/10 flex justify-around">
+        <button class="neon-text font-bold">Today</button>
+        <button class="text-gray-500">History</button>
+        <button class="text-gray-500">Settings</button>
+    </nav>
+
+    <script>
+        const API_KEY = '826ccd6998728ab23f00ac7ad0546c2b';
+        const LEAGUES = ['soccer_epl', 'soccer_spain_la_liga', 'soccer_germany_bundesliga', 'soccer_italy_serie_a', 'soccer_france_ligue_1'];
+
+        async function fetchDailyMatches() {
+            const container = document.getElementById('fixtures-container');
+            container.innerHTML = ''; 
+            let hasMatches = false;
+
+            for (const league of LEAGUES) {
+                const res = await fetch(`https://api.the-odds-api.com/v4/sports/${league}/odds/?apiKey=${API_KEY}&regions=uk&markets=h2h`);
+                const data = await res.json();
+
+                // Filter for matches happening TODAY (local time)
+                const today = new Date().toISOString().split('T')[0];
+                const todaysMatches = data.filter(m => m.commence_time.startsWith(today));
+
+                if (todaysMatches.length > 0) {
+                    hasMatches = true;
+                    todaysMatches.forEach(match => renderMatch(match));
+                }
+            }
+
+            if (!hasMatches) {
+                container.innerHTML = `<div class="glass-card p-10 text-center text-gray-400 font-bold">NO FIXTURES TODAY</div>`;
+            }
+        }
+
+        function renderMatch(match) {
+            const container = document.getElementById('fixtures-container');
+            const bookie = match.bookmakers[0];
+            const odds = bookie ? bookie.markets[0].outcomes : [];
+            
+            // Logic: This is where you call your Vercel/Groq API for the AI prediction
+            // For now, it shows a placeholder prediction
+            const card = `
+                <div class="glass-card p-5">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="ai-badge">AI RECOMMENDED</span>
+                        <span class="text-[10px] text-gray-500">${new Date(match.commence_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                    </div>
+                    
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="text-center w-1/3">
+                            <p class="font-bold text-sm truncate">${match.home_team}</p>
+                        </div>
+                        <div class="text-zinc-600 text-xs font-black">VS</div>
+                        <div class="text-center w-1/3">
+                            <p class="font-bold text-sm truncate">${match.away_team}</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2 mb-4">
+                        ${odds.map(o => `
+                            <div class="odds-pill p-2 text-center text-xs">
+                                <div class="text-[8px] opacity-60">${o.name}</div>
+                                ${o.price}
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                        <p class="text-[10px] text-gray-400 uppercase font-bold mb-1">Realistic Outcome</p>
+                        <p class="text-sm font-medium">Analyzing previous results... (Connecting to Groq)</p>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += card;
+        }
+
+        fetchDailyMatches();
+    </script>
+</body>
+</html>
